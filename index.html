@@ -428,7 +428,9 @@ function viewDevis(){
   }
   state.devis.forEach(function(d){
     var t=totals(d.lignes,state.settings.partService); var fs=facturesDuDevis(d.id);
-    var aA=fs.some(function(f){return f.type==="acompte";}), aS=fs.some(function(f){return f.type==="solde";}), aT=fs.some(function(f){return f.type==="totale";});
+    var ac=fs.find(function(f){return f.type==="acompte";});
+    var aA=!!ac, aS=fs.some(function(f){return f.type==="solde";}), aT=fs.some(function(f){return f.type==="totale";});
+    var acomptePaye=!!(ac && ac.statut==="payee");
     var sd=ST_DEVIS[d.statut]||ST_DEVIS.brouillon;
     var delPending = ui.confirmDelete === "devis:"+d.id;
     html+='<div class="card"><div class="flexb"><div>'+
@@ -441,8 +443,9 @@ function viewDevis(){
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
         (d.statut!=="accepte"&&d.statut!=="refuse"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
         (d.statut!=="refuse"&&d.statut!=="accepte"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
-        (d.statut==="accepte"&&!aA&&!aT?'<button class="btn small gold" data-action="fac-acompte-'+d.id+'">Facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Facture totale (100 %)</button>':'')+
-        (aA&&!aS?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'')+
+        (d.statut==="accepte"&&!aA&&!aT?'<button class="btn small gold" data-action="fac-acompte-'+d.id+'">Facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Facture complète (100 %)</button>':'')+
+        (d.statut==="accepte"&&aA&&!aS&&acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'')+
+        (d.statut==="accepte"&&aA&&!aS&&!acomptePaye?'<span class="muted" style="align-self:center;font-size:12px;">Solde disponible après paiement de l\'acompte.</span>':'')+
         '<button class="btn small danger" data-action="devis-del-'+d.id+'">'+(delPending?'Confirmer suppression':'Supprimer')+'</button>'+
       '</div>'+
       (fs.length?'<div class="muted" style="margin-top:10px;">Factures liées : '+fs.map(function(f){return esc(f.numero)+" ("+TYPE_FAC[f.type].toLowerCase()+")";}).join(" · ")+'</div>':'')+
@@ -747,12 +750,24 @@ function captureCommandeOpen(){
   var f=c.factureId?state.factures.find(function(x){return x.id===c.factureId;}):null;
   if(f){ var t=totals(c.lignes||[],state.settings.partService); f.date=c.dateCommande; f.echeance=addDays(c.dateCommande,state.settings.delaiPaiement); f.client=c.clientObj; f.lignes=(c.lignes||[]).map(function(l){return Object.assign({},l);}); f.notes=c.notes; f.montantBiens=t.biens; f.montantServices=t.services; f.montant=t.total; }
 }
+function lierFactureACommande(devisId, facture){
+  if(!devisId||!facture) return;
+  var c=state.commandes.find(function(x){return x.devisId===devisId;});
+  if(c){
+    c.factureId=facture.id;
+    c.historique=c.historique||[];
+    if(!c.historique.some(function(h){return (h.texte||"").indexOf(facture.numero)>=0;})){
+      c.historique.unshift({date:todayISO(),texte:"Facture "+facture.numero+" liée à la commande."});
+    }
+  }
+}
 function creerAcompte(d){
   var t=totals(d.lignes,state.settings.partService), p=state.settings.acompteParDefaut, date=todayISO();
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis" };
   state.factures.unshift(f);
+  lierFactureACommande(d.id, f);
   return f;
 }
 function creerSolde(d){
@@ -761,6 +776,7 @@ function creerSolde(d){
   var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis" };
   state.factures.unshift(f);
+  lierFactureACommande(d.id, f);
   return f;
 }
 function creerTotale(d){
@@ -768,6 +784,7 @@ function creerTotale(d){
   var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", datePaiement:null, origine:"devis" };
   state.factures.unshift(f);
+  lierFactureACommande(d.id, f);
   return f;
 }
 function commandeExistePourDevis(devisId){ return state.commandes.some(function(c){return c.devisId===devisId;}); }
@@ -786,15 +803,16 @@ function creerCommandeDepuisDevis(d, facture){
 function validerDevisEtCreerSuivi(d){
   if(!d) return null;
   d.statut="accepte";
-  var facture=facturesDuDevis(d.id).find(function(f){return f.type==="totale";}) || facturesDuDevis(d.id)[0] || creerTotale(d);
-  var commande=creerCommandeDepuisDevis(d, facture);
+  // Le devis accepté crée la commande à préparer, mais laisse le choix de facturation :
+  // acompte 30 % ou facture complète depuis l'onglet Devis.
+  var commande=creerCommandeDepuisDevis(d, null);
   var mariage=state.mariages.find(function(m){return m.devisLie===d.id;});
   if(mariage){
     mariage.devisEnvoye=true;
     if(!mariage.devisDate) mariage.devisDate=todayISO();
     if(mariage.statut==="contact"||mariage.statut==="devis_envoye") mariage.statut="devis_accepte";
   }
-  return {facture:facture, commande:commande};
+  return {facture:null, commande:commande};
 }
 
 /* ===================== Catalogue ===================== */
@@ -1387,7 +1405,14 @@ function handleAction(action){
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement ce devis."); return; }
     state.devis=state.devis.filter(function(d){return d.id!==did;}); ui.confirmDelete=null; saveCache(); render(); toast("Devis supprimé."); return; }
   if(action.indexOf("devis-st-")===0){ var rest=action.slice(9); var i=rest.lastIndexOf("-"); var id=rest.slice(0,i), st=rest.slice(i+1); var d=findDevis(id); if(d){
-    if(st==="accepte"){ var res=validerDevisEtCreerSuivi(d); saveCache(); ui.tab="commandes"; ui.commandeOpen=res&&res.commande?res.commande.id:null; render(); toast(res&&res.commande?"Devis accepté : facture et commande créées.":"Devis accepté : la commande existait déjà."); }
+    if(st==="accepte"){
+      var res=validerDevisEtCreerSuivi(d);
+      saveCache();
+      ui.tab="devis";
+      ui.commandeOpen=null;
+      render();
+      toast("Devis accepté : choisis maintenant facture d'acompte ou facture complète.");
+    }
     else { d.statut=st; saveCache(); render(); }
   } return; }
 
@@ -1430,7 +1455,21 @@ function handleAction(action){
   // factures
   if(action.indexOf("fac-preview-")===0){ var f=state.factures.find(function(x){return x.id===action.slice(12);}); ui.preview={kind:"facture",doc:f}; renderModal(); return; }
   if(action.indexOf("fac-email-")===0){ var fe=state.factures.find(function(x){return x.id===action.slice(10);}); envoyerDocumentEmail("facture", fe); return; }
-  if(action.indexOf("fac-paid-")===0){ var fp=state.factures.find(function(x){return x.id===action.slice(9);}); if(fp){ fp.statut="payee"; fp.datePaiement=fp.datePaiement||todayISO(); saveCache(); render(); } return; }
+  if(action.indexOf("fac-paid-")===0){
+    var fp=state.factures.find(function(x){return x.id===action.slice(9);});
+    if(fp){
+      fp.statut="payee"; fp.datePaiement=fp.datePaiement||todayISO();
+      if(fp.type==="acompte" && fp.devisId){
+        var dd=findDevis(fp.devisId);
+        var hasSolde=facturesDuDevis(fp.devisId).some(function(f){return f.type==="solde";});
+        var hasTotale=facturesDuDevis(fp.devisId).some(function(f){return f.type==="totale";});
+        if(dd && !hasSolde && !hasTotale){ creerSolde(dd); toast("Acompte payé : facture de solde créée."); }
+        else { toast("Facture marquée payée."); }
+      } else { toast("Facture marquée payée."); }
+      saveCache(); render();
+    }
+    return;
+  }
   if(action.indexOf("fac-st-")===0){ var r2s=action.slice(7); var j=r2s.lastIndexOf("-"); var fid=r2s.slice(0,j), st2=r2s.slice(j+1); var ff=state.factures.find(function(x){return x.id===fid;}); if(ff){ ff.statut=st2; if(st2!=="payee") ff.datePaiement=null; saveCache(); render(); } return; }
   if(action.indexOf("fac-del-")===0){ var fdid=action.slice(8), key="facture:"+fdid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette facture."); return; }
