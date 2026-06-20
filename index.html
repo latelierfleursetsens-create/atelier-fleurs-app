@@ -8,6 +8,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   :root{
     /* Palette inspirée du site L’Atelier Fleurs & Sens */
@@ -179,6 +180,8 @@ var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l
   accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"} };
 var ST_FAC={ a_envoyer:{l:"À envoyer",c:"var(--ink-s)",b:"#efe7df"}, envoyee:{l:"Envoyée",c:"#6a5a2a",b:"#f3ead0"}, payee:{l:"Payée",c:"var(--green)",b:"var(--green-s)"} };
 var TYPE_FAC={ acompte:"Facture d'acompte", solde:"Facture de solde", totale:"Facture" };
+var MAIL_WORKER_URL="https://atelier-fleurs-mail.latelierfleursetsens.workers.dev/";
+
 
 /* ===================== Firebase (cloud sécurisé) ===================== */
 var firebaseConfig={ apiKey:"AIzaSyCPuUcFt99zQsUI1lBDSEZkX-RJHtgs5BY", authDomain:"l-atelier-fleurs-et-sens.firebaseapp.com", projectId:"l-atelier-fleurs-et-sens", storageBucket:"l-atelier-fleurs-et-sens.firebasestorage.app", messagingSenderId:"520271601373", appId:"1:520271601373:web:150541ed9bf7091b804534" };
@@ -434,6 +437,7 @@ function viewDevis(){
       '<span class="badge" style="color:'+sd.c+';background:'+sd.b+';">'+sd.l+'</span></div>'+
       '<div class="row-actions">'+
         '<button class="btn small ghost" data-action="devis-preview-'+d.id+'">Aperçu / PDF</button>'+
+        '<button class="btn small gold" data-action="devis-email-'+d.id+'">Envoyer par email</button>'+
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
         (d.statut!=="accepte"&&d.statut!=="refuse"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
         (d.statut!=="refuse"&&d.statut!=="accepte"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
@@ -533,6 +537,7 @@ function viewFactures(){
       '<span class="badge" style="color:'+sf.c+';background:'+sf.b+';">'+sf.l+'</span></div>'+ 
       '<div class="row-actions">'+ 
         '<button class="btn small ghost" data-action="fac-preview-'+f.id+'">Aperçu / PDF</button>'+ 
+        '<button class="btn small gold" data-action="fac-email-'+f.id+'">Envoyer par email</button>'+ 
         (f.statut==="a_envoyer"?'<button class="btn small soft" data-action="fac-st-'+f.id+'-envoyee">Marquer envoyée</button>':'')+ 
         (f.statut!=="payee"?'<button class="btn small gold" data-action="fac-paid-'+f.id+'">Marquer payée</button>':'')+ 
         (f.statut==="payee"?'<button class="btn small ghost" data-action="fac-st-'+f.id+'-envoyee">Annuler paiement</button>':'')+ 
@@ -932,7 +937,7 @@ function viewDoc(p){
     '<p style="margin:0;">'+esc(s.mentionTVA)+'.</p></div>';
   var signature = kind==="devis" ? '<div style="margin-top:26px;font-size:12px;"><div style="font-weight:700;">Bon pour accord</div><div class="muted">Date et signature du client :</div><div style="margin-top:30px;border-top:1px solid var(--line);width:200px;"></div></div>' : '';
   return '<div class="modal" id="modal"><div class="modal-inner">'+
-    '<div class="modal-actions"><button class="btn gold" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
+    '<div class="modal-actions"><button class="btn gold" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn primary" data-action="doc-email">Envoyer par email</button><button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
     '<div class="doc" id="doc">'+
       '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;"><div>'+logoImg+emetteur+'</div><div style="text-align:right;">'+rightInfo+'</div></div>'+
       client+acEncart+
@@ -1243,6 +1248,110 @@ function openMedia(id){
   else { var a=document.createElement("a"); a.href=md.dataUrl; a.download=md.name||"fichier"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
 }
 
+
+/* ===================== Envoi email via Brevo / Cloudflare ===================== */
+function emailValide(email){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email||"").trim()); }
+function docTitle(kind, doc){
+  return kind==="devis" ? "Devis " + (doc.numero||"") : ((TYPE_FAC[doc.type]||"Facture") + " " + (doc.numero||""));
+}
+function docFileName(kind, doc){
+  var base=(kind==="devis"?"devis":"facture")+"-"+(doc.numero||"document");
+  return base.replace(/[^a-z0-9_-]+/gi,"-").replace(/-+/g,"-") + ".pdf";
+}
+function docSubject(kind, doc){
+  return (kind==="devis" ? "Votre devis " : "Votre facture ") + (doc.numero||"") + " - L'Atelier Fleurs & Sens";
+}
+function docMailMessage(kind, doc){
+  var nom=doc.client&&doc.client.nom?doc.client.nom:"";
+  var titre=docTitle(kind,doc);
+  var mot=kind==="devis"?"devis":"facture";
+  return '<div style="font-family:Arial,sans-serif;font-size:15px;color:#303437;line-height:1.5;">'+
+    '<p>Bonjour '+esc(nom)+',</p>'+ 
+    '<p>Veuillez trouver ci-joint votre '+esc(mot)+' <b>'+esc(doc.numero||"")+'</b>.</p>'+ 
+    '<p>Je reste disponible si vous avez la moindre question.</p>'+ 
+    '<p style="margin-top:22px;">Bien cordialement,<br><b>L’Atelier Fleurs &amp; Sens</b><br>Des fleurs, des émotions, un instant pour soi<br>'+esc(state.settings.email||"latelierfleursetsens@gmail.com")+'</p>'+ 
+    '</div>';
+}
+function clientEmailOrPrompt(doc){
+  var current=(doc.client&&doc.client.email)||"";
+  var email=prompt("Adresse email du client :", current);
+  if(email===null) return null;
+  email=String(email).trim();
+  if(!emailValide(email)){ toast("Adresse email invalide."); return null; }
+  if(doc.client) doc.client.email=email;
+  return email;
+}
+function buildDocElementForPdf(kind, doc){
+  var wrap=document.createElement("div");
+  wrap.innerHTML=viewDoc({kind:kind,doc:doc});
+  var node=wrap.querySelector("#doc");
+  if(!node) return null;
+  var clone=node.cloneNode(true);
+  clone.id="doc-email-temp";
+  var holder=document.createElement("div");
+  holder.id="doc-email-holder";
+  holder.style.cssText="position:fixed;left:-10000px;top:0;width:760px;background:#fff;z-index:-1;";
+  holder.appendChild(clone);
+  document.body.appendChild(holder);
+  return {holder:holder,node:clone};
+}
+async function pdfBase64FromDoc(kind, doc){
+  if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
+  var built=buildDocElementForPdf(kind, doc);
+  if(!built) throw new Error("Document introuvable");
+  try{
+    var opt={
+      margin:8,
+      filename:docFileName(kind, doc),
+      image:{type:"jpeg",quality:0.98},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}
+    };
+    var dataUri=await html2pdf().set(opt).from(built.node).outputPdf("datauristring");
+    return String(dataUri).split(",")[1];
+  } finally {
+    if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
+  }
+}
+function markDocSent(kind, doc){
+  if(kind==="devis"){
+    if(doc.statut==="brouillon") doc.statut="envoye";
+    doc.emailEnvoyeLe=todayISO();
+    var m=state.mariages.find(function(x){return x.devisLie===doc.id;});
+    if(m){ m.devisEnvoye=true; if(!m.devisDate) m.devisDate=todayISO(); if(m.statut==="contact") m.statut="devis_envoye"; }
+  } else if(kind==="facture"){
+    if(doc.statut!=="payee") doc.statut="envoyee";
+    doc.emailEnvoyeeLe=todayISO();
+    if(doc.devisId){
+      var m2=state.mariages.find(function(x){return x.devisLie===doc.devisId;});
+      if(m2){ m2.factureEnvoyee=true; if(!m2.factureDate) m2.factureDate=todayISO(); }
+    }
+  }
+}
+async function envoyerDocumentEmail(kind, doc){
+  if(!doc){ toast("Document introuvable."); return; }
+  var email=clientEmailOrPrompt(doc); if(!email) return;
+  var nom=(doc.client&&doc.client.nom)||"Client";
+  var titre=docTitle(kind, doc);
+  toast("Préparation du PDF…");
+  try{
+    var pdf64=await pdfBase64FromDoc(kind, doc);
+    toast("Envoi de l'email…");
+    var res=await fetch(MAIL_WORKER_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+      email:email,
+      nom:nom,
+      sujet:docSubject(kind, doc),
+      message:docMailMessage(kind, doc),
+      attachment:{ name:docFileName(kind, doc), content:pdf64 }
+    })});
+    var txt=await res.text();
+    if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
+    markDocSent(kind, doc);
+    saveCache(); render();
+    toast(titre+" envoyé par email à "+email+".");
+  } catch(e){ console.error(e); toast("Envoi impossible : "+(e&&e.message?e.message:"vérifie le Worker Cloudflare / Brevo.")); }
+}
+
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
@@ -1272,6 +1381,7 @@ function handleAction(action){
 
   // devis
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
+  if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
   if(action.indexOf("devis-del-")===0){ var did=action.slice(10), key="devis:"+did;
     if(facturesDuDevis(did).length){ toast("Impossible : supprime d'abord les factures liées à ce devis."); return; }
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement ce devis."); return; }
@@ -1319,6 +1429,7 @@ function handleAction(action){
 
   // factures
   if(action.indexOf("fac-preview-")===0){ var f=state.factures.find(function(x){return x.id===action.slice(12);}); ui.preview={kind:"facture",doc:f}; renderModal(); return; }
+  if(action.indexOf("fac-email-")===0){ var fe=state.factures.find(function(x){return x.id===action.slice(10);}); envoyerDocumentEmail("facture", fe); return; }
   if(action.indexOf("fac-paid-")===0){ var fp=state.factures.find(function(x){return x.id===action.slice(9);}); if(fp){ fp.statut="payee"; fp.datePaiement=fp.datePaiement||todayISO(); saveCache(); render(); } return; }
   if(action.indexOf("fac-st-")===0){ var r2s=action.slice(7); var j=r2s.lastIndexOf("-"); var fid=r2s.slice(0,j), st2=r2s.slice(j+1); var ff=state.factures.find(function(x){return x.id===fid;}); if(ff){ ff.statut=st2; if(st2!=="payee") ff.datePaiement=null; saveCache(); render(); } return; }
   if(action.indexOf("fac-del-")===0){ var fdid=action.slice(8), key="facture:"+fdid;
@@ -1383,6 +1494,7 @@ function handleAction(action){
   // doc modal
   if(action==="doc-close"){ ui.preview=null; renderModal(); return; }
   if(action==="doc-print"){ window.print(); return; }
+  if(action==="doc-email"){ if(ui.preview){ envoyerDocumentEmail(ui.preview.kind, ui.preview.doc); } return; }
 }
 function val(id){ var e=document.getElementById(id); return e?e.value:""; }
 
