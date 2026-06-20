@@ -527,8 +527,28 @@ function captureWizardInputs(){ // lit les champs avant un changement d'étape
 }
 
 /* ===================== Factures : liste ===================== */
+function devisAFacturerHTML(){
+  var devis=state.devis.filter(function(d){ return d.statut==="accepte"; });
+  var html="";
+  devis.forEach(function(d){
+    var fs=facturesDuDevis(d.id);
+    var ac=fs.find(function(f){return f.type==="acompte";});
+    var hasAcompte=!!ac;
+    var hasSolde=fs.some(function(f){return f.type==="solde";});
+    var hasTotale=fs.some(function(f){return f.type==="totale";});
+    var acomptePaye=!!(ac && ac.statut==="payee");
+    var t=totals(d.lignes,state.settings.partService);
+    if(!hasAcompte && !hasTotale){
+      html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
+    } else if(hasAcompte && !hasSolde && !hasTotale){
+      html+='<div class="card" style="border-color:var(--line);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte créé '+(acomptePaye?'et payé. Tu peux créer le solde.':'mais pas encore marqué payé. Le solde sera disponible après paiement de l\'acompte.')+'</div><div class="row-actions">'+(acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'<button class="btn small soft" disabled>Solde disponible après paiement de l\'acompte</button>')+'</div></div>';
+    }
+  });
+  return html;
+}
 function viewFactures(){
   var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Mes factures</h2><button class="btn primary" data-action="fac-new">+ Nouvelle facture</button></div>';
+  html+=devisAFacturerHTML();
   if(ui.factureDraft){ html+=viewFactureManualForm(); }
   if(state.factures.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>'; return html; }
   state.factures.forEach(function(f){
@@ -765,7 +785,7 @@ function creerAcompte(d){
   var t=totals(d.lignes,state.settings.partService), p=state.settings.acompteParDefaut, date=todayISO();
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis" };
+    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis", choixFacturation:true };
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -774,7 +794,7 @@ function creerSolde(d){
   var t=totals(d.lignes,state.settings.partService); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis" };
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis", choixFacturation:true };
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -782,7 +802,7 @@ function creerSolde(d){
 function creerTotale(d){
   var t=totals(d.lignes,state.settings.partService), date=todayISO();
   var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", datePaiement:null, origine:"devis" };
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", datePaiement:null, origine:"devis", choixFacturation:true };
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -803,8 +823,9 @@ function creerCommandeDepuisDevis(d, facture){
 function validerDevisEtCreerSuivi(d){
   if(!d) return null;
   d.statut="accepte";
-  // Le devis accepté crée la commande à préparer, mais laisse le choix de facturation :
-  // acompte 30 % ou facture complète depuis l'onglet Devis.
+  // Important : l'acceptation d'un devis ne crée PLUS automatiquement de facture.
+  // Elle crée seulement la commande / le suivi à préparer.
+  // La facture est créée ensuite au choix : acompte 30 % ou facture complète.
   var commande=creerCommandeDepuisDevis(d, null);
   var mariage=state.mariages.find(function(m){return m.devisLie===d.id;});
   if(mariage){
