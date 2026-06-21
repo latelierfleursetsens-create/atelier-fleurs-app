@@ -1543,7 +1543,7 @@ async function envoyerDocumentEmail(kind, doc){
       email:email,
       nom:nom,
       sujet:docSubject(kind, doc),
-      message:docMailMessage(kind, doc),
+      message:docEmailHtml(kind, doc),
       attachment:{ name:docFileName(kind, doc), content:pdf64 }
     })});
     var txt=await res.text();
