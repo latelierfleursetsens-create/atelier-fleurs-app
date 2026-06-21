@@ -1448,21 +1448,34 @@ function docEmailHtml(kind, doc){
 function docMailMessage(kind, doc){
 var nom=(doc.client&&doc.client.nom)||"";
 var type=(kind==="devis")?"devis":"facture";
+var accord=(kind==="devis")?"relatif":"relative";
 
-return "Bonjour "+nom+",\n\n"+
-"J'espère que vous allez bien.\n\n"+
-"Je vous prie de trouver ci-joint votre "+type+" relatif(ve) à votre commande auprès de L'Atelier Fleurs & Sens.\n\n"+
-"Je vous remercie chaleureusement pour votre confiance et pour m'avoir permis de participer, à ma façon, à ce joli projet. ✨\n\n"+
-"Si vous avez la moindre question, je reste bien entendu à votre disposition.\n\n"+
-"Au plaisir d'échanger à nouveau avec vous et de vous accompagner dans de futures créations florales.\n\n"+
-"Je vous souhaite une belle journée.\n\n"+
-"Bien chaleureusement,\n\n"+
-"Élodie Rouzé\n"+
-"L'Atelier Fleurs & Sens\n"+
-"🌿 Des fleurs, des émotions, un instant pour soi\n"+
-"📞 06 50 91 63 59\n"+
-"📧 latelierfleursetsens@gmail.com\n"+
-"🌐 www.latelierfleursetsens.fr";
+return `
+<p>Bonjour ${nom},</p>
+
+<p>J'espère que vous allez bien.</p>
+
+<p>Je vous prie de trouver ci-joint votre <strong>${type}</strong> ${accord} à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>
+
+<p>Je vous remercie chaleureusement pour votre confiance et pour m'avoir permis de participer, à ma façon, à ce joli projet. ✨</p>
+
+<p>Si vous avez la moindre question, je reste bien entendu à votre disposition.</p>
+
+<p>Au plaisir d'échanger à nouveau avec vous et de vous accompagner dans de futures créations florales.</p>
+
+<p>Je vous souhaite une belle journée.</p>
+
+<p>Bien chaleureusement,</p>
+
+<p>
+<strong>Élodie Rouzé</strong><br>
+<strong>L'Atelier Fleurs & Sens</strong><br>
+🌿 Des fleurs, des émotions, un instant pour soi<br>
+📞 06 50 91 63 59<br>
+📧 latelierfleursetsens@gmail.com<br>
+🌐 www.latelierfleursetsens.fr
+</p>
+`;
 }
 function clientEmailOrPrompt(doc){
   var current=(doc.client&&doc.client.email)||"";
