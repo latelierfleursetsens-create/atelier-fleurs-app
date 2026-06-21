@@ -265,6 +265,42 @@ function maybeAutoGoogleDriveBackup(){
   if(s.googleDriveLast===todayISO()) return;
   googleDriveBackup(false);
 }
+
+async function googleDriveRestoreLatest(){
+  var s=state.settings||{};
+  var url=(s.googleDriveUrl||"").trim();
+  if(!url){ toast("Colle d'abord l'URL du script Google Drive dans Paramètres."); return; }
+
+  var msg="Restaurer la dernière sauvegarde Google Drive ?\n\nLes données actuelles de l'application seront remplacées dans Firebase par celles de la dernière sauvegarde Google Drive.\n\nAvant de continuer, assure-toi qu'une sauvegarde récente existe bien.";
+  if(!confirm(msg)){ toast("Restauration Google Drive annulée."); return; }
+
+  try{
+    toast("Recherche de la dernière sauvegarde Google Drive…");
+    var sep = url.indexOf("?")>=0 ? "&" : "?";
+    var res = await fetch(url + sep + "action=latest&token=" + encodeURIComponent("atelier-fleurs-sauvegarde-2026"), { method:"GET" });
+    var txt = await res.text();
+    var out = {};
+    try{ out = JSON.parse(txt); }catch(e){ throw new Error("Réponse Google Drive illisible."); }
+
+    if(!res.ok || out.success===false){ throw new Error(out.error || txt || ("Erreur HTTP " + res.status)); }
+
+    var payload = out.data || {};
+    var data = payload && payload.data ? payload.data : payload;
+    var looksValid = data && typeof data==="object" && (data.settings || data.clients || data.devis || data.factures || data.mariages || data.encaissements || data.commandes);
+
+    if(!looksValid){ throw new Error("La dernière sauvegarde Google Drive ne ressemble pas à une sauvegarde valide."); }
+
+    applyData(data);
+    ui.wizard=null; ui.factureDraft=null; ui.commandeDraft=null; ui.preview=null; ui.mariageOpen=null; ui.commandeOpen=null; ui.clientOpen=null; ui.confirmDelete=null; ui.tab="accueil";
+    saveCache();
+    render();
+    toast("Sauvegarde Google Drive restaurée avec succès"+(out.filename?" : "+out.filename:"")+".");
+  }catch(e){
+    console.error(e);
+    toast("Restauration Google Drive impossible : "+(e&&e.message?e.message:"vérifie le script Google Apps Script."));
+  }
+}
+
 function updateDirty(){}
 /* connexion */
 function showApp(){ var l=document.getElementById("login"); if(l)l.style.display="none"; var a=document.getElementById("appwrap"); if(a)a.style.display="block"; }
@@ -956,7 +992,7 @@ function viewParams(){
     '<p class="muted" style="margin-top:0;">Colle ici l’URL de ton script Google Apps Script. L’application pourra créer une sauvegarde JSON dans ton Google Drive.</p>'+
     '<label class="field"><span>URL du script Google Drive</span><input id="pGoogleDriveUrl" value="'+esc(s.googleDriveUrl||"")+'" placeholder="https://script.google.com/macros/s/.../exec"></label>'+
     '<label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;"><input type="checkbox" id="pGoogleDriveAuto" '+(s.googleDriveAuto?'checked':'')+' style="width:18px;height:18px;"> Activer une sauvegarde automatique quotidienne dans Google Drive</label>'+
-    '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="gdrive-save">Enregistrer l’URL Google Drive</button><button class="btn primary" data-action="gdrive-backup">Tester / créer une sauvegarde Google Drive</button></div>'+
+    '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="gdrive-save">Enregistrer l’URL Google Drive</button><button class="btn primary" data-action="gdrive-backup">Tester / créer une sauvegarde Google Drive</button><button class="btn danger" data-action="gdrive-restore-latest">Restaurer la dernière sauvegarde Google Drive</button></div>'+
     '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(googleDriveStatusText())+'</p></div>'+
   '<div class="card"><h3 style="margin:0 0 10px;">Logo</h3><div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">'+logoPrev+
     '<div class="row-actions" style="margin:0;"><button class="btn primary" data-action="logo-pick">Choisir une image</button>'+
@@ -1445,6 +1481,7 @@ function handleAction(action){
   if(action==="restore-pick"){ var ri=document.getElementById("restoreInput"); if(ri) ri.click(); return; }
   if(action==="gdrive-save"){ saveParams(); return; }
   if(action==="gdrive-backup"){ state.settings.googleDriveUrl=val("pGoogleDriveUrl"); var gda=document.getElementById("pGoogleDriveAuto"); state.settings.googleDriveAuto=!!(gda&&gda.checked); googleDriveBackup(true); return; }
+  if(action==="gdrive-restore-latest"){ state.settings.googleDriveUrl=val("pGoogleDriveUrl"); var gda2=document.getElementById("pGoogleDriveAuto"); state.settings.googleDriveAuto=!!(gda2&&gda2.checked); googleDriveRestoreLatest(); return; }
 
   // wizard
   if(action==="wz-cancel"){ ui.wizard=null; render(); return; }
