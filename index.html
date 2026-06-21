@@ -1446,15 +1446,23 @@ function docEmailHtml(kind, doc){
 }
 
 function docMailMessage(kind, doc){
-  var nom=doc.client&&doc.client.nom?doc.client.nom:"";
-  var titre=docTitle(kind,doc);
-  var mot=kind==="devis"?"devis":"facture";
-  return '<div style="font-family:Arial,sans-serif;font-size:15px;color:#303437;line-height:1.5;">'+
-    '<p>Bonjour '+esc(nom)+',</p>'+ 
-    '<p>Veuillez trouver ci-joint votre '+esc(mot)+' <b>'+esc(doc.numero||"")+'</b>.</p>'+ 
-    '<p>Je reste disponible si vous avez la moindre question.</p>'+ 
-    '<p style="margin-top:22px;">Bien cordialement,<br><b>L’Atelier Fleurs &amp; Sens</b><br>Des fleurs, des émotions, un instant pour soi<br>'+esc(state.settings.email||"latelierfleursetsens@gmail.com")+'</p>'+ 
-    '</div>';
+var nom=(doc.client&&doc.client.nom)||"";
+var type=(kind==="devis")?"devis":"facture";
+
+return "Bonjour "+nom+",\n\n"+
+"J'espère que vous allez bien.\n\n"+
+"Je vous prie de trouver ci-joint votre "+type+" relatif(ve) à votre commande auprès de L'Atelier Fleurs & Sens.\n\n"+
+"Je vous remercie chaleureusement pour votre confiance et pour m'avoir permis de participer, à ma façon, à ce joli projet. ✨\n\n"+
+"Si vous avez la moindre question, je reste bien entendu à votre disposition.\n\n"+
+"Au plaisir d'échanger à nouveau avec vous et de vous accompagner dans de futures créations florales.\n\n"+
+"Je vous souhaite une belle journée.\n\n"+
+"Bien chaleureusement,\n\n"+
+"Élodie Rouzé\n"+
+"L'Atelier Fleurs & Sens\n"+
+"🌿 Des fleurs, des émotions, un instant pour soi\n"+
+"📞 06 50 91 63 59\n"+
+"📧 latelierfleursetsens@gmail.com\n"+
+"🌐 www.latelierfleursetsens.fr";
 }
 function clientEmailOrPrompt(doc){
   var current=(doc.client&&doc.client.email)||"";
