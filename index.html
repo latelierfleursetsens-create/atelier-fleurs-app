@@ -180,7 +180,7 @@ function totals(lignes, partService){
 var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l:"Envoyé",c:"#6a5a2a",b:"#f3ead0"},
   accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"} };
 var ST_FAC={ a_envoyer:{l:"À envoyer",c:"var(--ink-s)",b:"#efe7df"}, envoyee:{l:"Envoyée",c:"#6a5a2a",b:"#f3ead0"}, payee:{l:"Payée",c:"var(--green)",b:"var(--green-s)"} };
-var TYPE_FAC={ acompte:"Facture d'acompte", solde:"Facture de solde", totale:"Facture" };
+var TYPE_FAC={ acompte:"Facture d\'acompte", solde:"Facture de solde", totale:"Facture" };
 var MAIL_WORKER_URL="https://atelier-fleurs-mail.latelierfleursetsens.workers.dev/";
 
 
@@ -570,9 +570,9 @@ function devisAFacturerHTML(){
     var acomptePaye=!!(ac && ac.statut==="payee");
     var t=totals(d.lignes,state.settings.partService);
     if(!hasAcompte && !hasTotale){
-      html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
+      html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
     } else if(hasAcompte && !hasSolde && !hasTotale){
-      html+='<div class="card" style="border-color:var(--line);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte créé '+(acomptePaye?'et payé. Tu peux créer le solde.':'mais pas encore marqué payé. Le solde sera disponible après paiement de l'acompte.')+'</div><div class="row-actions">'+(acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'<button class="btn small soft" disabled>Solde disponible après paiement de l'acompte</button>')+'</div></div>';
+      html+='<div class="card" style="border-color:var(--line);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte créé '+(acomptePaye?'et payé. Tu peux créer le solde.':'mais pas encore marqué payé. Le solde sera disponible après paiement de l\'acompte.')+'</div><div class="row-actions">'+(acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'<button class="btn small soft" disabled>Solde disponible après paiement de l\'acompte</button>')+'</div></div>';
     }
   });
   return html;
@@ -1477,7 +1477,7 @@ function handleAction(action){
       ui.tab="devis";
       ui.commandeOpen=null;
       render();
-      toast("Devis accepté : choisis maintenant facture d'acompte ou facture complète.");
+      toast("Devis accepté : choisis maintenant facture d\'acompte ou facture complète.");
     }
     else { d.statut=st; saveCache(); render(); }
   } return; }
@@ -1514,7 +1514,7 @@ function handleAction(action){
   if(action==="fac-create-manual"){ createManualFacture(); return; }
 
   // factures depuis devis
-  if(action.indexOf("fac-acompte-")===0){ var d1=findDevis(action.slice(12)); if(d1){ creerAcompte(d1); saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée."); } return; }
+  if(action.indexOf("fac-acompte-")===0){ var d1=findDevis(action.slice(12)); if(d1){ creerAcompte(d1); saveCache(); ui.tab="factures"; render(); toast("Facture d\'acompte créée."); } return; }
   if(action.indexOf("fac-solde-")===0){ var d2=findDevis(action.slice(10)); if(d2){ creerSolde(d2); saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); } return; }
   if(action.indexOf("fac-totale-")===0){ var d3=findDevis(action.slice(11)); if(d3){ creerTotale(d3); saveCache(); ui.tab="factures"; render(); toast("Facture créée."); } return; }
 
