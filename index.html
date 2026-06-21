@@ -152,7 +152,7 @@ var DEFAULT_SETTINGS = {
 };
 
 /* ===================== État ===================== */
-var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], logo:"" };
+var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], logo:"" };
 var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null };
 var fileHandle = null;
 
@@ -192,14 +192,14 @@ var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null;
 
-function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
+function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
 function applyData(d){
   if(!d) return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
-  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.logo=d.logo||"";
+  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.logo=d.logo||"";
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -339,7 +339,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["encaissements","Encaissements"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -357,6 +357,7 @@ function render(){
   else if(ui.tab==="commandes") v.innerHTML=viewCommandes();
   else if(ui.tab==="devis") v.innerHTML= ui.wizard? viewWizard() : viewDevis();
   else if(ui.tab==="factures") v.innerHTML=viewFactures();
+  else if(ui.tab==="emails") v.innerHTML=viewEmails();
   else if(ui.tab==="encaissements") v.innerHTML=viewEncaissements();
   else if(ui.tab==="mariages") v.innerHTML=viewMariages();
   else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
@@ -977,6 +978,40 @@ function viewClientDetail(c){
   return html;
 }
 
+
+/* ===================== Historique emails ===================== */
+function viewEmails(){
+  var list=(state.emails||[]).slice().sort(function(a,b){ return (b.sentAt||"").localeCompare(a.sentAt||""); });
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Historique des emails</h2>'+
+    '<span class="muted">'+list.length+' email'+(list.length>1?'s':'')+' envoyé'+(list.length>1?'s':'')+'</span></div>'+
+    '<p class="muted" style="margin-top:-8px;">Retrouve ici tous les devis et factures envoyés par email depuis l’application.</p>';
+  if(!list.length){
+    return html+'<div class="card"><p class="muted" style="margin:0;">Aucun email envoyé pour le moment.</p></div>';
+  }
+  html+='<div class="card">';
+  list.forEach(function(e){
+    var isDevis=e.kind==="devis";
+    var doc=isDevis?findDevis(e.docId):state.factures.find(function(f){return f.id===e.docId;});
+    var pill=isDevis?'Devis':'Facture';
+    var sentDate=e.sentAt?new Date(e.sentAt).toLocaleString("fr-FR"):"—";
+    html+='<div class="checkrow" style="align-items:flex-start;">'+
+      '<div style="flex:1;">'+
+        '<div><span class="pill" style="background:'+(isDevis?'var(--blush-s)':'var(--green-s)')+';color:'+(isDevis?'var(--bordeaux)':'var(--green)')+';">'+pill+'</span> '+
+        '<b style="color:var(--bordeaux);">'+esc(e.numero||"")+'</b> <span class="muted">· '+esc(e.client||"Client")+'</span></div>'+
+        '<div class="muted" style="font-size:12px;margin-top:3px;">Envoyé le '+esc(sentDate)+' à '+esc(e.email||"")+'</div>'+
+        '<div class="muted" style="font-size:12px;">Objet : '+esc(e.sujet||"")+'</div>'+
+        (e.montant!=null?'<div class="muted" style="font-size:12px;">Montant : '+euro(e.montant)+'</div>':'')+
+      '</div>'+
+      '<div class="row-actions" style="margin-top:0;">'+
+        (doc?'<button class="btn small ghost" data-action="email-preview-'+(isDevis?'devis':'facture')+'-'+e.docId+'">Voir le document</button>':'<span class="muted" style="font-size:12px;">Document supprimé</span>')+
+      '</div>'+
+    '</div>';
+  });
+  html+='</div>';
+  html+='<div class="card"><h3 style="margin:0 0 8px;">À savoir</h3><p class="muted" style="margin:0;">Cet historique confirme les envois réalisés depuis l’application. Il est sauvegardé avec Firebase, dans les sauvegardes JSON et dans les sauvegardes Google Drive.</p></div>';
+  return html;
+}
+
 /* ===================== Paramètres ===================== */
 function viewParams(){
   var s=state.settings, partB=Math.max(0,100-num(s.partService));
@@ -1430,6 +1465,24 @@ async function pdfBase64FromDoc(kind, doc){
     if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
   }
 }
+
+function addEmailHistory(kind, doc, email){
+  state.emails=state.emails||[];
+  state.emails.unshift({
+    id:uid(),
+    sentAt:new Date().toISOString(),
+    kind:kind,
+    docId:doc.id,
+    numero:doc.numero||"",
+    client:(doc.client&&doc.client.nom)||"",
+    email:email,
+    sujet:docSubject(kind, doc),
+    montant:doc.montant!=null?doc.montant:totals(doc.lignes,state.settings.partService).total,
+    statut:"envoye"
+  });
+  if(state.emails.length>500) state.emails=state.emails.slice(0,500);
+}
+
 function markDocSent(kind, doc){
   if(kind==="devis"){
     if(doc.statut==="brouillon") doc.statut="envoye";
@@ -1464,6 +1517,7 @@ async function envoyerDocumentEmail(kind, doc){
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
     markDocSent(kind, doc);
+    addEmailHistory(kind, doc, email);
     saveCache(); render();
     toast(titre+" envoyé par email à "+email+".");
   } catch(e){ console.error(e); toast("Envoi impossible : "+(e&&e.message?e.message:"vérifie le Worker Cloudflare / Brevo.")); }
@@ -1475,6 +1529,8 @@ function handleAction(action){
   // nav
   if(action.indexOf("nav-")===0){ ui.tab=action.slice(4); ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null; render(); return; }
   if(action==="newdevis"){ ui.tab="devis"; newWizard(); render(); return; }
+  if(action.indexOf("email-preview-devis-")===0){ var ed=findDevis(action.slice(20)); if(ed){ ui.preview={kind:"devis",doc:ed}; renderModal(); } return; }
+  if(action.indexOf("email-preview-facture-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(22);}); if(ef){ ui.preview={kind:"facture",doc:ef}; renderModal(); } return; }
   if(action==="do-login"){ doLogin(); return; }
   if(action==="do-logout"){ if(confirm("Se déconnecter ?")){ auth.signOut(); } return; }
   if(action==="cloud-backup"){ downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); return; }
