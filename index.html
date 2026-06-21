@@ -133,6 +133,7 @@
 <input type="file" id="logoInput" accept="image/*" style="display:none" />
 <input type="file" id="marMedia" accept="image/*,application/pdf,.pdf,.doc,.docx" style="display:none" />
 <input type="file" id="encImport" accept=".csv,text/csv" style="display:none" />
+<input type="file" id="restoreInput" accept=".json,application/json" style="display:none" />
 
 <script>
 "use strict";
@@ -147,7 +148,7 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:""
 };
 
 /* ===================== État ===================== */
@@ -225,7 +226,7 @@ function startSync(uidStr){
   docRef=db.collection("bases").doc(uidStr);
   docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
     if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
-    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ applyRemote(JSON.parse(d.data)); render(); }catch(e){ console.error(e); } } }
+    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
 }
@@ -233,6 +234,36 @@ function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) e
 function downloadJSON(text,name){
   var blob=new Blob([text],{type:"application/json"}), url=URL.createObjectURL(blob);
   var a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function googleDriveStatusText(){
+  var s=state.settings||{};
+  if(!s.googleDriveUrl) return "Google Drive non configuré.";
+  return "Google Drive configuré"+(s.googleDriveLast?" · dernière sauvegarde auto : "+frDate(s.googleDriveLast):"");
+}
+async function googleDriveBackup(manual){
+  var s=state.settings||{};
+  var url=(s.googleDriveUrl||"").trim();
+  if(!url){ toast("Colle d'abord l'URL du script Google Drive dans Paramètres."); return; }
+  try{
+    if(manual) toast("Sauvegarde Google Drive en cours…");
+    var payload={ token:"atelier-fleurs-sauvegarde-2026", data:serialize() };
+    var res=await fetch(url,{ method:"POST", body:JSON.stringify(payload) });
+    var txt=await res.text();
+    var out={};
+    try{ out=JSON.parse(txt); }catch(e){}
+    if(!res.ok || out.success===false){ throw new Error(out.error||txt||("Erreur HTTP "+res.status)); }
+    state.settings.googleDriveLast=todayISO();
+    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
+    saveCloud();
+    if(manual) toast("Sauvegarde créée dans Google Drive."+(out.filename?" Fichier : "+out.filename:""));
+    render();
+  }catch(e){ console.error(e); if(manual) toast("Sauvegarde Google Drive impossible : "+(e&&e.message?e.message:"vérifie l'URL du script.")); }
+}
+function maybeAutoGoogleDriveBackup(){
+  var s=state.settings||{};
+  if(!s.googleDriveAuto || !s.googleDriveUrl) return;
+  if(s.googleDriveLast===todayISO()) return;
+  googleDriveBackup(false);
 }
 function updateDirty(){}
 /* connexion */
@@ -539,9 +570,9 @@ function devisAFacturerHTML(){
     var acomptePaye=!!(ac && ac.statut==="payee");
     var t=totals(d.lignes,state.settings.partService);
     if(!hasAcompte && !hasTotale){
-      html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
+      html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
     } else if(hasAcompte && !hasSolde && !hasTotale){
-      html+='<div class="card" style="border-color:var(--line);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte créé '+(acomptePaye?'et payé. Tu peux créer le solde.':'mais pas encore marqué payé. Le solde sera disponible après paiement de l\'acompte.')+'</div><div class="row-actions">'+(acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'<button class="btn small soft" disabled>Solde disponible après paiement de l\'acompte</button>')+'</div></div>';
+      html+='<div class="card" style="border-color:var(--line);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte créé '+(acomptePaye?'et payé. Tu peux créer le solde.':'mais pas encore marqué payé. Le solde sera disponible après paiement de l'acompte.')+'</div><div class="row-actions">'+(acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'<button class="btn small soft" disabled>Solde disponible après paiement de l'acompte</button>')+'</div></div>';
     }
   });
   return html;
@@ -916,6 +947,17 @@ function viewParams(){
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Ces informations apparaissent sur vos devis et factures.</p>'+
+  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
+    '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
+    '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
+    '<button class="btn danger" data-action="restore-pick">Restaurer une sauvegarde JSON</button></div>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">⚠️ La restauration remplace les données actuellement synchronisées dans Firebase. Avant restauration, garde toujours une sauvegarde récente.</p></div>'+
+  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive</h3>'+
+    '<p class="muted" style="margin-top:0;">Colle ici l’URL de ton script Google Apps Script. L’application pourra créer une sauvegarde JSON dans ton Google Drive.</p>'+
+    '<label class="field"><span>URL du script Google Drive</span><input id="pGoogleDriveUrl" value="'+esc(s.googleDriveUrl||"")+'" placeholder="https://script.google.com/macros/s/.../exec"></label>'+
+    '<label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;"><input type="checkbox" id="pGoogleDriveAuto" '+(s.googleDriveAuto?'checked':'')+' style="width:18px;height:18px;"> Activer une sauvegarde automatique quotidienne dans Google Drive</label>'+
+    '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="gdrive-save">Enregistrer l’URL Google Drive</button><button class="btn primary" data-action="gdrive-backup">Tester / créer une sauvegarde Google Drive</button></div>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(googleDriveStatusText())+'</p></div>'+
   '<div class="card"><h3 style="margin:0 0 10px;">Logo</h3><div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">'+logoPrev+
     '<div class="row-actions" style="margin:0;"><button class="btn primary" data-action="logo-pick">Choisir une image</button>'+
     (state.logo&&state.logo.length>10?'<button class="btn danger" data-action="logo-remove">Retirer</button>':'')+'</div></div>'+
@@ -1400,6 +1442,9 @@ function handleAction(action){
   if(action==="do-login"){ doLogin(); return; }
   if(action==="do-logout"){ if(confirm("Se déconnecter ?")){ auth.signOut(); } return; }
   if(action==="cloud-backup"){ downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); return; }
+  if(action==="restore-pick"){ var ri=document.getElementById("restoreInput"); if(ri) ri.click(); return; }
+  if(action==="gdrive-save"){ saveParams(); return; }
+  if(action==="gdrive-backup"){ state.settings.googleDriveUrl=val("pGoogleDriveUrl"); var gda=document.getElementById("pGoogleDriveAuto"); state.settings.googleDriveAuto=!!(gda&&gda.checked); googleDriveBackup(true); return; }
 
   // wizard
   if(action==="wz-cancel"){ ui.wizard=null; render(); return; }
@@ -1581,7 +1626,33 @@ function saveParams(){
   s.acompteParDefaut=num(val("pAcompte")); s.validiteDevis=num(val("pValid")); s.delaiPaiement=num(val("pDelai"));
   s.seuilBiens=num(val("pSeuilB")); s.seuilServices=num(val("pSeuilS")); s.tauxCotisBiens=num(val("pTauxB")); s.tauxCotisServices=num(val("pTauxS"));
   s.partService=num(val("pPartService"));
+  s.googleDriveUrl=val("pGoogleDriveUrl");
+  var gda=document.getElementById("pGoogleDriveAuto"); s.googleDriveAuto=!!(gda&&gda.checked);
   saveCache(); render(); toast("Paramètres enregistrés.");
+}
+
+function onRestoreFile(file){
+  if(!file){ return; }
+  if(!/\.json$/i.test(file.name||"") && file.type && file.type.indexOf("json")===-1){
+    toast("Choisis un fichier de sauvegarde JSON."); return;
+  }
+  var r=new FileReader();
+  r.onload=function(e){
+    try{
+      var parsed=JSON.parse(e.target.result);
+      var data=parsed && parsed.data ? parsed.data : parsed;
+      var looksValid = data && typeof data==="object" && (data.settings || data.clients || data.devis || data.factures || data.mariages || data.encaissements || data.commandes);
+      if(!looksValid){ toast("Ce fichier ne ressemble pas à une sauvegarde de l'application."); return; }
+      var msg="Restaurer cette sauvegarde ?\n\nLes données actuelles de l'application seront remplacées dans Firebase par celles du fichier : "+(file.name||"sauvegarde.json")+".\n\nAvant de continuer, assure-toi d'avoir téléchargé une sauvegarde récente.";
+      if(!confirm(msg)){ toast("Restauration annulée."); return; }
+      applyData(data);
+      ui.wizard=null; ui.factureDraft=null; ui.commandeDraft=null; ui.preview=null; ui.mariageOpen=null; ui.commandeOpen=null; ui.clientOpen=null; ui.confirmDelete=null; ui.tab="accueil";
+      saveCache();
+      render();
+      toast("Sauvegarde restaurée avec succès.");
+    }catch(err){ console.error(err); toast("Impossible de lire cette sauvegarde JSON."); }
+  };
+  r.readAsText(file);
 }
 
 /* ===================== Écouteurs ===================== */
@@ -1628,6 +1699,7 @@ document.addEventListener("change", function(e){
   if(t.id==="logoInput"){ onLogoFile(t.files[0]); t.value=""; return; }
   if(t.id==="marMedia"){ onMarMedia(t.files[0]); t.value=""; return; }
   if(t.id==="encImport"){ onEncImport(t.files[0]); t.value=""; return; }
+  if(t.id==="restoreInput"){ onRestoreFile(t.files[0]); t.value=""; return; }
   var act=t.getAttribute&&t.getAttribute("data-action");
   if(act==="mar-statut"){ var ms=getMariage(ui.mariageOpen); if(ms){ captureMariageInputs(); ms.statut=t.value; saveCache(); render(); } return; }
   if(act==="mar-link"){ var ml=getMariage(ui.mariageOpen); if(ml){ captureMariageInputs(); ml.devisLie=t.value; saveCache(); render(); } return; }
@@ -1648,6 +1720,7 @@ auth.onAuthStateChanged(function(user){
     loadCache();   // affichage instantané depuis le cache local
     render();
     startSync(user.uid);  // puis synchro temps réel avec le cloud
+    setTimeout(maybeAutoGoogleDriveBackup, 2500);
   } else {
     showLogin();
   }
