@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root{
     /* Palette inspirée du site L’Atelier Fleurs & Sens */
@@ -105,6 +106,10 @@
   .cal-event.paiement{background:#e7eee8;color:#384640;}
   .cal-listitem{padding:8px 0;border-bottom:1px solid var(--line);}
 
+
+  .purchase-proof{display:inline-flex;align-items:center;gap:6px;background:var(--green-s);border:1px solid var(--line);border-radius:20px;padding:5px 9px;font-size:12px;}
+  .achat-cat{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--blush-s);color:var(--bordeaux);}
+
 </style>
 </head>
 <body>
@@ -166,8 +171,8 @@ var DEFAULT_SETTINGS = {
 };
 
 /* ===================== État ===================== */
-var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], logo:"" };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null };
+var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], logo:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -236,14 +241,14 @@ var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null;
 
-function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
+function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
 function applyData(d){
   if(!d) return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
-  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.logo=d.logo||"";
+  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.logo=d.logo||"";
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -340,7 +345,7 @@ async function googleDriveRestoreLatest(){
 
     var payload = out.data || {};
     var data = payload && payload.data ? payload.data : payload;
-    var looksValid = data && typeof data==="object" && (data.settings || data.clients || data.devis || data.factures || data.mariages || data.encaissements || data.commandes);
+    var looksValid = data && typeof data==="object" && (data.settings || data.clients || data.devis || data.factures || data.mariages || data.encaissements || data.commandes || data.achats);
 
     if(!looksValid){ throw new Error("La dernière sauvegarde Google Drive ne ressemble pas à une sauvegarde valide."); }
 
@@ -393,7 +398,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["calendrier","Calendrier"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["calendrier","Calendrier"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements"],["achats","Achats"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -414,6 +419,7 @@ function render(){
   else if(ui.tab==="factures") v.innerHTML=viewFactures();
   else if(ui.tab==="emails") v.innerHTML=viewEmails();
   else if(ui.tab==="encaissements") v.innerHTML=viewEncaissements();
+  else if(ui.tab==="achats") v.innerHTML=viewAchats();
   else if(ui.tab==="mariages") v.innerHTML=viewMariages();
   else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
   else if(ui.tab==="clients") v.innerHTML=viewClients();
@@ -489,6 +495,7 @@ function viewDashboard(){
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
   prepBanner+
   viewCalendarPreview()+
+  viewAchatsPreview()+
   '<div class="row-actions" style="margin-bottom:14px;">'+
     '<button class="btn small gold" data-action="csv-'+an+'">Exporter '+an+' (Excel / CSV)</button>'+
     '<button class="btn small ghost" data-action="csv-all">Exporter toutes les années</button></div>'+
@@ -676,11 +683,12 @@ function factureCardHTML(f){
   return '<div class="card" style="margin-bottom:10px;"><div class="flexb"><div>'+
     '<div style="font-weight:700;color:var(--bordeaux);">'+esc(f.numero)+' · '+esc(TYPE_FAC[f.type]||"Facture")+(f.origine==="manuelle"?' <span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">saisie directe</span>':'')+'</div>'+
     '<div class="muted">'+esc(f.client&&f.client.nom)+' · '+frDate(f.date)+' · <b>'+euro(f.montant)+'</b></div>'+
-    '<div class="muted">'+euro(f.montantBiens)+' biens · '+euro(f.montantServices)+' services'+(f.datePaiement?" · payée le "+frDate(f.datePaiement):"")+'</div></div>'+
+    '<div class="muted">'+euro(f.montantBiens)+' biens · '+euro(f.montantServices)+' services'+(f.datePaiement?" · payée le "+frDate(f.datePaiement):"")+(f.paiementClient?" · paiement : "+esc(f.paiementClient):"")+'</div></div>'+
     '<span class="badge" style="color:'+sf.c+';background:'+sf.b+';">'+sf.l+'</span></div>'+
     '<div class="row-actions">'+
       '<button class="btn small ghost" data-action="fac-preview-'+f.id+'">Aperçu / PDF</button>'+
-      '<button class="btn small gold" data-action="fac-email-'+f.id+'">Envoyer par email</button>'+
+      '<button class="btn small gold" data-action="fac-email-'+f.id+'">Envoyer par email</button>'+ 
+      '<button class="btn small ghost" data-action="fac-paymethod-'+f.id+'">Moyen de paiement</button>'+
       (f.statut==="a_envoyer"?'<button class="btn small soft" data-action="fac-st-'+f.id+'-envoyee">Marquer envoyée</button>':'')+
       (f.statut==="envoyee"?'<button class="btn small ghost" data-action="fac-st-'+f.id+'-a_envoyer">Remettre à envoyer</button>':'')+
       (f.statut!=="payee"?'<button class="btn small gold" data-action="fac-paid-'+f.id+'">Marquer payée</button>':'')+
@@ -730,7 +738,7 @@ function viewFactures(){
   return html;
 }
 function newFactureDraft(){
-  ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, notes:"" };
+  ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, paiementClient:"", notes:"" };
 }
 function facDraftTotals(){ return factureCalc(ui.factureDraft?ui.factureDraft.lignes:[], state.settings.partService, ui.factureDraft); }
 function viewFactureManualForm(){
@@ -775,6 +783,7 @@ function viewFactureManualForm(){
     '<div class="inline"><div><label class="field"><span>Type de réduction</span><select id="facReductionType"><option value="montant"'+(f.reductionType!=="pourcent"?" selected":"")+'>Montant €</option><option value="pourcent"'+(f.reductionType==="pourcent"?" selected":"")+'>Pourcentage %</option></select></label></div>'+ 
     '<div><label class="field"><span>Réduction</span><input id="facReductionValeur" type="number" min="0" step="0.01" value="'+esc(f.reductionValeur||0)+'"></label></div>'+ 
     '<div><label class="field"><span>Acompte déjà payé (€)</span><input id="facAcompteDejaPaye" type="number" min="0" step="0.01" value="'+esc(f.acompteDejaPaye||0)+'"></label></div></div>'+ 
+    '<label class="field"><span>Moyen de paiement de la cliente</span><select id="facPaiementClient">'+paymentOptions(f.paiementClient||"")+'</select><div class="hint">Utile si la facture ou un acompte est déjà payé.</div></label>'+
     '<div id="facTot" style="margin-top:14px;padding:12px;background:var(--cream);border-radius:10px;font-size:14px;">'+facTotHTML(facDraftTotals())+'</div>'+ 
     '<label class="field" style="margin-top:12px;"><span>Note sur la facture (facultatif)</span><textarea id="facNotes">'+esc(f.notes||"")+'</textarea></label>'+ 
     '<div class="row-actions"><button class="btn gold" data-action="fac-create-manual">Créer la facture</button><button class="btn ghost" data-action="fac-cancel-manual">Annuler</button></div></div>';
@@ -786,7 +795,7 @@ function facTotHTML(t){
 }
 function captureFactureDraft(){
   var f=ui.factureDraft; if(!f) return;
-  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut="a_envoyer"; f.notes=val("facNotes"); f.reductionType=val("facReductionType")||"montant"; f.reductionValeur=num(val("facReductionValeur")); f.acompteDejaPaye=num(val("facAcompteDejaPaye"));
+  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut="a_envoyer"; f.notes=val("facNotes"); f.reductionType=val("facReductionType")||"montant"; f.reductionValeur=num(val("facReductionValeur")); f.acompteDejaPaye=num(val("facAcompteDejaPaye")); f.paiementClient=val("facPaiementClient");
   if(f.clientMode==="existant"&&state.clients.length){ f.clientId=val("facClient")||f.clientId; }
   else { f.client={nom:val("facNom"),adresse:val("facAdr"),email:val("facEmail"),tel:val("facTel"),canal:val("facCanal")}; }
 }
@@ -805,11 +814,286 @@ function createManualFacture(){
   if(!f.lignes.length){ toast("Ajoute au moins une ligne."); return; }
   var t=factureCalc(f.lignes,state.settings.partService,f);
   if(t.totalInitial<=0){ toast("Le total de la facture doit être supérieur à 0 €."); return; }
-  var facture={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:f.date, echeance:f.echeance, client:client, lignes:f.lignes, notes:f.notes, montantBiens:t.biens, montantServices:t.services, montant:t.total, totalInitial:t.totalInitial, remiseType:f.reductionType, remiseValeur:num(f.reductionValeur), remiseMontant:t.remiseMontant, totalApresRemise:t.totalApresRemise, acompteDejaPaye:t.acompteDejaPaye, statut:"a_envoyer", datePaiement:null, origine:"manuelle" };
+  var facture={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:f.date, echeance:f.echeance, client:client, lignes:f.lignes, notes:f.notes, montantBiens:t.biens, montantServices:t.services, montant:t.total, totalInitial:t.totalInitial, remiseType:f.reductionType, remiseValeur:num(f.reductionValeur), remiseMontant:t.remiseMontant, totalApresRemise:t.totalApresRemise, acompteDejaPaye:t.acompteDejaPaye, paiementClient:f.paiementClient||"", statut:"a_envoyer", datePaiement:null, origine:"manuelle" };
   state.factures.unshift(facture); ui.factureDraft=null; saveCache(); render(); toast("Facture "+facture.numero+" créée.");
 }
 
 
+
+
+/* ===================== Achats fournisseurs ===================== */
+var ACHAT_CATEGORIES=["Fleurs","Emballages","Matériel","Fournitures","Communication","Déplacements","Formation","Divers"];
+var ACHAT_PAIEMENTS=["CB","Espèces","Virement","PayPal","Autre"];
+
+var CLIENT_PAYMENT_METHODS=["CB","Espèces","Virement","Wero","PayPal","Chèque","Autre"];
+function paymentOptions(selected){
+  selected=selected||"";
+  return '<option value="">Non renseigné</option>'+CLIENT_PAYMENT_METHODS.map(function(p){
+    return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+esc(p)+'</option>';
+  }).join("");
+}
+
+
+function newAchatDraft(){
+  ui.achatDraft={
+    id:uid(),
+    date:todayISO(),
+    fournisseur:"",
+    categorie:"Fleurs",
+    montantTTC:0,
+    tva:0,
+    moyenPaiement:"CB",
+    projetType:"",
+    projetId:"",
+    projetLabel:"",
+    notes:"",
+    justificatif:null,
+    ocrText:"",
+    statut:"a_verifier"
+  };
+}
+
+function achatProjetOptions(selected){
+  selected=selected||"";
+  var opts='<option value="">Aucun projet associé</option>';
+  (state.mariages||[]).forEach(function(m){
+    var v="mariage:"+m.id;
+    opts+='<option value="'+esc(v)+'"'+(selected===v?' selected':'')+'>💍 '+esc(m.nom||"Mariage")+(m.dateMariage?' · '+frDate(m.dateMariage):'')+'</option>';
+  });
+  (state.commandes||[]).forEach(function(c){
+    var v="commande:"+c.id;
+    opts+='<option value="'+esc(v)+'"'+(selected===v?' selected':'')+'>📦 '+esc(c.label||"Commande")+(c.client?' · '+esc(c.client):'')+'</option>';
+  });
+  return opts;
+}
+
+function achatProjetFromValue(v){
+  if(!v) return {type:"",id:"",label:""};
+  var p=v.split(":"), type=p[0], id=p.slice(1).join(":");
+  if(type==="mariage"){
+    var m=(state.mariages||[]).find(function(x){return x.id===id;});
+    return {type:type,id:id,label:m?("Mariage · "+(m.nom||"")):"Mariage"};
+  }
+  if(type==="commande"){
+    var c=(state.commandes||[]).find(function(x){return x.id===id;});
+    return {type:type,id:id,label:c?("Commande · "+(c.label||"")):"Commande"};
+  }
+  return {type:"",id:"",label:""};
+}
+
+function captureAchatDraft(){
+  var a=ui.achatDraft; if(!a) return;
+  a.date=val("achatDate")||todayISO();
+  a.fournisseur=val("achatFournisseur");
+  a.categorie=val("achatCategorie")||"Divers";
+  a.montantTTC=num(val("achatMontant"));
+  a.tva=num(val("achatTVA"));
+  a.moyenPaiement=val("achatPaiement")||"CB";
+  var pr=achatProjetFromValue(val("achatProjet"));
+  a.projetType=pr.type; a.projetId=pr.id; a.projetLabel=pr.label;
+  a.notes=val("achatNotes");
+}
+
+function totalAchatsPeriode(annee, mois){
+  return (state.achats||[]).filter(function(a){
+    if(!a.date) return false;
+    if(String(a.date).slice(0,4)!==String(annee)) return false;
+    if(mois!=null && parseInt(a.date.slice(5,7),10)!==mois) return false;
+    return true;
+  }).reduce(function(s,a){return s+(Number(a.montantTTC)||0);},0);
+}
+
+function achatsParCategorie(annee){
+  var out={};
+  (state.achats||[]).forEach(function(a){
+    if(annee && a.date && a.date.slice(0,4)!==String(annee)) return;
+    var k=a.categorie||"Divers";
+    out[k]=(out[k]||0)+(Number(a.montantTTC)||0);
+  });
+  return out;
+}
+
+function achatFormHTML(){
+  var a=ui.achatDraft, projetValue=a.projetType&&a.projetId ? a.projetType+":"+a.projetId : "";
+  var catOpts=ACHAT_CATEGORIES.map(function(c){return '<option value="'+esc(c)+'"'+(a.categorie===c?' selected':'')+'>'+esc(c)+'</option>';}).join("");
+  var payOpts=ACHAT_PAIEMENTS.map(function(p){return '<option value="'+esc(p)+'"'+(a.moyenPaiement===p?' selected':'')+'>'+esc(p)+'</option>';}).join("");
+  var proof=a.justificatif?'<div class="purchase-proof">📎 '+esc(a.justificatif.name||"justificatif")+' <button class="btn small ghost" data-action="achat-proof-open" style="padding:2px 7px;">ouvrir</button> <button class="btn small danger" data-action="achat-proof-remove" style="padding:2px 7px;">×</button></div>':'<span class="muted">Aucun justificatif ajouté.</span>';
+  return '<div class="card"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">Nouvel achat fournisseur</h3><button class="btn small ghost" data-action="achat-cancel">Annuler</button></div>'+
+    '<div class="inline"><div><label class="field"><span>Date d’achat</span><input id="achatDate" type="date" value="'+esc(a.date)+'"></label></div>'+
+    '<div><label class="field"><span>Fournisseur</span><input id="achatFournisseur" value="'+esc(a.fournisseur)+'" placeholder="Ex : Floristen Center"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Catégorie</span><select id="achatCategorie">'+catOpts+'</select></label></div>'+
+    '<div><label class="field"><span>Moyen de paiement</span><select id="achatPaiement">'+payOpts+'</select></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Montant TTC (€)</span><input id="achatMontant" type="number" step="0.01" min="0" value="'+esc(a.montantTTC||"")+'"></label></div>'+
+    '<div><label class="field"><span>TVA incluse (€) facultatif</span><input id="achatTVA" type="number" step="0.01" min="0" value="'+esc(a.tva||"")+'"></label></div></div>'+
+    '<label class="field"><span>Projet associé</span><select id="achatProjet">'+achatProjetOptions(projetValue)+'</select><div class="hint">Tu peux rattacher l’achat à un mariage ou à une commande.</div></label>'+
+    '<label class="field"><span>Notes</span><textarea id="achatNotes" placeholder="Ex : gypsophile, renoncules, rubans…">'+esc(a.notes||"")+'</textarea></label>'+
+    '<div class="section-title">Justificatif & lecture automatique</div>'+
+    '<p class="muted" style="margin-top:-4px;">Ajoute une photo de ticket/facture. L’application essaie de lire automatiquement le fournisseur, la date et le montant. Tu peux toujours corriger les champs après lecture.</p>'+
+    '<div style="margin-bottom:10px;">'+proof+'</div>'+
+    '<div class="row-actions" style="margin-top:0;"><button class="btn soft" data-action="achat-proof-pick">📷 Scanner / ajouter facture</button>'+
+    '<button class="btn ghost" data-action="achat-ocr-retry" '+(!a.justificatif||!a.justificatif.dataUrl?'disabled':'')+'>Relancer la lecture automatique</button></div>'+
+    (a.ocrText?'<details style="margin-top:10px;"><summary class="muted" style="cursor:pointer;">Texte détecté par OCR</summary><pre style="white-space:pre-wrap;background:var(--cream);padding:10px;border-radius:8px;font-size:11px;max-height:220px;overflow:auto;">'+esc(a.ocrText)+'</pre></details>':'')+
+    '<div class="row-actions"><button class="btn primary" data-action="achat-save">Enregistrer l’achat</button></div>'+
+    '<input id="achatFileInput" type="file" accept="image/*,application/pdf" style="display:none;"></div>';
+}
+
+function viewAchats(){
+  var annee=new Date().getFullYear(), mois=new Date().getMonth()+1;
+  var totalM=totalAchatsPeriode(annee,mois), totalA=totalAchatsPeriode(annee,null);
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Achats fournisseurs</h2><button class="btn primary" data-action="achat-new">+ Nouvel achat</button></div>'+
+    '<p class="muted" style="margin-top:-8px;">Suis tes factures fournisseurs, tickets et achats de matériel. Les montants sont comptabilisés comme tes ventes, mais côté dépenses.</p>'+
+    '<div class="grid-stats"><div class="stat"><div class="lab">Achats du mois</div><div class="val">'+euro(totalM)+'</div></div>'+
+    '<div class="stat"><div class="lab">Achats de l’année</div><div class="val">'+euro(totalA)+'</div></div>'+
+    '<div class="stat"><div class="lab">Justificatifs</div><div class="val">'+(state.achats||[]).filter(function(a){return a.justificatif;}).length+'</div></div></div>';
+  if(ui.achatDraft) html+=achatFormHTML();
+  var cats=achatsParCategorie(annee), catKeys=Object.keys(cats).sort(function(a,b){return cats[b]-cats[a];});
+  if(catKeys.length){
+    html+='<div class="card"><h3 style="margin:0 0 10px;">Répartition par catégorie '+annee+'</h3>';
+    catKeys.forEach(function(k){ html+='<div class="totrow"><span>'+esc(k)+'</span><b>'+euro(cats[k])+'</b></div>'; });
+    html+='</div>';
+  }
+  var list=(state.achats||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
+  if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucun achat enregistré pour le moment.</p></div>';
+  html+='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">Historique des achats</h3><span class="muted">'+list.length+' achat'+(list.length>1?'s':'')+'</span></div>';
+  list.forEach(function(a){
+    var delPending=ui.confirmDelete==="achat:"+a.id;
+    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
+      '<div><b style="color:var(--bordeaux);">'+esc(a.fournisseur||"Fournisseur")+'</b> <span class="achat-cat">'+esc(a.categorie||"Divers")+'</span></div>'+
+      '<div class="muted" style="font-size:12px;">'+frDate(a.date)+' · '+euro(a.montantTTC||0)+' · '+esc(a.moyenPaiement||"")+(a.tva?(' · TVA '+euro(a.tva)):'')+'</div>'+
+      (a.projetLabel?'<div class="muted" style="font-size:12px;">Projet : '+esc(a.projetLabel)+'</div>':'')+
+      (a.justificatif?'<div class="muted" style="font-size:12px;">📎 Justificatif : '+esc(a.justificatif.name||"fichier")+'</div>':'')+
+      (a.notes?'<div class="muted" style="font-size:12px;">'+esc(a.notes)+'</div>':'')+
+      '</div><div class="row-actions" style="margin-top:0;">'+
+      (a.justificatif?'<button class="btn small ghost" data-action="achat-open-'+a.id+'">Voir justificatif</button>':'')+
+      '<button class="btn small soft" data-action="achat-validate-'+a.id+'">'+(a.statut==="valide"?'Validé':'À vérifier')+'</button>'+
+      '<button class="btn small danger" data-action="achat-del-'+a.id+'">'+(delPending?'Confirmer suppression':'Supprimer')+'</button>'+
+      '</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+
+function saveAchat(){
+  captureAchatDraft();
+  var a=ui.achatDraft; if(!a) return;
+  if(!(a.fournisseur||"").trim()){ toast("Indique le fournisseur."); return; }
+  if(!(Number(a.montantTTC)>0)){ toast("Indique le montant TTC."); return; }
+  a.statut=a.statut||"a_verifier";
+  state.achats=state.achats||[];
+  state.achats.unshift(Object.assign({},a));
+  ui.achatDraft=null;
+  saveCache(); render(); toast("Achat fournisseur enregistré.");
+}
+
+function compressImageDataUrl(file, cb){
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var max=1400, ratio=Math.min(max/img.width,max/img.height,1);
+      var w=Math.round(img.width*ratio), h=Math.round(img.height*ratio);
+      var c=document.createElement("canvas"); c.width=w; c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      cb(c.toDataURL("image/jpeg",0.78));
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function readAchatFile(file){
+  if(!ui.achatDraft || !file) return;
+  captureAchatDraft();
+  if(/^image\//.test(file.type)){
+    toast("Ajout du justificatif et lecture automatique en cours…");
+    compressImageDataUrl(file,function(dataUrl){
+      ui.achatDraft.justificatif={name:file.name,type:file.type,dataUrl:dataUrl};
+      render();
+      runAchatOCR(dataUrl);
+    });
+  } else if(file.type==="application/pdf" || file.name.toLowerCase().endsWith(".pdf")){
+    var r=new FileReader();
+    r.onload=function(e){
+      ui.achatDraft.justificatif={name:file.name,type:file.type||"application/pdf",dataUrl:e.target.result};
+      saveCache(); render();
+      toast("PDF ajouté. La lecture automatique fonctionne surtout avec les photos ; vérifie et complète les champs.");
+    };
+    r.readAsDataURL(file);
+  } else {
+    toast("Format non pris en charge. Utilise une photo ou un PDF.");
+  }
+}
+
+async function runAchatOCR(dataUrl){
+  if(!ui.achatDraft || !dataUrl){ toast("Aucun justificatif à lire."); return; }
+  if(typeof Tesseract==="undefined"){
+    toast("Lecture automatique indisponible. Tu peux saisir les champs manuellement.");
+    return;
+  }
+  try{
+    toast("Lecture automatique en cours… cela peut prendre quelques secondes.");
+    var result=await Tesseract.recognize(dataUrl, "fra+eng");
+    var text=result && result.data ? (result.data.text||"") : "";
+    applyAchatOCR(text);
+    saveCache(); render();
+    toast("Lecture terminée. Vérifie et corrige les champs si besoin.");
+  }catch(e){
+    console.error(e);
+    toast("Lecture automatique impossible. Tu peux corriger/remplir manuellement.");
+  }
+}
+
+function applyAchatOCR(text){
+  var a=ui.achatDraft; if(!a) return;
+  a.ocrText=text||"";
+  var lines=(text||"").split(/\n+/).map(function(l){return l.trim();}).filter(Boolean);
+  if(!a.fournisseur){
+    var first=lines.find(function(l){
+      var low=l.toLowerCase();
+      return l.length>2 && !/(total|ticket|facture|siret|tva|merci|date|cb|visa|mastercard|carte)/i.test(low);
+    });
+    if(first) a.fournisseur=first.slice(0,60);
+  }
+  if(!a.date || a.date===todayISO()){
+    var dm=(text||"").match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2})\b/);
+    if(dm){ a.date=dm[3]+"-"+String(dm[2]).padStart(2,"0")+"-"+String(dm[1]).padStart(2,"0"); }
+  }
+  var amount=parseAmountFromOCR(text||"");
+  if(amount>0) a.montantTTC=amount;
+  var low=(text||"").toLowerCase();
+  if(/fleur|florist|hortensia|gyps|rose|renoncule|eucalyptus|statice|pampa/.test(low)) a.categorie="Fleurs";
+  else if(/carton|boite|sachet|emballage|papier|ruban/.test(low)) a.categorie="Emballages";
+  else if(/colle|pistolet|sécateur|secateur|ciseaux|fil de fer|outil/.test(low)) a.categorie="Matériel";
+  else if(/facebook|meta|instagram|pub|publicit|canva|site|domain/.test(low)) a.categorie="Communication";
+}
+
+function parseAmountFromOCR(text){
+  var candidates=[];
+  var lines=(text||"").split(/\n/);
+  lines.forEach(function(line){
+    var score=/total|ttc|net.?a.?payer|montant/i.test(line)?10:0;
+    var matches=line.match(/(?:\d{1,4}(?:[ \u00A0]\d{3})*|\d+)[,.]\d{2}/g)||[];
+    matches.forEach(function(m){
+      var n=Number(m.replace(/[ \u00A0]/g,"").replace(",","."));
+      if(isFinite(n) && n>0 && n<10000) candidates.push({n:n,score:score});
+    });
+  });
+  if(!candidates.length) return 0;
+  candidates.sort(function(a,b){ return (b.score-a.score) || (b.n-a.n); });
+  return r2(candidates[0].n);
+}
+
+
+function viewAchatsPreview(){
+  var annee=new Date().getFullYear(), mois=new Date().getMonth()+1;
+  var totalM=totalAchatsPeriode(annee,mois);
+  var last=(state.achats||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");}).slice(0,3);
+  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🛒 Achats fournisseurs</h3><button class="btn small primary" data-action="go-achats">Ouvrir</button></div>'+
+    '<p class="muted" style="margin:8px 0 10px;">Achats du mois : <b style="color:var(--bordeaux);">'+euro(totalM)+'</b></p>';
+  if(!last.length) return html+'<p class="muted" style="margin:0;">Aucun achat enregistré.</p></div>';
+  last.forEach(function(a){html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(a.fournisseur||"Fournisseur")+'</b><div class="muted" style="font-size:12px;">'+frDate(a.date)+' · '+euro(a.montantTTC||0)+' · '+esc(a.categorie||"Divers")+'</div></div>';});
+  return html+'</div>';
+}
 
 /* ===================== Calendrier ===================== */
 function calMonthStart(){
@@ -1017,7 +1301,7 @@ function creerAcompte(d){
   var t=totals(d.lignes,state.settings.partService), p=state.settings.acompteParDefaut, date=todayISO();
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis", choixFacturation:true };
+    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -1026,7 +1310,7 @@ function creerSolde(d){
   var t=totals(d.lignes,state.settings.partService); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", datePaiement:null, origine:"devis", choixFacturation:true };
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -1034,7 +1318,7 @@ function creerSolde(d){
 function creerTotale(d){
   var t=totals(d.lignes,state.settings.partService), date=todayISO();
   var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", datePaiement:null, origine:"devis", choixFacturation:true };
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -1236,7 +1520,8 @@ function viewDoc(p){
     '<div class="muted" style="font-size:12px;margin-top:4px;">Date : '+frDate(doc.date)+'</div>'+
     (kind==="devis"?'<div class="muted" style="font-size:12px;">Valable jusqu\'au : '+frDate(doc.validite)+'</div>':'')+
     (kind==="facture"&&doc.echeance?'<div class="muted" style="font-size:12px;">Échéance : '+frDate(doc.echeance)+'</div>':'')+
-    (kind==="facture"&&doc.devisNumero?'<div class="muted" style="font-size:12px;">Réf. devis : '+esc(doc.devisNumero)+'</div>':'');
+    (kind==="facture"&&doc.devisNumero?'<div class="muted" style="font-size:12px;">Réf. devis : '+esc(doc.devisNumero)+'</div>':'')+
+    (kind==="facture"&&doc.paiementClient?'<div class="muted" style="font-size:12px;">Moyen de paiement : '+esc(doc.paiementClient)+'</div>':'');
   var client='<div style="margin-top:22px;padding:12px;background:var(--cream);border-radius:8px;max-width:320px;margin-left:auto;">'+
     '<div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;">Client</div>'+
     '<div style="font-weight:600;">'+esc(doc.client&&doc.client.nom)+'</div>'+
@@ -1325,6 +1610,7 @@ function viewEncaissements(){
       '<div style="flex:2;"><label class="field"><span>Libellé</span><input id="encLib" placeholder="Ex : Vente bouquet boutique"></label></div></div>'+
       '<label class="field"><span>Cliente (facultatif)</span><input id="encClient" list="clientsList" placeholder="Nom de la cliente"></label>'+
       '<datalist id="clientsList">'+sortedClients().map(function(c){return '<option value="'+esc(c.nom)+'">';}).join("")+'</datalist>'+
+      '<label class="field"><span>Moyen de paiement</span><select id="encPaiement">'+paymentOptions("")+'</select></label>'+
       '<div class="inline"><div><label class="field"><span>Montant biens (€)</span><input id="encBiens" type="number" min="0" step="0.01" placeholder="0"></label></div>'+
       '<div><label class="field"><span>Montant services (€)</span><input id="encServ" type="number" min="0" step="0.01" placeholder="0"></label></div></div>'+
       '<button class="btn primary" data-action="enc-add">+ Ajouter au carnet</button></div>';
@@ -1758,6 +2044,17 @@ function handleAction(action){
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="devis"; newWizard(); render(); return; }
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
+  if(action==="go-achats"){ ui.tab="achats"; render(); return; }
+  if(action==="achat-new"){ newAchatDraft(); ui.tab="achats"; render(); return; }
+  if(action==="achat-cancel"){ ui.achatDraft=null; render(); return; }
+  if(action==="achat-save"){ saveAchat(); return; }
+  if(action==="achat-proof-pick"){ captureAchatDraft(); var af=document.getElementById("achatFileInput"); if(af) af.click(); return; }
+  if(action==="achat-proof-remove"){ if(ui.achatDraft){ ui.achatDraft.justificatif=null; ui.achatDraft.ocrText=""; render(); } return; }
+  if(action==="achat-proof-open"){ if(ui.achatDraft&&ui.achatDraft.justificatif){ window.open(ui.achatDraft.justificatif.dataUrl,"_blank"); } return; }
+  if(action==="achat-ocr-retry"){ if(ui.achatDraft&&ui.achatDraft.justificatif){ runAchatOCR(ui.achatDraft.justificatif.dataUrl); } return; }
+  if(action.indexOf("achat-open-")===0){ var ao=(state.achats||[]).find(function(a){return a.id===action.slice(11);}); if(ao&&ao.justificatif){ window.open(ao.justificatif.dataUrl,"_blank"); } return; }
+  if(action.indexOf("achat-validate-")===0){ var av=(state.achats||[]).find(function(a){return a.id===action.slice(15);}); if(av){ av.statut=av.statut==="valide"?"a_verifier":"valide"; saveCache(); render(); } return; }
+  if(action.indexOf("achat-del-")===0){ var aid=action.slice(10), key="achat:"+aid; if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche Supprimer pour confirmer."); return; } state.achats=(state.achats||[]).filter(function(a){return a.id!==aid;}); ui.confirmDelete=null; saveCache(); render(); toast("Achat supprimé."); return; }
   if(action==="cal-prev"){ calSetMonth(-1); return; }
   if(action==="cal-next"){ calSetMonth(1); return; }
   if(action==="cal-today"){ ui.calMonth=todayISO().slice(0,7); render(); return; }
@@ -1840,17 +2137,27 @@ function handleAction(action){
   if(action==="fac-create-manual"){ createManualFacture(); return; }
 
   // factures depuis devis
-  if(action.indexOf("fac-acompte-")===0){ var d1=findDevis(action.slice(12)); if(d1){ creerAcompte(d1); saveCache(); ui.tab="factures"; render(); toast("Facture d\'acompte créée."); } return; }
-  if(action.indexOf("fac-solde-")===0){ var d2=findDevis(action.slice(10)); if(d2){ creerSolde(d2); saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); } return; }
-  if(action.indexOf("fac-totale-")===0){ var d3=findDevis(action.slice(11)); if(d3){ creerTotale(d3); saveCache(); ui.tab="factures"; render(); toast("Facture créée."); } return; }
+  if(action.indexOf("fac-acompte-")===0){ var d1=findDevis(action.slice(12)); if(d1){ var fa=creerAcompte(d1); if(fa){ var mpA=prompt("Moyen de paiement si l'acompte est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpA!==null && mpA.trim()){ fa.paiementClient=mpA.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée."); } return; }
+  if(action.indexOf("fac-solde-")===0){ var d2=findDevis(action.slice(10)); if(d2){ var fs=creerSolde(d2); if(fs){ var mpS=prompt("Moyen de paiement si le solde est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpS!==null && mpS.trim()){ fs.paiementClient=mpS.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); } return; }
+  if(action.indexOf("fac-totale-")===0){ var d3=findDevis(action.slice(11)); if(d3){ var ft=creerTotale(d3); if(ft){ var mpT=prompt("Moyen de paiement si la facture est déjà réglée ?\nLaisse vide si non payée.", ""); if(mpT!==null && mpT.trim()){ ft.paiementClient=mpT.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture créée."); } return; }
 
   // factures
   if(action.indexOf("fac-preview-")===0){ var f=state.factures.find(function(x){return x.id===action.slice(12);}); ui.preview={kind:"facture",doc:f}; renderModal(); return; }
   if(action.indexOf("fac-email-")===0){ var fe=state.factures.find(function(x){return x.id===action.slice(10);}); envoyerDocumentEmail("facture", fe); return; }
+  if(action.indexOf("fac-paymethod-")===0){
+    var fm=state.factures.find(function(x){return x.id===action.slice(14);});
+    if(fm){
+      var current=fm.paiementClient||"";
+      var mp=prompt("Moyen de paiement de la cliente ?\nExemples : CB, Espèces, Virement, Wero, PayPal, Chèque", current);
+      if(mp!==null){ fm.paiementClient=mp.trim(); saveCache(); render(); toast("Moyen de paiement enregistré."); }
+    }
+    return;
+  }
   if(action.indexOf("fac-paid-")===0){
     var fp=state.factures.find(function(x){return x.id===action.slice(9);});
     if(fp){
       fp.statut="payee"; fp.datePaiement=fp.datePaiement||todayISO();
+      if(!fp.paiementClient){ var mp=prompt("Moyen de paiement de la cliente ? (CB, Espèces, Virement, Wero…)", ""); if(mp!==null) fp.paiementClient=mp.trim(); }
       if(fp.type==="acompte" && fp.devisId){
         var dd=findDevis(fp.devisId);
         var hasSolde=facturesDuDevis(fp.devisId).some(function(f){return f.type==="solde";});
@@ -1889,7 +2196,7 @@ function handleAction(action){
   if(action.indexOf("csv-")===0){ exportCSV(action.slice(4)); return; }
 
   // encaissements
-  if(action==="enc-add"){ var b=num(val("encBiens")), s=num(val("encServ")); if(b===0&&s===0){ toast("Indique un montant (biens et/ou services)."); return; } var cl=val("encClient").trim(); state.encaissements.push({ id:uid(), date:val("encDate")||todayISO(), libelle:val("encLib"), montantBiens:r2(b), montantServices:r2(s), montant:r2(b+s), client:cl, source:"manuel" }); if(cl) ensureClients([cl]); saveCache(); render(); toast("Encaissement ajouté."); return; }
+  if(action==="enc-add"){ var b=num(val("encBiens")), s=num(val("encServ")); if(b===0&&s===0){ toast("Indique un montant (biens et/ou services)."); return; } var cl=val("encClient").trim(); state.encaissements.push({ id:uid(), date:val("encDate")||todayISO(), libelle:val("encLib"), montantBiens:r2(b), montantServices:r2(s), montant:r2(b+s), client:cl, paiement:val("encPaiement"), source:"manuel" }); if(cl) ensureClients([cl]); saveCache(); render(); toast("Encaissement ajouté."); return; }
   if(action==="enc-clearimport"){ if(confirm("Supprimer tous les encaissements issus d'un import ? (les ventes saisies à la main sont conservées)")){ state.encaissements=state.encaissements.filter(function(e){return e.source!=="import";}); saveCache(); render(); toast("Encaissements importés supprimés."); } return; }
   if(action.indexOf("enc-del-")===0){ var eid=action.slice(8); if(confirm("Supprimer cet encaissement ?")){ state.encaissements=state.encaissements.filter(function(x){return x.id!==eid;}); saveCache(); render(); } return; }
   if(action==="enc-import"){ document.getElementById("encImport").click(); return; }
@@ -1967,7 +2274,7 @@ function onRestoreFile(file){
     try{
       var parsed=JSON.parse(e.target.result);
       var data=parsed && parsed.data ? parsed.data : parsed;
-      var looksValid = data && typeof data==="object" && (data.settings || data.clients || data.devis || data.factures || data.mariages || data.encaissements || data.commandes);
+      var looksValid = data && typeof data==="object" && (data.settings || data.clients || data.devis || data.factures || data.mariages || data.encaissements || data.commandes || data.achats);
       if(!looksValid){ toast("Ce fichier ne ressemble pas à une sauvegarde de l'application."); return; }
       var msg="Restaurer cette sauvegarde ?\n\nLes données actuelles de l'application seront remplacées dans Firebase par celles du fichier : "+(file.name||"sauvegarde.json")+".\n\nAvant de continuer, assure-toi d'avoir téléchargé une sauvegarde récente.";
       if(!confirm(msg)){ toast("Restauration annulée."); return; }
@@ -2014,6 +2321,7 @@ document.addEventListener("input", function(e){
 });
 document.addEventListener("change", function(e){
   var t=e.target;
+  if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="dash-year"){ ui.anneeDash=Number(t.value); ui.monthDetail=null; render(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linetype")){ var id=t.getAttribute("data-id"); var l=ui.wizard&&ui.wizard.lignes.find(function(x){return x.id===id;}); if(l){ l.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-faclinetype")){ var fid=t.getAttribute("data-id"); var fl=ui.factureDraft&&ui.factureDraft.lignes.find(function(x){return x.id===fid;}); if(fl){ fl.type=t.value; render(); } return; }
