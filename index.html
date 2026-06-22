@@ -448,6 +448,7 @@ function viewDashboard(){
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
   prepBanner+
+  viewCalendarPreview()+
   '<div class="row-actions" style="margin-bottom:14px;">'+
     '<button class="btn small gold" data-action="csv-'+an+'">Exporter '+an+' (Excel / CSV)</button>'+
     '<button class="btn small ghost" data-action="csv-all">Exporter toutes les années</button></div>'+
@@ -629,27 +630,62 @@ function devisAFacturerHTML(){
   });
   return html;
 }
+function factureCardHTML(f){
+  var sf=ST_FAC[f.statut]||ST_FAC.a_envoyer;
+  var delPending = ui.confirmDelete === "facture:"+f.id;
+  return '<div class="card" style="margin-bottom:10px;"><div class="flexb"><div>'+
+    '<div style="font-weight:700;color:var(--bordeaux);">'+esc(f.numero)+' · '+esc(TYPE_FAC[f.type]||"Facture")+(f.origine==="manuelle"?' <span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">saisie directe</span>':'')+'</div>'+
+    '<div class="muted">'+esc(f.client&&f.client.nom)+' · '+frDate(f.date)+' · <b>'+euro(f.montant)+'</b></div>'+
+    '<div class="muted">'+euro(f.montantBiens)+' biens · '+euro(f.montantServices)+' services'+(f.datePaiement?" · payée le "+frDate(f.datePaiement):"")+'</div></div>'+
+    '<span class="badge" style="color:'+sf.c+';background:'+sf.b+';">'+sf.l+'</span></div>'+
+    '<div class="row-actions">'+
+      '<button class="btn small ghost" data-action="fac-preview-'+f.id+'">Aperçu / PDF</button>'+
+      '<button class="btn small gold" data-action="fac-email-'+f.id+'">Envoyer par email</button>'+
+      (f.statut==="a_envoyer"?'<button class="btn small soft" data-action="fac-st-'+f.id+'-envoyee">Marquer envoyée</button>':'')+
+      (f.statut!=="payee"?'<button class="btn small gold" data-action="fac-paid-'+f.id+'">Marquer payée</button>':'')+
+      (f.statut==="payee"?'<button class="btn small ghost" data-action="fac-st-'+f.id+'-envoyee">Annuler paiement</button>':'')+
+      '<button class="btn small danger" data-action="fac-del-'+f.id+'">'+(delPending?'Confirmer suppression':'Supprimer')+'</button>'+
+    '</div></div>';
+}
+function viewFactureGroup(key,label,list,openDefault){
+  ui.factureGroups=ui.factureGroups||{};
+  var open = ui.factureGroups[key];
+  if(open===undefined) open=openDefault;
+  var total=list.reduce(function(s,f){return s+(Number(f.montant)||0);},0);
+  var color = key==="a_envoyer" ? "var(--bordeaux)" : (key==="envoyee" ? "#6a5a2a" : "var(--green)");
+  var bg = key==="a_envoyer" ? "var(--blush-s)" : (key==="envoyee" ? "#f3ead0" : "var(--green-s)");
+  var html='<div class="card" style="padding:0;overflow:hidden;">'+
+    '<button data-action="fac-group-toggle-'+key+'" style="width:100%;border:none;background:'+bg+';padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+      '<div class="flexb"><div style="font-weight:800;color:'+color+';">'+(open?'▾':'▸')+' '+esc(label)+' <span class="muted">('+list.length+')</span></div>'+
+      '<div style="font-weight:700;color:'+color+';">'+euro(total)+'</div></div>'+
+    '</button>';
+  if(open){
+    html+='<div style="padding:12px 12px 2px;">';
+    if(!list.length) html+='<p class="muted" style="margin:0 0 10px;">Aucune facture dans cette catégorie.</p>';
+    list.forEach(function(f){ html+=factureCardHTML(f); });
+    html+='</div>';
+  }
+  html+='</div>';
+  return html;
+}
 function viewFactures(){
   var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Mes factures</h2><button class="btn primary" data-action="fac-new">+ Nouvelle facture</button></div>';
   html+=devisAFacturerHTML();
   if(ui.factureDraft){ html+=viewFactureManualForm(); }
   if(state.factures.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>'; return html; }
-  state.factures.forEach(function(f){
-    var sf=ST_FAC[f.statut]||ST_FAC.a_envoyer;
-    html+='<div class="card"><div class="flexb"><div>'+ 
-      '<div style="font-weight:700;color:var(--bordeaux);">'+esc(f.numero)+' · '+esc(TYPE_FAC[f.type]||"Facture")+(f.origine==="manuelle"?' <span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">saisie directe</span>':'')+'</div>'+ 
-      '<div class="muted">'+esc(f.client&&f.client.nom)+' · '+frDate(f.date)+' · <b>'+euro(f.montant)+'</b></div>'+ 
-      '<div class="muted">'+euro(f.montantBiens)+' biens · '+euro(f.montantServices)+' services'+(f.datePaiement?" · payée le "+frDate(f.datePaiement):"")+'</div></div>'+ 
-      '<span class="badge" style="color:'+sf.c+';background:'+sf.b+';">'+sf.l+'</span></div>'+ 
-      '<div class="row-actions">'+ 
-        '<button class="btn small ghost" data-action="fac-preview-'+f.id+'">Aperçu / PDF</button>'+ 
-        '<button class="btn small gold" data-action="fac-email-'+f.id+'">Envoyer par email</button>'+ 
-        (f.statut==="a_envoyer"?'<button class="btn small soft" data-action="fac-st-'+f.id+'-envoyee">Marquer envoyée</button>':'')+ 
-        (f.statut!=="payee"?'<button class="btn small gold" data-action="fac-paid-'+f.id+'">Marquer payée</button>':'')+ 
-        (f.statut==="payee"?'<button class="btn small ghost" data-action="fac-st-'+f.id+'-envoyee">Annuler paiement</button>':'')+ 
-        '<button class="btn small danger" data-action="fac-del-'+f.id+'">'+(ui.confirmDelete === "facture:"+f.id ? 'Confirmer suppression' : 'Supprimer')+'</button>'+ 
-      '</div></div>';
+
+  var sorted=state.factures.slice().sort(function(a,b){
+    return (b.date||"").localeCompare(a.date||"") || (b.numero||"").localeCompare(a.numero||"");
   });
+  var groups={
+    a_envoyer: sorted.filter(function(f){return (f.statut||"a_envoyer")==="a_envoyer";}),
+    envoyee: sorted.filter(function(f){return f.statut==="envoyee";}),
+    payee: sorted.filter(function(f){return f.statut==="payee";})
+  };
+  html+='<p class="muted" style="margin-top:-6px;">Factures classées par état. Clique sur une catégorie pour l’ouvrir ou la réduire.</p>';
+  html+=viewFactureGroup("a_envoyer","À envoyer",groups.a_envoyer,true);
+  html+=viewFactureGroup("envoyee","Envoyées / en attente de paiement",groups.envoyee,true);
+  html+=viewFactureGroup("payee","Payées",groups.payee,false);
   return html;
 }
 function newFactureDraft(){
@@ -1663,6 +1699,7 @@ function findDevis(id){ return state.devis.find(function(d){return d.id===id;});
 function handleAction(action){
   // nav
   if(action.indexOf("nav-")===0){ ui.tab=action.slice(4); ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null; render(); return; }
+  if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="devis"; newWizard(); render(); return; }
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
   if(action==="cal-prev"){ calSetMonth(-1); return; }
@@ -1725,7 +1762,7 @@ function handleAction(action){
   if(action.indexOf("cmd-delline-")===0){ captureCommandeDraft(); var clid=action.slice(12); ui.commandeDraft.lignes=ui.commandeDraft.lignes.filter(function(l){return l.id!==clid;}); render(); return; }
   if(action==="cmd-create"){ createCommande(); return; }
   if(action==="cmd-suivi"){ ui.commandeOpen=null; render(); return; }
-  if(action.indexOf("cmd-open-")===0){ ui.commandeOpen=action.slice(9); ui.commandeDraft=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("cmd-open-")===0){ ui.tab="commandes"; ui.commandeOpen=action.slice(9); ui.commandeDraft=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="cmd-back"){ captureCommandeOpen(); saveCache(); ui.commandeOpen=null; render(); return; }
   if(action==="cmd-save"){ captureCommandeOpen(); saveCache(); render(); toast("Fiche commande enregistrée."); return; }
   if(action==="cmd-detail-addfree"){ var co=getCommande(ui.commandeOpen); if(co){ captureCommandeOpen(); co.lignes=co.lignes||[]; co.lignes.push({id:uid(),designation:"",type:"bien",qte:1,prix:0}); saveCache(); render(); } return; }
@@ -1814,7 +1851,7 @@ function handleAction(action){
   if(action==="dash-month-close"){ ui.monthDetail=null; render(); return; }
   if(action==="prep-cmd-add"){ var lbl=val("cmdLabel"); if(!lbl.trim()){ toast("Indique l'article à préparer."); return; } state.commandes.unshift({ id:uid(), label:lbl, client:val("cmdClient"), dateLivraison:val("cmdDate"), fait:false, createdAt:todayISO() }); saveCache(); render(); return; }
   if(action.indexOf("prep-cmd-del-")===0){ var cid=action.slice(13); state.commandes=state.commandes.filter(function(x){return x.id!==cid;}); saveCache(); render(); return; }
-  if(action.indexOf("mar-open-")===0){ ui.mariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("mar-open-")===0){ ui.tab="mariages"; ui.mariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action==="mar-back"){ captureMariageInputs(); saveCache(); ui.mariageOpen=null; render(); return; }
   if(action==="mar-save"){ captureMariageInputs(); saveCache(); render(); toast("Fiche enregistrée et synchronisée."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
