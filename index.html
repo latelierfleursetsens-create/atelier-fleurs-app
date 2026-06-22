@@ -91,6 +91,20 @@
   .section-title{font-family:Georgia,serif;color:var(--bordeaux);font-size:16px;margin:20px 0 8px;}
   .pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;display:inline-block;}
   .alert{background:#fbe6df;color:#9b3b3b;border:1px solid #e8c4b8;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;display:inline-block;}
+
+  .cal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+  .cal-dayname{text-align:center;font-size:12px;font-weight:700;color:var(--ink-s);padding:6px 0;}
+  .cal-cell{min-height:94px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:7px;overflow:hidden;}
+  .cal-cell.other{opacity:.38;background:#faf7f4;}
+  .cal-cell.today{border:2px solid var(--bordeaux);}
+  .cal-num{font-size:12px;font-weight:700;color:var(--bordeaux);margin-bottom:5px;}
+  .cal-event{display:block;font-size:11px;line-height:1.25;padding:3px 5px;border-radius:7px;margin:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;}
+  .cal-event.mariage{background:#f4e4dd;color:#5A2230;}
+  .cal-event.atelier{background:#f8dcd2;color:#8a4d3c;}
+  .cal-event.paiement{background:#e7eee8;color:#384640;}
+  .cal-listitem{padding:8px 0;border-bottom:1px solid var(--line);}
+
 </style>
 </head>
 <body>
@@ -168,17 +182,6 @@ var MOISL=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","S
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]);}); }
 function num(v){ return Number(v)||0; }
 
-var COMM_CHANNELS=["Mail","Téléphone","WhatsApp","Messenger","TikTok","Instagram","SMS"];
-function commOptions(selected){
-  selected=selected||"";
-  return '<option value="">Non renseigné</option>'+COMM_CHANNELS.map(function(ch){return '<option value="'+esc(ch)+'"'+(ch===selected?' selected':'')+'>'+esc(ch)+'</option>';}).join("");
-}
-function sortedClients(){
-  return (state.clients||[]).slice().sort(function(a,b){
-    return (a.nom||"").localeCompare((b.nom||""),"fr",{sensitivity:"base"});
-  });
-}
-
 function totals(lignes, partService){
   var p=(Number(partService)||0)/100, biens=0, services=0, total=0;
   (lignes||[]).forEach(function(l){
@@ -186,30 +189,6 @@ function totals(lignes, partService){
     if(l.type==="service"){ services+=lt*p; biens+=lt*(1-p); } else { biens+=lt; }
   });
   return { biens:r2(biens), services:r2(services), total:r2(total) };
-}
-
-function factureCalc(lignes, partService, f){
-  var base=totals(lignes, partService), total=base.total;
-  f=f||{};
-  var valRem=num(f.reductionValeur), remise=0;
-  if(valRem>0){
-    if(f.reductionType==="pourcent"){ remise=r2(total*valRem/100); }
-    else { remise=r2(valRem); }
-  }
-  remise=Math.min(remise,total);
-  var apres=r2(total-remise);
-  var acompte=Math.min(num(f.acompteDejaPaye),apres);
-  var net=r2(apres-acompte);
-  var ratio=total>0?apres/total:1;
-  return {
-    biens:r2(base.biens*ratio),
-    services:r2(base.services*ratio),
-    totalInitial:base.total,
-    remiseMontant:remise,
-    totalApresRemise:apres,
-    acompteDejaPaye:acompte,
-    total:net
-  };
 }
 
 var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l:"Envoyé",c:"#6a5a2a",b:"#f3ead0"},
@@ -374,7 +353,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["calendrier","Calendrier"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -389,6 +368,7 @@ function render(){
   renderTabs(); renderTopbar();
   var v=document.getElementById("view");
   if(ui.tab==="accueil") v.innerHTML=viewDashboard();
+  else if(ui.tab==="calendrier") v.innerHTML=viewCalendrier();
   else if(ui.tab==="commandes") v.innerHTML=viewCommandes();
   else if(ui.tab==="devis") v.innerHTML= ui.wizard? viewWizard() : viewDevis();
   else if(ui.tab==="factures") v.innerHTML=viewFactures();
@@ -570,7 +550,7 @@ function viewWizard(){
       (state.clients.length?'<button class="btn small '+(w.clientMode==="existant"?"primary":"ghost")+'" data-action="wz-mode-existant">Client enregistré</button>':'')+'</div>';
     var form;
     if(w.clientMode==="existant"){
-      form='<label class="field"><span>Choisir le client</span><select id="wzClient" data-action="wz-clientsel">'+sortedClients().map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===w.clientId?" selected":"")+'>'+esc(c.nom)+'</option>';}).join("")+'</select></label>';
+      form='<label class="field"><span>Choisir le client</span><select id="wzClient" data-action="wz-clientsel">'+state.clients.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===w.clientId?" selected":"")+'>'+esc(c.nom)+'</option>';}).join("")+'</select></label>';
     } else {
       form='<label class="field"><span>Nom du client *</span><input id="wzNom" value="'+esc(w.client.nom)+'" placeholder="Ex : Camille & Julien Martin"></label>'+
         '<label class="field"><span>Adresse</span><input id="wzAdr" value="'+esc(w.client.adresse)+'"></label>'+
@@ -673,9 +653,9 @@ function viewFactures(){
   return html;
 }
 function newFactureDraft(){
-  ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, notes:"" };
+  ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"" };
 }
-function facDraftTotals(){ return factureCalc(ui.factureDraft?ui.factureDraft.lignes:[], state.settings.partService, ui.factureDraft); }
+function facDraftTotals(){ return totals(ui.factureDraft?ui.factureDraft.lignes:[], state.settings.partService); }
 function viewFactureManualForm(){
   var f=ui.factureDraft;
   var clientPart='';
@@ -685,13 +665,12 @@ function viewFactureManualForm(){
       '<button class="btn small '+(f.clientMode==="existant"?"primary":"ghost")+'" data-action="fac-mode-existant">Client enregistré</button></div>';
   }
   if(f.clientMode==="existant"&&state.clients.length){
-    clientPart+='<label class="field"><span>Client</span><select id="facClient" data-action="fac-clientsel">'+sortedClients().map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===f.clientId?" selected":"")+'>'+esc(c.nom)+'</option>';}).join("")+'</select></label>';
+    clientPart+='<label class="field"><span>Client</span><select id="facClient" data-action="fac-clientsel">'+state.clients.map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===f.clientId?" selected":"")+'>'+esc(c.nom)+'</option>';}).join("")+'</select></label>';
   } else {
     clientPart+='<label class="field"><span>Nom du client *</span><input id="facNom" value="'+esc(f.client.nom)+'" placeholder="Ex : Camille Martin"></label>'+ 
       '<label class="field"><span>Adresse</span><input id="facAdr" value="'+esc(f.client.adresse)+'"></label>'+ 
       '<div class="inline"><div><label class="field"><span>Email</span><input id="facEmail" value="'+esc(f.client.email)+'"></label></div>'+ 
-      '<div><label class="field"><span>Téléphone</span><input id="facTel" value="'+esc(f.client.tel)+'"></label></div></div>'+
-      '<label class="field"><span>Canal de communication préféré</span><select id="facCanal">'+commOptions(f.client.canal||"")+'</select></label>';
+      '<div><label class="field"><span>Téléphone</span><input id="facTel" value="'+esc(f.client.tel)+'"></label></div></div>';
   }
   var cat=state.catalogue.length? state.catalogue.map(function(it){
     return '<button data-action="fac-addcat-'+it.id+'" style="text-align:left;border:1px solid var(--line);background:'+(it.type==="service"?"var(--green-s)":"var(--blush-s)")+';border-radius:10px;padding:8px 11px;cursor:pointer;font-family:inherit;">'+
@@ -714,33 +693,20 @@ function viewFactureManualForm(){
     clientPart+ 
     '<div class="section-title">Lignes de facture</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">'+cat+'</div>'+table+ 
     '<button class="btn small soft" data-action="fac-addfree">+ Ligne libre</button>'+ 
-    '<div class="section-title">Réduction / acompte déjà payé</div>'+ 
-    '<div class="inline"><div><label class="field"><span>Type de réduction</span><select id="facReductionType"><option value="montant"'+(f.reductionType!=="pourcent"?" selected":"")+'>Montant €</option><option value="pourcent"'+(f.reductionType==="pourcent"?" selected":"")+'>Pourcentage %</option></select></label></div>'+ 
-    '<div><label class="field"><span>Réduction</span><input id="facReductionValeur" type="number" min="0" step="0.01" value="'+esc(f.reductionValeur||0)+'"></label></div>'+ 
-    '<div><label class="field"><span>Acompte déjà payé (€)</span><input id="facAcompteDejaPaye" type="number" min="0" step="0.01" value="'+esc(f.acompteDejaPaye||0)+'"></label></div></div>'+ 
     '<div id="facTot" style="margin-top:14px;padding:12px;background:var(--cream);border-radius:10px;font-size:14px;">'+facTotHTML(facDraftTotals())+'</div>'+ 
     '<label class="field" style="margin-top:12px;"><span>Note sur la facture (facultatif)</span><textarea id="facNotes">'+esc(f.notes||"")+'</textarea></label>'+ 
     '<div class="row-actions"><button class="btn gold" data-action="fac-create-manual">Créer la facture</button><button class="btn ghost" data-action="fac-cancel-manual">Annuler</button></div></div>';
 }
 function facTotHTML(t){
-  var html='<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+
-    '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>';
-  if(t.remiseMontant>0){
-    html+='<div class="totrow muted"><span>Total avant réduction</span><span>'+euro(t.totalInitial)+'</span></div>'+
-      '<div class="totrow muted"><span>Réduction</span><span>– '+euro(t.remiseMontant)+'</span></div>'+
-      '<div class="totrow muted"><span>Total après réduction</span><span>'+euro(t.totalApresRemise)+'</span></div>';
-  }
-  if(t.acompteDejaPaye>0){
-    html+='<div class="totrow muted"><span>Acompte déjà payé</span><span>– '+euro(t.acompteDejaPaye)+'</span></div>';
-  }
-  html+='<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:6px;"><span>Solde à payer</span><span>'+euro(t.total)+'</span></div>';
-  return html;
+  return '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
+    '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>'+ 
+    '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:6px;"><span>Total facture</span><span>'+euro(t.total)+'</span></div>';
 }
 function captureFactureDraft(){
   var f=ui.factureDraft; if(!f) return;
-  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut=val("facStatut")||"a_envoyer"; f.notes=val("facNotes"); f.reductionType=val("facReductionType")||"montant"; f.reductionValeur=num(val("facReductionValeur")); f.acompteDejaPaye=num(val("facAcompteDejaPaye"));
+  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut=val("facStatut")||"a_envoyer"; f.notes=val("facNotes");
   if(f.clientMode==="existant"&&state.clients.length){ f.clientId=val("facClient")||f.clientId; }
-  else { f.client={nom:val("facNom"),adresse:val("facAdr"),email:val("facEmail"),tel:val("facTel"),canal:val("facCanal")}; }
+  else { f.client={nom:val("facNom"),adresse:val("facAdr"),email:val("facEmail"),tel:val("facTel")}; }
 }
 function refreshFactureTotals(){ var box=document.getElementById("facTot"); if(box) box.innerHTML=facTotHTML(facDraftTotals()); }
 function createManualFacture(){
@@ -750,17 +716,84 @@ function createManualFacture(){
   else {
     if(!(f.client.nom||"").trim()){ toast("Indique le nom du client."); return; }
     var k=normName(f.client.nom); client=state.clients.find(function(c){return normName(c.nom)===k;});
-    if(client){ if(!client.email&&f.client.email)client.email=f.client.email; if(!client.tel&&f.client.tel)client.tel=f.client.tel; if(!client.adresse&&f.client.adresse)client.adresse=f.client.adresse; if(!client.canal&&f.client.canal)client.canal=f.client.canal; }
+    if(client){ if(!client.email&&f.client.email)client.email=f.client.email; if(!client.tel&&f.client.tel)client.tel=f.client.tel; if(!client.adresse&&f.client.adresse)client.adresse=f.client.adresse; }
     else { client=Object.assign({id:uid()},f.client); state.clients.push(client); }
   }
   if(!client){ toast("Choisis un client."); return; }
   if(!f.lignes.length){ toast("Ajoute au moins une ligne."); return; }
-  var t=factureCalc(f.lignes,state.settings.partService,f);
-  if(t.totalInitial<=0){ toast("Le total de la facture doit être supérieur à 0 €."); return; }
-  var facture={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:f.date, echeance:f.echeance, client:client, lignes:f.lignes, notes:f.notes, montantBiens:t.biens, montantServices:t.services, montant:t.total, totalInitial:t.totalInitial, remiseType:f.reductionType, remiseValeur:num(f.reductionValeur), remiseMontant:t.remiseMontant, totalApresRemise:t.totalApresRemise, acompteDejaPaye:t.acompteDejaPaye, statut:f.statut, datePaiement:f.statut==="payee"?f.date:null, origine:"manuelle" };
+  var t=totals(f.lignes,state.settings.partService);
+  if(t.total<=0){ toast("Le total de la facture doit être supérieur à 0 €."); return; }
+  var facture={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:f.date, echeance:f.echeance, client:client, lignes:f.lignes, notes:f.notes, montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:f.statut, datePaiement:f.statut==="payee"?f.date:null, origine:"manuelle" };
   state.factures.unshift(facture); ui.factureDraft=null; saveCache(); render(); toast("Facture "+facture.numero+" créée.");
 }
 
+
+
+/* ===================== Calendrier ===================== */
+function calMonthStart(){
+  var base = ui.calMonth || todayISO().slice(0,7);
+  var p=base.split("-");
+  return new Date(Number(p[0]), Number(p[1])-1, 1);
+}
+function calSetMonth(offset){
+  var d=calMonthStart();
+  d.setMonth(d.getMonth()+offset);
+  ui.calMonth=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+  render();
+}
+function calDateKey(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function calEvents(){
+  var events=[];
+  (state.mariages||[]).forEach(function(m){
+    if(m.dateMariage) events.push({date:m.dateMariage,type:"mariage",icon:"💍",title:m.nom||"Mariage",sub:m.lieu||"",action:"mar-open-"+m.id});
+  });
+  (state.commandes||[]).forEach(function(c){
+    var label=(c.label||"").toLowerCase();
+    var isAtelier=label.indexOf("atelier")>=0||label.indexOf("evjf")>=0||label.indexOf("anniversaire")>=0||label.indexOf("qvt")>=0;
+    if(c.dateLivraison&&isAtelier) events.push({date:c.dateLivraison,type:"atelier",icon:"🌸",title:c.label||"Atelier",sub:c.client||"",action:"cmd-open-"+c.id});
+  });
+  (state.factures||[]).forEach(function(f){
+    if(f.echeance&&f.statut!=="payee") events.push({date:f.echeance,type:"paiement",icon:"💶",title:(f.numero||"Facture")+" à régler",sub:((f.client&&f.client.nom)||"")+" · "+euro(f.montant||0),action:"facture-preview-"+f.id});
+  });
+  events.sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
+  return events;
+}
+function calEventsFor(date){return calEvents().filter(function(e){return e.date===date;});}
+function viewCalendarPreview(){
+  var today=todayISO(), events=calEvents().filter(function(e){return e.date>=today;}).slice(0,5);
+  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">📆 Calendrier</h3><button class="btn small primary" data-action="go-calendrier">Ouvrir</button></div>';
+  if(!events.length) return html+'<p class="muted" style="margin:10px 0 0;">Aucun événement à venir renseigné.</p></div>';
+  html+='<p class="muted" style="margin:8px 0 10px;">Prochains événements importants.</p>';
+  events.forEach(function(e){html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+e.icon+' '+esc(e.title)+'</b><div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.sub?' · '+esc(e.sub):'')+'</div></div>';});
+  return html+'</div>';
+}
+function viewCalendrier(){
+  var d=calMonthStart(), year=d.getFullYear(), month=d.getMonth();
+  var monthName=d.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+  var first=new Date(year,month,1), start=new Date(first), day=(first.getDay()+6)%7;
+  start.setDate(first.getDate()-day);
+  var today=todayISO();
+  var html='<div class="cal-head"><h2 style="margin:0;">📆 Calendrier</h2><div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="cal-prev">← Mois précédent</button><button class="btn small soft" data-action="cal-today">Aujourd’hui</button><button class="btn small ghost" data-action="cal-next">Mois suivant →</button></div></div>'+
+    '<div class="card"><div class="flexb"><h3 style="margin:0;text-transform:capitalize;">'+esc(monthName)+'</h3><div class="muted">💍 Mariages · 🌸 Ateliers · 💶 Paiements</div></div><div class="cal-grid" style="margin-top:12px;">';
+  ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].forEach(function(n){html+='<div class="cal-dayname">'+n+'</div>';});
+  for(var i=0;i<42;i++){
+    var cur=new Date(start); cur.setDate(start.getDate()+i);
+    var key=calDateKey(cur), evs=calEventsFor(key);
+    var cls='cal-cell'+(cur.getMonth()!==month?' other':'')+(key===today?' today':'');
+    html+='<div class="'+cls+'"><div class="cal-num">'+cur.getDate()+'</div>';
+    evs.slice(0,3).forEach(function(e){html+='<div class="cal-event '+e.type+'" data-action="'+esc(e.action)+'" title="'+esc(e.title)+'">'+e.icon+' '+esc(e.title)+'</div>';});
+    if(evs.length>3) html+='<div class="muted" style="font-size:11px;">+'+(evs.length-3)+' autre(s)</div>';
+    html+='</div>';
+  }
+  html+='</div></div>';
+  var upcoming=calEvents().filter(function(e){return e.date>=today;}).slice(0,12);
+  html+='<div class="card"><h3 style="margin:0 0 10px;">À venir</h3>';
+  if(!upcoming.length) html+='<p class="muted" style="margin:0;">Aucun événement à venir.</p>';
+  upcoming.forEach(function(e){html+='<div class="cal-listitem"><button data-action="'+esc(e.action)+'" style="border:none;background:none;text-align:left;cursor:pointer;font-family:inherit;padding:0;width:100%;"><b style="color:var(--bordeaux);">'+e.icon+' '+esc(e.title)+'</b><div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.sub?' · '+esc(e.sub):'')+'</div></button></div>';});
+  return html+'</div>';
+}
 
 /* ===================== Commandes ===================== */
 function getCommande(id){ return state.commandes.find(function(c){return c.id===id;}); }
@@ -802,7 +835,7 @@ function viewCommandeForm(){
     clientPart+='<div class="row-actions" style="margin-top:0;margin-bottom:14px;"><button class="btn small '+(c.clientMode==="nouveau"?"primary":"ghost")+'" data-action="cmd-mode-nouveau">Nouveau client</button><button class="btn small '+(c.clientMode==="existant"?"primary":"ghost")+'" data-action="cmd-mode-existant">Client enregistré</button></div>';
   }
   if(c.clientMode==="existant"&&state.clients.length){
-    clientPart+='<label class="field"><span>Client</span><select id="cmdClientSel" data-action="cmd-clientsel">'+sortedClients().map(function(cl){return '<option value="'+esc(cl.id)+'"'+(cl.id===c.clientId?' selected':'')+'>'+esc(cl.nom)+'</option>';}).join("")+'</select></label>';
+    clientPart+='<label class="field"><span>Client</span><select id="cmdClientSel" data-action="cmd-clientsel">'+state.clients.map(function(cl){return '<option value="'+esc(cl.id)+'"'+(cl.id===c.clientId?' selected':'')+'>'+esc(cl.nom)+'</option>';}).join("")+'</select></label>';
   } else {
     clientPart+='<label class="field"><span>Nom du client *</span><input id="cmdNom" value="'+esc(c.client.nom)+'" placeholder="Ex : Camille Martin"></label>'+ 
       '<label class="field"><span>Adresse</span><input id="cmdAdr" value="'+esc(c.client.adresse)+'"></label>'+ 
@@ -992,7 +1025,6 @@ function viewClients(){
     '<label class="field"><span>Adresse</span><input id="cliAdr"></label>'+
     '<div class="inline"><div><label class="field"><span>Email</span><input id="cliEmail"></label></div>'+
     '<div><label class="field"><span>Téléphone</span><input id="cliTel"></label></div></div>'+
-    '<label class="field"><span>Canal de communication préféré</span><select id="cliCanal">'+commOptions("")+'</select></label>'+
     '<button class="btn primary" data-action="cli-add">+ Ajouter le client</button></div>';
   if(state.clients.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Pas encore de client. Ils s\'ajoutent ici, automatiquement lors d\'un devis, ou à l\'import de ton historique.</p></div>'; return html; }
   var list=state.clients.slice().sort(function(a,b){ return normName(a.nom)<normName(b.nom)?-1:1; });
@@ -1001,7 +1033,7 @@ function viewClients(){
     var h=clientHistory(c.nom), ca=clientCA(c.nom);
     html+='<div class="card flexb"><button data-action="cli-open-'+c.id+'" style="border:none;background:none;text-align:left;cursor:pointer;font-family:inherit;padding:0;flex:1;">'+
       '<div style="font-weight:600;color:var(--bordeaux);">'+esc(c.nom)+' →</div>'+
-      '<div class="muted">'+h.length+' opération'+(h.length>1?"s":"")+(ca>0?" · "+euro(ca)+" encaissé":"")+(c.canal?" · Canal : "+esc(c.canal):"")+'</div></button>'+
+      '<div class="muted">'+h.length+' opération'+(h.length>1?"s":"")+(ca>0?" · "+euro(ca)+" encaissé":"")+'</div></button>'+
       '<button class="btn small danger" data-action="cli-del-'+c.id+'">×</button></div>';
   });
   return html;
@@ -1013,7 +1045,6 @@ function viewClientDetail(c){
     '<div class="inline"><div><label class="field"><span>Email</span><input id="cdEmail" value="'+esc(c.email||"")+'"></label></div>'+
     '<div><label class="field"><span>Téléphone</span><input id="cdTel" value="'+esc(c.tel||"")+'"></label></div></div>'+
     '<label class="field"><span>Adresse</span><input id="cdAdr" value="'+esc(c.adresse||"")+'"></label>'+
-    '<label class="field"><span>Canal de communication préféré</span><select id="cdCanal">'+commOptions(c.canal||"")+'</select></label>'+
     '<button class="btn gold" data-action="cli-savecontact-'+c.id+'">Enregistrer le contact</button></div>';
   html+='<div class="card"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">Historique</h3><span class="muted">'+euro(ca)+' encaissé</span></div>';
   if(h.length===0){ html+='<p class="muted" style="margin:0;">Aucune opération pour cette cliente.</p>'; }
@@ -1122,18 +1153,15 @@ function viewDoc(p){
     '<div style="font-weight:600;">'+esc(doc.client&&doc.client.nom)+'</div>'+
     (doc.client&&doc.client.adresse?'<div style="font-size:12px;">'+esc(doc.client.adresse)+'</div>':'')+
     (doc.client&&doc.client.email?'<div style="font-size:12px;">'+esc(doc.client.email)+'</div>':'')+
-    (doc.client&&doc.client.tel?'<div style="font-size:12px;">'+esc(doc.client.tel)+'</div>':'')+(doc.client&&doc.client.canal?'<div style="font-size:12px;">Canal : '+esc(doc.client.canal)+'</div>':'')+'</div>';
+    (doc.client&&doc.client.tel?'<div style="font-size:12px;">'+esc(doc.client.tel)+'</div>':'')+'</div>';
   var acEncart = (kind==="facture"&&doc.type==="acompte")?'<div style="margin-top:20px;padding:12px;border:1px solid var(--line);border-radius:8px;">Acompte de '+doc.pourcentage+' % sur le devis '+esc(doc.devisNumero)+' d\'un montant total de <b>'+euro(doc.devisTotal)+'</b>.</div>':'';
   var rows=doc.lignes.map(function(l){ return '<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px;">'+esc(l.designation)+' <span class="muted" style="font-size:11px;">('+(l.type==="service"?"service":"bien")+')</span></td><td style="text-align:center;padding:8px;">'+esc(l.qte)+'</td><td style="text-align:right;padding:8px;">'+euro(l.prix)+'</td><td style="text-align:right;padding:8px;">'+euro(num(l.qte)*num(l.prix))+'</td></tr>'; }).join("");
   function tr(l,v,strong,soft){ return '<div class="totrow" style="font-size:'+(strong?15:13)+'px;font-weight:'+(strong?700:400)+';color:'+(strong?"var(--bordeaux)":soft?"var(--ink-s)":"var(--ink)")+';'+(strong?"border-top:2px solid var(--bordeaux);":"")+'"><span>'+esc(l)+'</span><span>'+v+'</span></div>'; }
   var tot='<div style="display:flex;justify-content:flex-end;margin-top:14px;"><div style="min-width:280px;">'+
-    tr("Total",euro(doc.totalInitial||t.total))+tr(s.mentionTVA,"—",false,true)+
-    (kind==="facture"&&doc.remiseMontant?tr("Réduction","– "+euro(doc.remiseMontant),false,true):'')+
-    (kind==="facture"&&doc.remiseMontant?tr("Total après réduction",euro(doc.totalApresRemise||((doc.totalInitial||t.total)-doc.remiseMontant)),false,false):'')+
+    tr("Total",euro(t.total))+tr(s.mentionTVA,"—",false,true)+
     (kind==="facture"&&doc.type==="acompte"?tr("Acompte "+doc.pourcentage+" %",euro(doc.montant),true):'')+
     (kind==="facture"&&doc.type==="solde"?tr("Acompte déjà versé ("+(doc.acompteNumero||"")+")","– "+euro(doc.acompteMontant),false,true)+tr("Net à payer (solde)",euro(doc.montant),true):'')+
-    (kind==="facture"&&doc.type==="totale"&&doc.acompteDejaPaye?tr("Acompte déjà payé","– "+euro(doc.acompteDejaPaye),false,true):'')+
-    (kind==="facture"&&doc.type==="totale"?tr((doc.acompteDejaPaye?"Solde à payer":"Net à payer"),euro(doc.montant),true):'')+
+    (kind==="facture"&&doc.type==="totale"?tr("Net à payer",euro(doc.montant),true):'')+
     (kind==="devis"?tr("Net à payer",euro(t.total),true):'')+'</div></div>';
   var mentions='<div style="margin-top:22px;font-size:12px;color:var(--ink-s);">'+
     (doc.notes?'<p style="margin:0 0 8px;">'+esc(doc.notes)+'</p>':'')+
@@ -1204,7 +1232,7 @@ function viewEncaissements(){
       '<div class="inline"><div><label class="field"><span>Date</span><input id="encDate" type="date" value="'+esc(todayISO())+'"></label></div>'+
       '<div style="flex:2;"><label class="field"><span>Libellé</span><input id="encLib" placeholder="Ex : Vente bouquet boutique"></label></div></div>'+
       '<label class="field"><span>Cliente (facultatif)</span><input id="encClient" list="clientsList" placeholder="Nom de la cliente"></label>'+
-      '<datalist id="clientsList">'+sortedClients().map(function(c){return '<option value="'+esc(c.nom)+'">';}).join("")+'</datalist>'+
+      '<datalist id="clientsList">'+state.clients.map(function(c){return '<option value="'+esc(c.nom)+'">';}).join("")+'</datalist>'+
       '<div class="inline"><div><label class="field"><span>Montant biens (€)</span><input id="encBiens" type="number" min="0" step="0.01" placeholder="0"></label></div>'+
       '<div><label class="field"><span>Montant services (€)</span><input id="encServ" type="number" min="0" step="0.01" placeholder="0"></label></div></div>'+
       '<button class="btn primary" data-action="enc-add">+ Ajouter au carnet</button></div>';
@@ -1636,6 +1664,10 @@ function handleAction(action){
   // nav
   if(action.indexOf("nav-")===0){ ui.tab=action.slice(4); ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null; render(); return; }
   if(action==="newdevis"){ ui.tab="devis"; newWizard(); render(); return; }
+  if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
+  if(action==="cal-prev"){ calSetMonth(-1); return; }
+  if(action==="cal-next"){ calSetMonth(1); return; }
+  if(action==="cal-today"){ ui.calMonth=todayISO().slice(0,7); render(); return; }
   if(action.indexOf("email-preview-devis-")===0){ var ed=findDevis(action.slice(20)); if(ed){ ui.preview={kind:"devis",doc:ed}; renderModal(); } return; }
   if(action.indexOf("email-preview-facture-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(22);}); if(ef){ ui.preview={kind:"facture",doc:ef}; renderModal(); } return; }
   if(action==="do-login"){ doLogin(); return; }
@@ -1664,6 +1696,7 @@ function handleAction(action){
   if(action==="wz-finish"){ finishWizard(); return; }
 
   // devis
+  if(action.indexOf("facture-preview-")===0){ var fp=state.factures.find(function(f){return f.id===action.slice(16);}); if(fp){ ui.preview={kind:"facture",doc:fp}; renderModal(); } return; }
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
   if(action.indexOf("devis-del-")===0){ var did=action.slice(10), key="devis:"+did;
@@ -1746,10 +1779,10 @@ function handleAction(action){
   if(action.indexOf("cat-del-")===0){ var cid=action.slice(8); state.catalogue=state.catalogue.filter(function(c){return c.id!==cid;}); saveCache(); render(); return; }
 
   // clients
-  if(action==="cli-add"){ var cn=val("cliNom"); if(!cn.trim()){ toast("Indiquez un nom."); return; } state.clients.push({id:uid(),nom:cn,adresse:val("cliAdr"),email:val("cliEmail"),tel:val("cliTel"),canal:val("cliCanal")}); saveCache(); render(); return; }
+  if(action==="cli-add"){ var cn=val("cliNom"); if(!cn.trim()){ toast("Indiquez un nom."); return; } state.clients.push({id:uid(),nom:cn,adresse:val("cliAdr"),email:val("cliEmail"),tel:val("cliTel")}); saveCache(); render(); return; }
   if(action.indexOf("cli-open-")===0){ ui.clientOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action==="cli-back"){ ui.clientOpen=null; render(); return; }
-  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); cc.canal=val("cdCanal"); saveCache(); render(); toast("Contact enregistré."); } return; }
+  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); saveCache(); render(); toast("Contact enregistré."); } return; }
   if(action.indexOf("cli-del-")===0){ var clid=action.slice(8); if(confirm("Supprimer cette fiche cliente ? (son historique de ventes n'est pas supprimé)")){ state.clients=state.clients.filter(function(c){return c.id!==clid;}); ui.clientOpen=null; saveCache(); render(); } return; }
 
   // logo
