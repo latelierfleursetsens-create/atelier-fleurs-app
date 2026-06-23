@@ -2027,7 +2027,7 @@ function countdown(dateISO){
 }
 function relanceDue(m){ return m.relance && m.relance<=todayISO() && m.statut!=="realise" && m.statut!=="perdu"; }
 function newMariage(){
-  var m={ id:uid(), nom:"", email:"", tel:"", canalCommunication:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"",
+  var m={ id:uid(), nom:"", email:"", tel:"", canalCommunication:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"", synthese:"",
     statut:"contact", livre:false, dateLivree:"", relance:"", devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"",
     articles:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};}),
     medias:[], historique:[], createdAt:todayISO() };
@@ -2036,7 +2036,7 @@ function newMariage(){
 function captureMariageInputs(){
   var m=getMariage(ui.mariageOpen); if(!m) return;
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
-  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","relance","devisDate","factureDate"].forEach(function(k){
+  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
 }
@@ -2169,6 +2169,8 @@ function viewMariageDetail(m){
     F("Me rappeler de la relancer le…","marRelance",m.relance,"date")+
     '<div class="checkrow"><input type="checkbox" data-action="mar-livre-toggle"'+(m.livre?' checked':'')+'><div style="flex:1;"><b>Commande livrée / remise à la cliente</b>'+(m.dateLivree?' <span class="muted">le '+frDate(m.dateLivree)+'</span>':'')+'</div></div>'+
     '<label class="field"><span>Ses besoins / mémo</span><textarea id="marBesoins" style="min-height:90px;" placeholder="Style souhaité, fleurs préférées, contraintes, échanges…">'+esc(m.besoins)+'</textarea></label>'+
+    '<div class="section-title">Synthèse</div>'+
+    '<label class="field"><span>Synthèse de son bouquet de mariée et de son projet</span><textarea id="marSynthese" style="min-height:150px;" placeholder="Ex : Bouquet de mariée bohème, tons blanc cassé et sauge, format aérien, accessoires souhaités, détails importants du projet…">'+esc(m.synthese||"")+'</textarea><div class="hint">Cette synthèse pourra être jointe automatiquement au mail du devis ou de la facture.</div></label>'+
     '<button class="btn gold" data-action="mar-save">Enregistrer la fiche</button></div>';
   // devis & facture
   var df='<div class="card"><h3 style="margin:0 0 10px;">Devis & facture</h3>'+
@@ -2313,6 +2315,88 @@ function clientEmailOrPrompt(doc){
   if(doc.client) doc.client.email=email;
   return email;
 }
+
+function findMariageForDoc(kind, doc){
+  if(!doc) return null;
+  if(kind==="devis"){
+    return (state.mariages||[]).find(function(m){ return m.devisLie===doc.id; }) || null;
+  }
+  if(kind==="facture" && doc.devisId){
+    return (state.mariages||[]).find(function(m){ return m.devisLie===doc.devisId; }) || null;
+  }
+  return null;
+}
+function syntheseFileName(m){
+  var base="synthese-de-votre-projet-"+((m&&m.nom)||"mariage");
+  return base.replace(/[^a-z0-9_-]+/gi,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").toLowerCase()+".pdf";
+}
+function syntheseTextHtml(txt){
+  txt=String(txt||"").trim();
+  if(!txt) return '<p style="margin:0;color:var(--ink-s);">Aucune synthèse renseignée pour ce projet.</p>';
+  return esc(txt).replace(/\n{2,}/g,"</p><p>").replace(/\n/g,"<br>");
+}
+function viewSyntheseDoc(m, sourceDoc){
+  var s=state.settings||{};
+  var logo=(state.logo&&state.logo.length>10)?state.logo:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/logo-mail.jpg";
+  var ref=(sourceDoc&&sourceDoc.numero)?'<div style="font-size:12px;color:var(--ink-s);margin-top:4px;">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
+  return '<div class="doc" id="synthese-doc" style="background:#fff;padding:34px 38px;border-radius:8px;font-size:13.5px;line-height:1.6;color:var(--ink);">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--blush-s);padding-bottom:18px;margin-bottom:24px;">'+
+      '<div><img src="'+logo+'" alt="logo" style="max-height:74px;max-width:220px;object-fit:contain;display:block;margin-bottom:10px;">'+
+        '<div class="serif" style="font-size:22px;color:var(--bordeaux);font-weight:700;">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
+        '<div style="font-size:12px;color:var(--ink-s);margin-top:4px;">'+esc(s.entrepreneur||"Élodie Rouzé")+'</div>'+
+        '<div style="font-size:12px;color:var(--ink-s);">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div>'+
+      '</div>'+
+      '<div style="text-align:right;"><div class="serif" style="font-size:20px;color:var(--bordeaux);font-weight:700;">Synthèse de votre projet</div>'+
+        '<div style="font-size:12px;color:var(--ink-s);margin-top:4px;">Date : '+frDate(todayISO())+'</div>'+ref+'</div>'+
+    '</div>'+
+    '<div style="background:var(--cream);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:22px;">'+
+      '<div style="font-size:11px;text-transform:uppercase;color:var(--ink-s);font-weight:700;">Projet mariage</div>'+
+      '<div style="font-weight:700;color:var(--bordeaux);font-size:16px;margin-top:3px;">'+esc((m&&m.nom)||"Projet mariage")+'</div>'+
+      ((m&&m.dateMariage)?'<div style="font-size:12px;color:var(--ink-s);margin-top:3px;">Date du mariage : '+frDate(m.dateMariage)+'</div>':'')+
+      ((m&&m.dateLivraison)?'<div style="font-size:12px;color:var(--ink-s);">Livraison : '+frDate(m.dateLivraison)+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+'</div>':'')+
+      ((m&&m.theme)?'<div style="font-size:12px;color:var(--ink-s);">Thème / couleurs : '+esc(m.theme)+'</div>':'')+
+    '</div>'+
+    '<div style="margin-top:12px;"><h2 style="font-family:Georgia,serif;color:var(--bordeaux);font-size:18px;margin:0 0 12px;">Synthèse</h2>'+
+      '<div style="font-size:14px;line-height:1.7;"><p>'+syntheseTextHtml(m&&m.synthese)+'</p></div>'+
+    '</div>'+
+    '<div style="margin-top:28px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-s);">'+
+      'Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.'+
+    '</div>'+
+  '</div>';
+}
+function buildSyntheseElementForPdf(m, doc){
+  var wrap=document.createElement("div");
+  wrap.innerHTML=viewSyntheseDoc(m, doc);
+  var node=wrap.querySelector("#synthese-doc");
+  if(!node) return null;
+  var clone=node.cloneNode(true);
+  clone.id="synthese-email-temp";
+  var holder=document.createElement("div");
+  holder.id="synthese-email-holder";
+  holder.style.cssText="position:fixed;left:-10000px;top:0;width:760px;background:#fff;z-index:-1;";
+  holder.appendChild(clone);
+  document.body.appendChild(holder);
+  return {holder:holder,node:clone};
+}
+async function pdfBase64FromSynthese(m, doc){
+  if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
+  var built=buildSyntheseElementForPdf(m, doc);
+  if(!built) throw new Error("Synthèse introuvable");
+  try{
+    var opt={
+      margin:8,
+      filename:syntheseFileName(m),
+      image:{type:"jpeg",quality:0.98},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}
+    };
+    var dataUri=await html2pdf().set(opt).from(built.node).outputPdf("datauristring");
+    return String(dataUri).split(",")[1];
+  } finally {
+    if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
+  }
+}
+
 function buildDocElementForPdf(kind, doc){
   var wrap=document.createElement("div");
   wrap.innerHTML=viewDoc({kind:kind,doc:doc});
@@ -2383,23 +2467,32 @@ async function envoyerDocumentEmail(kind, doc){
   var email=clientEmailOrPrompt(doc); if(!email) return;
   var nom=(doc.client&&doc.client.nom)||"Client";
   var titre=docTitle(kind, doc);
-  toast("Préparation du PDF…");
+  toast("Préparation des PDF…");
   try{
     var pdf64=await pdfBase64FromDoc(kind, doc);
+    var attachments=[{ name:docFileName(kind, doc), content:pdf64 }];
+    var mariageSynthese=findMariageForDoc(kind, doc);
+    if(mariageSynthese && String(mariageSynthese.synthese||"").trim()){
+      var synth64=await pdfBase64FromSynthese(mariageSynthese, doc);
+      attachments.push({ name:syntheseFileName(mariageSynthese), content:synth64 });
+    }
     toast("Envoi de l'email…");
-    var res=await fetch(MAIL_WORKER_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+    var payload={
       email:email,
       nom:nom,
       sujet:docSubject(kind, doc),
       message:docMailMessage(kind, doc),
-      attachment:{ name:docFileName(kind, doc), content:pdf64 }
-    })});
+      attachment:attachments[0],
+      attachments:attachments
+    };
+    if(attachments.length>1) payload.attachment2=attachments[1];
+    var res=await fetch(MAIL_WORKER_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
     markDocSent(kind, doc);
     addEmailHistory(kind, doc, email);
     saveCache(); render();
-    toast(titre+" envoyé par email à "+email+".");
+    toast(titre+" envoyé par email à "+email+(attachments.length>1?" avec la synthèse du projet.":"."));
   } catch(e){ console.error(e); toast("Envoi impossible : "+(e&&e.message?e.message:"vérifie le Worker Cloudflare / Brevo.")); }
 }
 
