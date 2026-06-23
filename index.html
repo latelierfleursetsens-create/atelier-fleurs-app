@@ -881,6 +881,13 @@ function livraisonOptions(selected){
     return '<option value="'+esc(m)+'"'+(m===selected?' selected':'')+'>'+esc(m)+'</option>';
   }).join("");
 }
+var MARIAGE_COMM_CHANNELS=["Téléphone","SMS","WhatsApp","Messenger","Instagram","TikTok","Snapchat","Facebook"];
+function mariageCommunicationOptions(selected){
+  selected=selected||"";
+  return '<option value="">Non renseigné</option>'+MARIAGE_COMM_CHANNELS.map(function(c){
+    return '<option value="'+esc(c)+'"'+(c===selected?' selected':'')+'>'+esc(c)+'</option>';
+  }).join("");
+}
 function mariageDateRef(m){ return (m&&m.dateLivraison) || (m&&m.dateMariage) || ""; }
 function mariageCountdown(m){ return countdown(mariageDateRef(m)); }
 function mariageReady(m){
@@ -1753,7 +1760,7 @@ function countdown(dateISO){
 }
 function relanceDue(m){ return m.relance && m.relance<=todayISO() && m.statut!=="realise" && m.statut!=="perdu"; }
 function newMariage(){
-  var m={ id:uid(), nom:"", email:"", tel:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"",
+  var m={ id:uid(), nom:"", email:"", tel:"", canalCommunication:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"",
     statut:"contact", livre:false, dateLivree:"", relance:"", devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"",
     articles:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};}),
     medias:[], historique:[], createdAt:todayISO() };
@@ -1762,7 +1769,7 @@ function newMariage(){
 function captureMariageInputs(){
   var m=getMariage(ui.mariageOpen); if(!m) return;
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
-  ["nom","email","tel","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","relance","devisDate","factureDate"].forEach(function(k){
+  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","relance","devisDate","factureDate"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
 }
@@ -1772,7 +1779,7 @@ function mariageCardHTML(m){
   var ref=mariageDateRef(m);
   return '<div class="card"><div class="flexb"><div>'+
     '<div style="font-weight:700;color:var(--bordeaux);font-size:16px;">'+esc(m.nom||"(sans nom)")+'</div>'+
-    '<div class="muted">'+(m.dateMariage?'Mariage : '+frDate(m.dateMariage):"date mariage à définir")+(m.dateLivraison?' · Livraison : '+frDate(m.dateLivraison):"")+(m.modeLivraison?' · '+esc(m.modeLivraison):"")+(m.lieu?" · "+esc(m.lieu):"")+'</div></div>'+
+    '<div class="muted">'+(m.dateMariage?'Mariage : '+frDate(m.dateMariage):"date mariage à définir")+(m.dateLivraison?' · Livraison : '+frDate(m.dateLivraison):"")+(m.modeLivraison?' · '+esc(m.modeLivraison):"")+(m.canalCommunication?' · Canal : '+esc(m.canalCommunication):"")+(m.lieu?" · "+esc(m.lieu):"")+'</div></div>'+
     '<div style="text-align:right;"><span class="pill" style="background:'+st.b+';color:'+st.c+';">'+(mariageTermine(m)?"Terminée":st.l)+'</span>'+
     '<div style="font-weight:700;color:'+cd.c+';margin-top:4px;">'+(ref?cd.txt:"date livraison à définir")+'</div></div></div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center;">'+
@@ -1878,7 +1885,7 @@ function viewMariageDetail(m){
   var summary='<div class="summary"><div class="flexb"><div><span class="pill" style="background:'+st.b+';color:'+st.c+';">'+st.l+'</span> '+
     '<span style="font-weight:700;color:'+cd.c+';margin-left:6px;">'+cd.txt+'</span></div>'+
     (relanceDue(m)?'<span class="alert">⏰ À relancer</span>':'')+'</div>'+
-    '<div class="muted" style="margin-top:8px;">Livraison : <b>'+(m.dateLivraison?frDate(m.dateLivraison):'non renseignée')+'</b>'+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+' · Articles : <b>'+faits+'/'+totA+'</b> faits · Devis : <b>'+(m.devisEnvoye?"envoyé le "+frDate(m.devisDate):"non envoyé")+'</b> · Facture : <b>'+(m.factureEnvoyee?"envoyée le "+frDate(m.factureDate):"non envoyée")+'</b></div>';
+    '<div class="muted" style="margin-top:8px;">Livraison : <b>'+(m.dateLivraison?frDate(m.dateLivraison):'non renseignée')+'</b>'+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+(m.canalCommunication?' · Canal : '+esc(m.canalCommunication):'')+' · Articles : <b>'+faits+'/'+totA+'</b> faits · Devis : <b>'+(m.devisEnvoye?"envoyé le "+frDate(m.devisDate):"non envoyé")+'</b> · Facture : <b>'+(m.factureEnvoyee?"envoyée le "+frDate(m.factureDate):"non envoyée")+'</b></div>';
   if(m.devisLie){ var dl=state.devis.find(function(d){return d.id===m.devisLie;}); if(dl){ var fs=facturesDuDevis(dl.id); summary+='<div class="muted" style="margin-top:4px;">Devis lié : '+esc(dl.numero)+' ('+(ST_DEVIS[dl.statut]||ST_DEVIS.brouillon).l.toLowerCase()+')'+(fs.length?" · "+fs.map(function(f){return esc(f.numero);}).join(", "):"")+'</div>'; } }
   summary+='</div>';
   // infos
@@ -1887,6 +1894,7 @@ function viewMariageDetail(m){
     '<button class="btn small ghost" data-action="mar-back">← Liste</button></div>'+
     F("Nom de la cliente / du couple","marNom",m.nom)+
     '<div class="inline"><div>'+F("Email","marEmail",m.email)+'</div><div>'+F("Téléphone","marTel",m.tel)+'</div></div>'+
+    '<label class="field"><span>Canal de communication</span><select id="marCanalCommunication">'+mariageCommunicationOptions(m.canalCommunication||"")+'</select><div class="hint">Canal préféré pour échanger avec la cliente.</div></label>'+
     '<div class="inline"><div>'+F("Date du mariage","marDateMariage",m.dateMariage,"date")+'</div><div>'+F("Lieu de réception","marLieu",m.lieu)+'</div></div>'+
     '<div class="inline"><div>'+F("Date de livraison","marDateLivraison",m.dateLivraison,"date")+'</div><div><label class="field"><span>Mode de livraison</span><select id="marModeLivraison">'+livraisonOptions(m.modeLivraison||"")+'</select></label></div></div>'+
     '<div class="inline"><div>'+F("Thème & couleurs","marTheme",m.theme)+'</div><div>'+F("Budget estimé","marBudget",m.budget)+'</div></div>'+
