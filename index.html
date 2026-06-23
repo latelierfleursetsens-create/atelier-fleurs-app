@@ -2337,9 +2337,15 @@ function syntheseTextHtml(txt){
   var lines=esc(txt).split(/\n/);
   var html='';
   var inList=false;
+  var recapStarted=false;
 
   function closeList(){
     if(inList){ html+='</ul>'; inList=false; }
+  }
+
+  function isRecapTitle(text){
+    return text.toLowerCase().indexOf("récapitulatif de la commande")>=0 ||
+           text.toLowerCase().indexOf("recapitulatif de la commande")>=0;
   }
 
   lines.forEach(function(line){
@@ -2347,16 +2353,23 @@ function syntheseTextHtml(txt){
     if(!l){ closeList(); return; }
 
     l=l.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    var cleanTitle=l.replace(/^#{1,3}\s+/,'').trim();
+
+    if(isRecapTitle(cleanTitle) && !recapStarted){
+      closeList();
+      recapStarted=true;
+      html+='<div style="page-break-before:always;"></div>';
+    }
 
     if(/^###\s+/.test(l)){
       closeList();
-      html+='<h3 style="font-family:Georgia,serif;color:#5A2230;font-size:14px;margin:14px 0 6px;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+l.replace(/^###\s+/,'')+'</h3>';
+      html+='<h3 style="font-family:Georgia,serif;color:#5A2230;font-size:14px;margin:14px 0 6px;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+cleanTitle+'</h3>';
     }else if(/^##\s+/.test(l)){
       closeList();
-      html+='<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:16px;margin:16px 0 7px;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+l.replace(/^##\s+/,'')+'</h2>';
+      html+='<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:16px;margin:16px 0 7px;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+cleanTitle+'</h2>';
     }else if(/^#\s+/.test(l)){
       closeList();
-      html+='<h1 style="font-family:Georgia,serif;color:#5A2230;font-size:17px;margin:0 0 10px;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+l.replace(/^#\s+/,'')+'</h1>';
+      html+='<h1 style="font-family:Georgia,serif;color:#5A2230;font-size:17px;margin:0 0 10px;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+cleanTitle+'</h1>';
     }else if(/^[-*✓✔]\s+/.test(l)){
       if(!inList){ html+='<ul style="margin:6px 0 10px 16px;padding:0;max-width:150mm;">'; inList=true; }
       html+='<li style="margin:3px 0;page-break-inside:avoid;max-width:148mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+l.replace(/^[-*✓✔]\s+/,'')+'</li>';
@@ -2402,7 +2415,6 @@ function viewSyntheseDoc(m, sourceDoc){
       '<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:15px;margin:0 0 6px;page-break-after:avoid;max-width:150mm;">Synthèse</h2>'+
       '<div style="font-size:11px;line-height:1.36;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+syntheseTextHtml(m&&m.synthese)+'</div>'+
     '</div>'+
-    '<div style="page-break-before:always;"></div>'+
 
     '<div style="margin-top:12px;padding-top:7px;border-top:1px solid #E7DDD5;font-size:9.5px;color:#837568;page-break-inside:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;">'+
       'Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.'+
