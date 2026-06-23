@@ -433,6 +433,7 @@ function render(){
 function renderModal(){
   var ex=document.getElementById("modal"); if(ex) ex.remove();
   var lb=document.getElementById("lightbox"); if(lb) lb.remove();
+  if(ui.pendingPaymentsModal){ var pm=document.createElement("div"); pm.innerHTML=viewPendingPaymentsModal(); document.body.appendChild(pm.firstElementChild); }
   if(ui.preview){ var d=document.createElement("div"); d.innerHTML=viewDoc(ui.preview); document.body.appendChild(d.firstElementChild); }
   if(ui.lightbox){
     var l=document.createElement("div"); l.id="lightbox"; l.className="modal"; l.setAttribute("data-action","lightbox-close");
@@ -462,6 +463,42 @@ function anneesDispo(){
   s[String(new Date().getFullYear())]=1;
   return Object.keys(s).sort();
 }
+
+function pendingPaymentsList(){
+  return state.factures.filter(function(f){return f.statut!=="payee";})
+    .slice()
+    .sort(function(a,b){
+      return (a.echeance||"9999").localeCompare(b.echeance||"9999") || (a.numero||"").localeCompare(b.numero||"");
+    });
+}
+function viewPendingPaymentsModal(){
+  var list=pendingPaymentsList();
+  var total=list.reduce(function(s,f){return s+(Number(f.montant)||0);},0);
+  var html='<div id="modal" class="modal"><div class="modal-inner">'+
+    '<div class="modal-actions"><button class="btn ghost" data-action="pending-close">Fermer</button></div>'+
+    '<div class="card" style="background:#fff;"><div class="flexb"><h2 style="margin:0;">À encaisser prochainement</h2><div style="font-weight:800;color:var(--bordeaux);font-size:20px;">'+euro(total)+'</div></div>'+
+    '<p class="muted" style="margin:8px 0 12px;">Détail des factures non payées, classées par date d’échéance.</p>';
+  if(!list.length){
+    html+='<p class="muted" style="margin:0;">Aucune facture en attente de paiement.</p>';
+  }else{
+    list.forEach(function(f){
+      var client=(f.client&&f.client.nom)||"Cliente non renseignée";
+      var st=ST_FAC[f.statut]||ST_FAC.a_envoyer;
+      html+='<div class="checkrow" style="align-items:flex-start;">'+
+        '<div style="flex:1;">'+
+          '<div><b style="color:var(--bordeaux);">'+esc(f.numero||"Facture")+'</b> · '+esc(TYPE_FAC[f.type]||"Facture")+' <span class="badge" style="color:'+st.c+';background:'+st.b+';">'+st.l+'</span></div>'+
+          '<div class="muted" style="font-size:12px;">Cliente : '+esc(client)+'</div>'+
+          '<div class="muted" style="font-size:12px;">Échéance : '+(f.echeance?frDate(f.echeance):"non renseignée")+(f.paiementClient?' · Paiement prévu/renseigné : '+esc(f.paiementClient):'')+'</div>'+
+          (f.devisNumero?'<div class="muted" style="font-size:12px;">Réf. devis : '+esc(f.devisNumero)+'</div>':'')+
+        '</div>'+
+        '<div style="text-align:right;min-width:110px;"><b style="color:var(--bordeaux);">'+euro(f.montant||0)+'</b><div style="margin-top:6px;"><button class="btn small ghost" data-action="pending-preview-'+f.id+'">Aperçu</button></div></div>'+
+      '</div>';
+    });
+  }
+  html+='</div></div></div>';
+  return html;
+}
+
 function viewDashboard(){
   var an=String(ui.anneeDash), ca=caAnnee(an);
   var totB=r2(ca.biens.reduce(function(a,b){return a+b;},0));
@@ -507,7 +544,7 @@ function viewDashboard(){
     stat("CA encaissé "+an, euro(totCA), true)+
     stat("dont biens", euro(totB), false, "var(--blush)")+
     stat("dont services", euro(totS), false, "var(--green-s)")+
-    stat("En attente de paiement", euro(enAttente), false)+
+    stat("À encaisser prochainement", euro(enAttente), false, "", "dash-pending-payments")+
   '</div>'+
   '<div class="card"><div class="flexb"><h3 style="margin:0 0 4px;">Évolution mensuelle</h3>'+
     '<div class="muted"><span class="dot" style="background:var(--blush);"></span>biens &nbsp;<span class="dot" style="background:var(--green);"></span>services</div></div>'+
@@ -545,8 +582,8 @@ function monthDetailCard(an){
     '<button class="btn small ghost" data-action="dash-month-close">Fermer</button></div>'+
     rows+(items.length?'<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:2px solid var(--bordeaux);margin-top:8px;padding-top:6px;"><span>Total encaissé</span><span>'+euro(tot)+'</span></div>':'')+'</div>';
 }
-function stat(lab,val,big,bg){
-  return '<div class="stat"'+(bg?' style="background:'+bg+';"':"")+'><div class="lab">'+esc(lab)+'</div><div class="val" style="font-size:'+(big?26:20)+'px;">'+val+'</div></div>';
+function stat(lab,val,big,bg,action){
+  return '<div class="stat"'+(bg?' style="background:'+bg+';"':"")+(action?' data-action="'+action+'" style="'+(bg?'background:'+bg+';':'')+'cursor:pointer;" title="Cliquer pour voir le détail"':"")+'><div class="lab">'+esc(lab)+'</div><div class="val" style="font-size:'+(big?26:20)+'px;">'+val+'</div>'+(action?'<div class="muted" style="font-size:11px;margin-top:4px;">Voir le détail →</div>':'')+'</div>';
 }
 function jauge(lab,v,seuil,pct,color){
   return '<div class="jauge" style="margin-bottom:12px;"><div class="flexb" style="font-size:13px;margin-bottom:4px;"><span style="font-weight:600;">'+esc(lab)+'</span><span class="muted">'+euro(v)+' / '+euro(seuil)+'</span></div>'+
