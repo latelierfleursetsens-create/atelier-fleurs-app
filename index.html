@@ -2332,35 +2332,64 @@ function syntheseFileName(m){
 }
 function syntheseTextHtml(txt){
   txt=String(txt||"").trim();
-  if(!txt) return '<p style="margin:0;color:var(--ink-s);">Aucune synthèse renseignée pour ce projet.</p>';
-  return esc(txt).replace(/\n{2,}/g,"</p><p>").replace(/\n/g,"<br>");
+  if(!txt) return '<p style="margin:0;color:#837568;">Aucune synthèse renseignée pour ce projet.</p>';
+  var lines=txt.split(/\r?\n/), html="", inList=false;
+  function closeList(){ if(inList){ html+='</ul>'; inList=false; } }
+  function inline(s){
+    return esc(s)
+      .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+      .replace(/__(.*?)__/g,'<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g,'<em>$1</em>');
+  }
+  lines.forEach(function(raw){
+    var line=String(raw||"").trim();
+    if(!line){ closeList(); html+='<div style="height:8px;"></div>'; return; }
+    if(/^---+$/.test(line)){ closeList(); html+='<div style="height:1px;background:#E7DDD5;margin:14px 0;"></div>'; return; }
+    if(/^###\s+/.test(line)){ closeList(); html+='<h3 style="font-family:Georgia,serif;color:#5A2230;font-size:15px;margin:18px 0 8px;page-break-after:avoid;">'+inline(line.replace(/^###\s+/,''))+'</h3>'; return; }
+    if(/^##\s+/.test(line)){ closeList(); html+='<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:17px;margin:20px 0 8px;page-break-after:avoid;">'+inline(line.replace(/^##\s+/,''))+'</h2>'; return; }
+    if(/^#\s+/.test(line)){ closeList(); html+='<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:18px;margin:0 0 12px;page-break-after:avoid;">'+inline(line.replace(/^#\s+/,''))+'</h2>'; return; }
+    if(/^[-*•✓✔]\s+/.test(line)){
+      if(!inList){ html+='<ul style="margin:7px 0 12px 18px;padding:0;">'; inList=true; }
+      html+='<li style="margin:4px 0;page-break-inside:avoid;">'+inline(line.replace(/^[-*•✓✔]\s+/,''))+'</li>';
+      return;
+    }
+    closeList();
+    html+='<p style="margin:7px 0 11px;page-break-inside:avoid;">'+inline(line)+'</p>';
+  });
+  closeList();
+  return html;
 }
 function viewSyntheseDoc(m, sourceDoc){
   var s=state.settings||{};
   var logo=(state.logo&&state.logo.length>10)?state.logo:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/logo-mail.jpg";
-  var ref=(sourceDoc&&sourceDoc.numero)?'<div style="font-size:12px;color:var(--ink-s);margin-top:4px;">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
-  return '<div class="doc" id="synthese-doc" style="background:#fff;padding:34px 38px;border-radius:8px;font-size:13.5px;line-height:1.6;color:var(--ink);">'+
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--blush-s);padding-bottom:18px;margin-bottom:24px;">'+
-      '<div><img src="'+logo+'" alt="logo" style="max-height:74px;max-width:220px;object-fit:contain;display:block;margin-bottom:10px;">'+
-        '<div class="serif" style="font-size:22px;color:var(--bordeaux);font-weight:700;">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
-        '<div style="font-size:12px;color:var(--ink-s);margin-top:4px;">'+esc(s.entrepreneur||"Élodie Rouzé")+'</div>'+
-        '<div style="font-size:12px;color:var(--ink-s);">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div>'+
+  var ref=(sourceDoc&&sourceDoc.numero)?'<div style="font-size:11px;color:#837568;margin-top:4px;">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
+  var articles="";
+  if(m && m.articles && m.articles.length){
+    articles='<div style="margin-top:14px;padding-top:10px;border-top:1px solid #E7DDD5;page-break-inside:avoid;">'+
+      '<div style="font-family:Georgia,serif;color:#5A2230;font-size:15px;font-weight:700;margin-bottom:6px;">Récapitulatif de la commande</div>'+
+      '<ul style="margin:0 0 0 18px;padding:0;">'+m.articles.map(function(a){ return '<li style="margin:3px 0;">'+esc(a.label||'Article')+(a.fait?' — préparé':'')+'</li>'; }).join('')+'</ul></div>';
+  }
+  return '<div id="synthese-doc" style="width:186mm;background:#fff;padding:13mm 13mm 16mm;box-sizing:border-box;font-family:Segoe UI,Arial,sans-serif;font-size:12.4px;line-height:1.45;color:#303437;">'+
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12mm;border-bottom:1.5px solid #F4E4DD;padding-bottom:9mm;margin-bottom:8mm;page-break-inside:avoid;">'+
+      '<div style="max-width:92mm;"><img src="'+logo+'" alt="logo" style="max-height:24mm;max-width:46mm;object-fit:contain;display:block;margin-bottom:4mm;">'+
+        '<div style="font-family:Georgia,serif;font-size:18px;color:#5A2230;font-weight:700;line-height:1.15;">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
+        '<div style="font-size:11px;color:#837568;margin-top:3mm;">'+esc(s.entrepreneur||"Élodie Rouzé")+'</div>'+
+        '<div style="font-size:11px;color:#837568;">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div>'+
       '</div>'+
-      '<div style="text-align:right;"><div class="serif" style="font-size:20px;color:var(--bordeaux);font-weight:700;">Synthèse de votre projet</div>'+
-        '<div style="font-size:12px;color:var(--ink-s);margin-top:4px;">Date : '+frDate(todayISO())+'</div>'+ref+'</div>'+
+      '<div style="text-align:right;min-width:62mm;"><div style="font-family:Georgia,serif;font-size:18px;color:#5A2230;font-weight:700;line-height:1.15;">Synthèse de votre projet</div>'+
+        '<div style="font-size:11px;color:#837568;margin-top:4mm;">Date : '+frDate(todayISO())+'</div>'+ref+'</div>'+
     '</div>'+
-    '<div style="background:var(--cream);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:22px;">'+
-      '<div style="font-size:11px;text-transform:uppercase;color:var(--ink-s);font-weight:700;">Projet mariage</div>'+
-      '<div style="font-weight:700;color:var(--bordeaux);font-size:16px;margin-top:3px;">'+esc((m&&m.nom)||"Projet mariage")+'</div>'+
-      ((m&&m.dateMariage)?'<div style="font-size:12px;color:var(--ink-s);margin-top:3px;">Date du mariage : '+frDate(m.dateMariage)+'</div>':'')+
-      ((m&&m.dateLivraison)?'<div style="font-size:12px;color:var(--ink-s);">Livraison : '+frDate(m.dateLivraison)+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+'</div>':'')+
-      ((m&&m.theme)?'<div style="font-size:12px;color:var(--ink-s);">Thème / couleurs : '+esc(m.theme)+'</div>':'')+
+    '<div style="background:#FBF8F4;border:1px solid #E7DDD5;border-radius:8px;padding:8mm;margin-bottom:8mm;page-break-inside:avoid;">'+
+      '<div style="font-size:10px;text-transform:uppercase;color:#837568;font-weight:700;letter-spacing:.3px;">Projet mariage</div>'+
+      '<div style="font-weight:700;color:#5A2230;font-size:15px;margin-top:2mm;">'+esc((m&&m.nom)||"Projet mariage")+'</div>'+
+      ((m&&m.dateMariage)?'<div style="font-size:11px;color:#837568;margin-top:2mm;">Date du mariage : '+frDate(m.dateMariage)+'</div>':'')+
+      ((m&&m.dateLivraison)?'<div style="font-size:11px;color:#837568;">Livraison : '+frDate(m.dateLivraison)+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+'</div>':'')+
+      ((m&&m.theme)?'<div style="font-size:11px;color:#837568;">Thème / couleurs : '+esc(m.theme)+'</div>':'')+
     '</div>'+
-    '<div style="margin-top:12px;"><h2 style="font-family:Georgia,serif;color:var(--bordeaux);font-size:18px;margin:0 0 12px;">Synthèse</h2>'+
-      '<div style="font-size:14px;line-height:1.7;"><p>'+syntheseTextHtml(m&&m.synthese)+'</p></div>'+
-    '</div>'+
-    '<div style="margin-top:28px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-s);">'+
-      'Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.'+
+    '<div class="synthese-content" style="font-size:12.4px;line-height:1.55;">'+
+      '<div style="font-family:Georgia,serif;color:#5A2230;font-size:18px;font-weight:700;margin:0 0 5mm;page-break-after:avoid;">Synthèse</div>'+
+      syntheseTextHtml(m&&m.synthese)+
+      articles+
     '</div>'+
   '</div>';
 }
@@ -2373,22 +2402,24 @@ function buildSyntheseElementForPdf(m, doc){
   clone.id="synthese-email-temp";
   var holder=document.createElement("div");
   holder.id="synthese-email-holder";
-  holder.style.cssText="position:fixed;left:-10000px;top:0;width:760px;background:#fff;z-index:-1;";
+  holder.style.cssText="position:absolute;left:0;top:0;width:186mm;background:#fff;z-index:-9999;opacity:0.01;pointer-events:none;";
   holder.appendChild(clone);
   document.body.appendChild(holder);
   return {holder:holder,node:clone};
 }
-async function pdfBase64FromSynthese(m, doc){
+async async function pdfBase64FromSynthese(m, doc){
   if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
   var built=buildSyntheseElementForPdf(m, doc);
   if(!built) throw new Error("Synthèse introuvable");
   try{
+    await new Promise(function(resolve){ setTimeout(resolve, 250); });
     var opt={
-      margin:8,
+      margin:[8,8,8,8],
       filename:syntheseFileName(m),
       image:{type:"jpeg",quality:0.98},
-      html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},
-      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}
+      html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0,windowWidth:900},
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
+      pagebreak:{mode:["css","legacy"],avoid:[".project-box","h2","h3","li"]}
     };
     var dataUri=await html2pdf().set(opt).from(built.node).outputPdf("datauristring");
     return String(dataUri).split(",")[1];
