@@ -2350,22 +2350,22 @@ function syntheseTextHtml(txt){
 
     if(/^###\s+/.test(l)){
       closeList();
-      html+='<h3 style="font-family:Georgia,serif;color:#5A2230;font-size:16px;margin:18px 0 8px;page-break-after:avoid;">'+l.replace(/^###\s+/,'')+'</h3>';
+      html+='<h3 style="font-family:Georgia,serif;color:#5A2230;font-size:14px;margin:14px 0 6px;page-break-after:avoid;overflow-wrap:break-word;">'+l.replace(/^###\s+/,'')+'</h3>';
     }else if(/^##\s+/.test(l)){
       closeList();
-      html+='<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:18px;margin:20px 0 9px;page-break-after:avoid;">'+l.replace(/^##\s+/,'')+'</h2>';
+      html+='<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:16px;margin:16px 0 7px;page-break-after:avoid;overflow-wrap:break-word;">'+l.replace(/^##\s+/,'')+'</h2>';
     }else if(/^#\s+/.test(l)){
       closeList();
-      html+='<h1 style="font-family:Georgia,serif;color:#5A2230;font-size:19px;margin:0 0 12px;page-break-after:avoid;">'+l.replace(/^#\s+/,'')+'</h1>';
+      html+='<h1 style="font-family:Georgia,serif;color:#5A2230;font-size:17px;margin:0 0 10px;page-break-after:avoid;overflow-wrap:break-word;">'+l.replace(/^#\s+/,'')+'</h1>';
     }else if(/^[-*✓✔]\s+/.test(l)){
-      if(!inList){ html+='<ul style="margin:8px 0 12px 18px;padding:0;">'; inList=true; }
-      html+='<li style="margin:4px 0;page-break-inside:avoid;">'+l.replace(/^[-*✓✔]\s+/,'')+'</li>';
+      if(!inList){ html+='<ul style="margin:6px 0 10px 16px;padding:0;max-width:100%;">'; inList=true; }
+      html+='<li style="margin:3px 0;page-break-inside:avoid;overflow-wrap:break-word;word-break:normal;">'+l.replace(/^[-*✓✔]\s+/,'')+'</li>';
     }else if(/^---+$/.test(l)){
       closeList();
-      html+='<hr style="border:none;border-top:1px solid #E7DDD5;margin:18px 0;">';
+      html+='<hr style="border:none;border-top:1px solid #E7DDD5;margin:14px 0;">';
     }else{
       closeList();
-      html+='<p style="margin:8px 0;page-break-inside:avoid;">'+l+'</p>';
+      html+='<p style="margin:6px 0;page-break-inside:avoid;overflow-wrap:break-word;word-break:normal;">'+l+'</p>';
     }
   });
   closeList();
@@ -2374,36 +2374,36 @@ function syntheseTextHtml(txt){
 function viewSyntheseDoc(m, sourceDoc){
   var s=state.settings||{};
   var logo=(state.logo&&state.logo.length>10)?state.logo:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/logo-mail.jpg";
-  var ref=(sourceDoc&&sourceDoc.numero)?'<div style="font-size:11px;color:#837568;margin-top:3px;">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
+  var ref=(sourceDoc&&sourceDoc.numero)?'<div style="font-size:10.5px;color:#837568;margin-top:2px;">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
 
-  return '<div id="synthese-doc" style="width:186mm;max-width:186mm;margin:0;background:#fff;color:#303437;font-family:Segoe UI,Arial,sans-serif;font-size:12px;line-height:1.45;box-sizing:border-box;padding:0;">'+
+  return '<div id="synthese-doc" style="width:172mm;max-width:172mm;margin:0;background:#fff;color:#303437;font-family:Segoe UI,Arial,sans-serif;font-size:11.2px;line-height:1.38;box-sizing:border-box;padding:0;overflow:hidden;overflow-wrap:break-word;word-break:normal;">'+
 
-    '<div style="text-align:center;margin:0 0 12px 0;page-break-inside:avoid;page-break-after:avoid;">'+
-      '<div style="font-family:Georgia,serif;font-size:22px;line-height:1.2;color:#5A2230;font-weight:700;margin:0;">Synthèse de votre projet</div>'+
-      '<div style="font-size:11px;color:#837568;margin-top:6px;">Date : '+frDate(todayISO())+'</div>'+ref+
+    '<div style="text-align:center;margin:0 0 10px 0;page-break-inside:avoid;page-break-after:avoid;">'+
+      '<div style="font-family:Georgia,serif;font-size:20px;line-height:1.2;color:#5A2230;font-weight:700;margin:0;white-space:normal;">Synthèse de votre projet</div>'+
+      '<div style="font-size:10.5px;color:#837568;margin-top:5px;">Date : '+frDate(todayISO())+'</div>'+ref+
     '</div>'+
 
-    '<div style="border-bottom:1px solid #E7DDD5;padding-bottom:10px;margin-bottom:14px;page-break-inside:avoid;">'+
-      '<img src="'+logo+'" alt="logo" style="width:68px;height:auto;display:block;margin:0 0 6px 0;">'+
-      '<div style="font-family:Georgia,serif;font-size:18px;color:#5A2230;font-weight:700;margin:0 0 4px 0;">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
-      '<div style="font-size:11px;color:#837568;">'+esc(s.entrepreneur||"Élodie Rouzé")+'</div>'+
-      '<div style="font-size:11px;color:#837568;">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div>'+
+    '<div style="border-bottom:1px solid #E7DDD5;padding-bottom:8px;margin-bottom:12px;page-break-inside:avoid;">'+
+      '<img src="'+logo+'" alt="logo" style="width:58px;height:auto;display:block;margin:0 0 5px 0;">'+
+      '<div style="font-family:Georgia,serif;font-size:16px;color:#5A2230;font-weight:700;margin:0 0 3px 0;overflow-wrap:break-word;">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
+      '<div style="font-size:10.5px;color:#837568;">'+esc(s.entrepreneur||"Élodie Rouzé")+'</div>'+
+      '<div style="font-size:10.5px;color:#837568;overflow-wrap:break-word;">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div>'+
     '</div>'+
 
-    '<div style="background:#FBF8F4;border:1px solid #E7DDD5;border-radius:10px;padding:10px 12px;margin-bottom:14px;page-break-inside:avoid;">'+
-      '<div style="font-size:10px;text-transform:uppercase;color:#837568;font-weight:700;letter-spacing:.02em;">Projet mariage</div>'+
-      '<div style="font-weight:700;color:#5A2230;font-size:14px;margin-top:3px;">'+esc((m&&m.nom)||"Projet mariage")+'</div>'+
-      ((m&&m.dateMariage)?'<div style="font-size:11px;color:#837568;margin-top:2px;">Date du mariage : '+frDate(m.dateMariage)+'</div>':'')+
-      ((m&&m.dateLivraison)?'<div style="font-size:11px;color:#837568;">Livraison : '+frDate(m.dateLivraison)+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+'</div>':'')+
-      ((m&&m.theme)?'<div style="font-size:11px;color:#837568;">Thème / couleurs : '+esc(m.theme)+'</div>':'')+
+    '<div style="background:#FBF8F4;border:1px solid #E7DDD5;border-radius:8px;padding:8px 10px;margin-bottom:12px;page-break-inside:avoid;overflow-wrap:break-word;">'+
+      '<div style="font-size:9.5px;text-transform:uppercase;color:#837568;font-weight:700;letter-spacing:.02em;">Projet mariage</div>'+
+      '<div style="font-weight:700;color:#5A2230;font-size:13px;margin-top:2px;">'+esc((m&&m.nom)||"Projet mariage")+'</div>'+
+      ((m&&m.dateMariage)?'<div style="font-size:10.5px;color:#837568;margin-top:2px;">Date du mariage : '+frDate(m.dateMariage)+'</div>':'')+
+      ((m&&m.dateLivraison)?'<div style="font-size:10.5px;color:#837568;">Livraison : '+frDate(m.dateLivraison)+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+'</div>':'')+
+      ((m&&m.theme)?'<div style="font-size:10.5px;color:#837568;">Thème / couleurs : '+esc(m.theme)+'</div>':'')+
     '</div>'+
 
-    '<div style="margin-top:8px;">'+
-      '<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:16px;margin:0 0 8px;page-break-after:avoid;">Synthèse</h2>'+
-      '<div style="font-size:12px;line-height:1.45;">'+syntheseTextHtml(m&&m.synthese)+'</div>'+
+    '<div style="margin-top:6px;max-width:100%;overflow-wrap:break-word;">'+
+      '<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:15px;margin:0 0 6px;page-break-after:avoid;">Synthèse</h2>'+
+      '<div style="font-size:11.2px;line-height:1.38;max-width:100%;overflow-wrap:break-word;word-break:normal;">'+syntheseTextHtml(m&&m.synthese)+'</div>'+
     '</div>'+
 
-    '<div style="margin-top:16px;padding-top:8px;border-top:1px solid #E7DDD5;font-size:10px;color:#837568;page-break-inside:avoid;">'+
+    '<div style="margin-top:12px;padding-top:7px;border-top:1px solid #E7DDD5;font-size:9.5px;color:#837568;page-break-inside:avoid;overflow-wrap:break-word;">'+
       'Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.'+
     '</div>'+
   '</div>';
@@ -2419,15 +2419,18 @@ function buildSyntheseElementForPdf(m, doc){
 
   var holder=document.createElement("div");
   holder.id="synthese-email-holder";
-  holder.style.position="absolute";
+  holder.style.position="fixed";
   holder.style.left="0";
   holder.style.top="0";
-  holder.style.width="186mm";
+  holder.style.width="172mm";
   holder.style.background="#ffffff";
   holder.style.boxSizing="border-box";
-  holder.style.zIndex="-1";
+  holder.style.zIndex="99999";
+  holder.style.opacity="0";
   holder.style.pointerEvents="none";
   holder.style.overflow="visible";
+  holder.style.margin="0";
+  holder.style.padding="0";
 
   holder.appendChild(clone);
   document.body.appendChild(holder);
@@ -2439,7 +2442,7 @@ async function pdfBase64FromSynthese(m, doc){
   if(!built) throw new Error("Synthèse introuvable");
   try{
     var opt={
-      margin:[10,12,10,12],
+      margin:[10,19,10,19],
       filename:syntheseFileName(m),
       image:{type:"jpeg",quality:0.98},
       html2canvas:{
@@ -2448,14 +2451,29 @@ async function pdfBase64FromSynthese(m, doc){
         backgroundColor:"#ffffff",
         scrollX:0,
         scrollY:0,
-        windowWidth:794,
+        windowWidth:650,
         x:0,
         y:0
       },
       jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
       pagebreak:{mode:["css","legacy"],avoid:["h1","h2","h3","li",".avoid-break"]}
     };
-    var dataUri=await html2pdf().set(opt).from(built.node).outputPdf("datauristring");
+    var worker=html2pdf().set(opt).from(built.node).toPdf();
+    var pdf=await worker.get("pdf");
+    try{
+      if(pdf && pdf.getNumberOfPages && pdf.getNumberOfPages()>1){
+        var firstTextless=true;
+        // La première page blanche venait du rendu invisible. On supprime systématiquement
+        // une première page si le document généré commence par une page vide.
+        // Dans les tests, la vraie synthèse commence toujours page 2 quand ce bug arrive.
+        var pages=pdf.getNumberOfPages();
+        if(pages>1){
+          pdf.setPage(1);
+          pdf.deletePage(1);
+        }
+      }
+    }catch(cleanErr){ console.warn("Nettoyage page blanche impossible", cleanErr); }
+    var dataUri=pdf.output("datauristring");
     return String(dataUri).split(",")[1];
   } finally {
     if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
