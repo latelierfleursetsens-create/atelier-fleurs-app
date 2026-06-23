@@ -2407,7 +2407,7 @@ function buildSyntheseElementForPdf(m, doc){
   document.body.appendChild(holder);
   return {holder:holder,node:clone};
 }
-async async function pdfBase64FromSynthese(m, doc){
+async function pdfBase64FromSynthese(m, doc){
   if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
   var built=buildSyntheseElementForPdf(m, doc);
   if(!built) throw new Error("Synthèse introuvable");
