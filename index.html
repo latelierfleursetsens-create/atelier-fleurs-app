@@ -171,7 +171,7 @@ var DEFAULT_SETTINGS = {
 };
 
 /* ===================== État ===================== */
-var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], logo:"" };
+var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], logo:"" };
 var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null };
 var fileHandle = null;
 
@@ -241,14 +241,14 @@ var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null;
 
-function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
+function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
 function applyData(d){
   if(!d) return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
-  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.logo=d.logo||"";
+  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.logo=d.logo||"";
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -402,7 +402,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["calendrier","Calendrier"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements"],["achats","Achats"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["calendrier","Calendrier"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements manuels"],["tresorerie","Trésorerie"],["ventesSite","Ventes site internet"],["achats","Achats"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -423,6 +423,8 @@ function render(){
   else if(ui.tab==="factures") v.innerHTML=viewFactures();
   else if(ui.tab==="emails") v.innerHTML=viewEmails();
   else if(ui.tab==="encaissements") v.innerHTML=viewEncaissements();
+  else if(ui.tab==="tresorerie") v.innerHTML=viewTresorerie();
+  else if(ui.tab==="ventesSite") v.innerHTML=viewVentesSite();
   else if(ui.tab==="achats") v.innerHTML=viewAchats();
   else if(ui.tab==="mariages") v.innerHTML=viewMariages();
   else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
@@ -535,8 +537,10 @@ function viewDashboard(){
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
   prepBanner+
+  viewSmartDashboard()+
   viewCalendarPreview()+
   viewAchatsPreview()+
+  viewSiteSalesPreview()+
   '<div class="row-actions" style="margin-bottom:14px;">'+
     '<button class="btn small gold" data-action="csv-'+an+'">Exporter '+an+' (Excel / CSV)</button>'+
     '<button class="btn small ghost" data-action="csv-all">Exporter toutes les années</button></div>'+
@@ -836,7 +840,7 @@ function facTotHTML(t){
 }
 function captureFactureDraft(){
   var f=ui.factureDraft; if(!f) return;
-  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut="a_envoyer"; f.notes=val("facNotes"); f.reductionType=val("facReductionType")||"montant"; f.reductionValeur=num(val("facReductionValeur")); f.acompteDejaPaye=num(val("facAcompteDejaPaye")); f.paiementClient=val("facPaiementClient");
+  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut="a_envoyer"; f.notes=val("facNotes"); f.reductionType=val("facReductionType")||"montant"; f.reductionValeur=num(val("facReductionValeur")); f.acompteDejaPaye=num(val("facAcompteDejaPaye")); f.paiementClient=val("facPaiementClient"); f.paiementClient=val("facPaiementClient");
   if(f.clientMode==="existant"&&state.clients.length){ f.clientId=val("facClient")||f.clientId; }
   else { f.client={nom:val("facNom"),adresse:val("facAdr"),email:val("facEmail"),tel:val("facTel"),canal:val("facCanal")}; }
 }
@@ -867,12 +871,26 @@ var ACHAT_CATEGORIES=["Fleurs","Emballages","Matériel","Fournitures","Communica
 var ACHAT_PAIEMENTS=["CB","Espèces","Virement","PayPal","Autre"];
 
 var CLIENT_PAYMENT_METHODS=["CB","Espèces","Virement","Wero","PayPal","Chèque","Autre"];
+var CLIENT_PAYMENT_METHODS=["Espèces","CB","Wero","Virement","Site internet","Chèque"];
 function paymentOptions(selected){
   selected=selected||"";
   return '<option value="">Non renseigné</option>'+CLIENT_PAYMENT_METHODS.map(function(p){
     return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+esc(p)+'</option>';
   }).join("");
 }
+function normalizePaymentMethod(v){
+  v=(v||"").trim();
+  if(!v) return "Non renseigné";
+  var low=v.toLowerCase();
+  if(low==="especes"||low==="espèces") return "Espèces";
+  if(low==="cb"||low.indexOf("carte")>=0) return "CB";
+  if(low==="wero") return "Wero";
+  if(low.indexOf("virement")>=0) return "Virement";
+  if(low.indexOf("site")>=0||low.indexOf("internet")>=0||low.indexOf("web")>=0||low.indexOf("squarespace")>=0) return "Site internet";
+  if(low.indexOf("chèque")>=0||low.indexOf("cheque")>=0) return "Chèque";
+  return v;
+}
+
 
 var MARIAGE_LIVRAISON_MODES=["Remise en main propre","Envoi","Retrait domicile"];
 function livraisonOptions(selected){
@@ -1162,6 +1180,255 @@ function viewAchatsPreview(){
   if(!last.length) return html+'<p class="muted" style="margin:0;">Aucun achat enregistré.</p></div>';
   last.forEach(function(a){html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(a.fournisseur||"Fournisseur")+'</b><div class="muted" style="font-size:12px;">'+frDate(a.date)+' · '+euro(a.montantTTC||0)+' · '+esc(a.categorie||"Divers")+'</div></div>';});
   return html+'</div>';
+}
+
+
+/* ===================== Ventes site internet V2.1.1 ===================== */
+var SITE_ACTIVITES=["Atelier","Produit","Box DIY","Mariage","Autre"];
+
+function newSiteSaleDraft(){
+  ui.siteSaleDraft={
+    id:uid(),
+    date:todayISO(),
+    client:"",
+    email:"",
+    tel:"",
+    produit:"",
+    commande:"",
+    activite:"Atelier",
+    montant:0,
+    frais:0,
+    notes:"",
+    paiement:"Site internet",
+    statut:"payee",
+    createdAt:new Date().toISOString()
+  };
+}
+
+function captureSiteSaleDraft(){
+  var s=ui.siteSaleDraft; if(!s) return;
+  s.date=val("siteDate")||todayISO();
+  s.client=val("siteClient");
+  s.email=val("siteEmail");
+  s.tel=val("siteTel");
+  s.produit=val("siteProduit");
+  s.commande=val("siteCommande");
+  s.activite=val("siteActivite")||"Autre";
+  s.montant=num(val("siteMontant"));
+  s.frais=num(val("siteFrais"));
+  s.notes=val("siteNotes");
+  s.paiement="Site internet";
+  s.statut="payee";
+}
+
+function siteActiviteOptions(selected){
+  selected=selected||"Atelier";
+  return SITE_ACTIVITES.map(function(a){
+    return '<option value="'+esc(a)+'"'+(a===selected?' selected':'')+'>'+esc(a)+'</option>';
+  }).join("");
+}
+
+function viewSiteSaleForm(){
+  var s=ui.siteSaleDraft;
+  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">Nouvelle vente site internet</h3><button class="btn small ghost" data-action="site-cancel">Annuler</button></div>'+
+    '<p class="muted" style="margin-top:0;">À utiliser pour les commandes Squarespace déjà facturées et payées par le site. Aucune facture ne sera recréée ici.</p>'+
+    '<div class="inline"><div><label class="field"><span>Date de commande</span><input id="siteDate" type="date" value="'+esc(s.date)+'"></label></div>'+
+    '<div><label class="field"><span>N° commande Squarespace</span><input id="siteCommande" value="'+esc(s.commande||"")+'" placeholder="Ex : #000123"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Cliente</span><input id="siteClient" value="'+esc(s.client||"")+'" placeholder="Nom de la cliente"></label></div>'+
+    '<div><label class="field"><span>Email</span><input id="siteEmail" type="email" value="'+esc(s.email||"")+'" placeholder="email@exemple.fr"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="siteTel" value="'+esc(s.tel||"")+'"></label></div>'+
+    '<div><label class="field"><span>Activité</span><select id="siteActivite">'+siteActiviteOptions(s.activite)+'</select></label></div></div>'+
+    '<label class="field"><span>Produit / atelier acheté</span><input id="siteProduit" value="'+esc(s.produit||"")+'" placeholder="Ex : Atelier couronne, Box DIY, bouquet…"></label>'+
+    '<div class="inline"><div><label class="field"><span>Montant encaissé (€)</span><input id="siteMontant" type="number" min="0" step="0.01" value="'+esc(s.montant||"")+'"></label></div>'+
+    '<div><label class="field"><span>Frais éventuels (€)</span><input id="siteFrais" type="number" min="0" step="0.01" value="'+esc(s.frais||"")+'"></label></div></div>'+
+    '<label class="field"><span>Notes</span><textarea id="siteNotes" placeholder="Infos utiles, nombre de participantes, produit expédié…">'+esc(s.notes||"")+'</textarea></label>'+
+    '<div class="summary"><div class="totrow"><span>Moyen de paiement</span><b>Site internet</b></div><div class="totrow"><span>Statut</span><b>Payé</b></div></div>'+
+    '<div class="row-actions"><button class="btn primary" data-action="site-save">Enregistrer la vente site</button></div></div>';
+}
+
+function viewVentesSite(){
+  var list=(state.ventesSite||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
+  var totalM=list.filter(function(s){return (s.date||"").slice(0,7)===todayISO().slice(0,7);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var totalA=list.filter(function(s){return (s.date||"").slice(0,4)===todayISO().slice(0,4);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ventes site internet</h2><button class="btn primary" data-action="site-new">+ Nouvelle vente site</button></div>'+
+    '<p class="muted" style="margin-top:-6px;">Ici, tu enregistres les ventes Squarespace déjà facturées automatiquement par le site : réservations d’ateliers, box DIY, produits en ligne. Elles alimentent la Trésorerie sans créer de doublon de facture.</p>'+
+    '<div class="grid-stats">'+stat("Site internet ce mois",euro(r2(totalM)),false)+stat("Site internet cette année",euro(r2(totalA)),false)+stat("Nombre de ventes",list.length,false)+'</div>';
+  if(ui.siteSaleDraft) html+=viewSiteSaleForm();
+  if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucune vente site enregistrée.</p></div>';
+  html+='<div class="card"><h3 style="margin:0 0 10px;">Historique des ventes site</h3>';
+  list.forEach(function(s){
+    var del=ui.confirmDelete==="site:"+s.id;
+    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
+      '<div><b style="color:var(--bordeaux);">'+esc(s.produit||"Vente site")+'</b> <span class="achat-cat">'+esc(s.activite||"Autre")+'</span></div>'+
+      '<div class="muted" style="font-size:12px;">'+frDate(s.date)+(s.client?' · '+esc(s.client):'')+(s.commande?' · Commande '+esc(s.commande):'')+'</div>'+
+      '<div class="muted" style="font-size:12px;">Paiement : Site internet · Statut : payé'+(s.email?' · '+esc(s.email):'')+'</div>'+
+      (s.notes?'<div class="muted" style="font-size:12px;">'+esc(s.notes)+'</div>':'')+
+      '</div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(s.montant||0)+'</b><div style="margin-top:6px;"><button class="btn small danger" data-action="site-del-'+s.id+'">'+(del?'Confirmer':'Supprimer')+'</button></div></div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+
+function saveSiteSale(){
+  captureSiteSaleDraft();
+  var s=ui.siteSaleDraft; if(!s) return;
+  if(!(s.client||"").trim()){ toast("Indique la cliente."); return; }
+  if(!(s.produit||"").trim()){ toast("Indique le produit ou l’atelier acheté."); return; }
+  if(!(Number(s.montant)>0)){ toast("Indique le montant encaissé."); return; }
+  state.ventesSite=state.ventesSite||[];
+  state.ventesSite.unshift(Object.assign({},s));
+  ensureClients([s.client]);
+  ui.siteSaleDraft=null;
+  saveCache(); render(); toast("Vente site internet enregistrée.");
+}
+
+
+function viewSiteSalesPreview(){
+  var list=(state.ventesSite||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");}).slice(0,3);
+  var total=(state.ventesSite||[]).filter(function(s){return (s.date||"").slice(0,7)===todayISO().slice(0,7);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🌐 Ventes site internet</h3><button class="btn small primary" data-action="nav-ventesSite">Ouvrir</button></div>'+
+    '<p class="muted" style="margin:8px 0 10px;">Ventes Squarespace du mois : <b style="color:var(--bordeaux);">'+euro(r2(total))+'</b></p>';
+  if(!list.length) return html+'<p class="muted" style="margin:0;">Aucune vente site enregistrée.</p></div>';
+  list.forEach(function(s){ html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(s.produit||"Vente site")+'</b><div class="muted" style="font-size:12px;">'+frDate(s.date)+' · '+esc(s.client||"")+' · '+euro(s.montant||0)+'</div></div>'; });
+  return html+'</div>';
+}
+
+
+/* ===================== Trésorerie V2.1.1 ===================== */
+function encaissementsTresorerie(){
+  var arr=[];
+  (state.factures||[]).forEach(function(f){
+    if(f.statut==="payee"){
+      arr.push({
+        id:f.id,
+        type:"facture",
+        date:f.datePaiement||f.date||todayISO(),
+        libelle:f.numero||"Facture",
+        client:(f.client&&f.client.nom)||"",
+        montant:Number(f.montant)||0,
+        paiement:normalizePaymentMethod(f.paiementClient||""),
+        activite:activiteFacture(f),
+        facture:f
+      });
+    }
+  });
+  (state.encaissements||[]).forEach(function(e){
+    arr.push({
+      id:e.id,
+      type:"manuel",
+      date:e.date||todayISO(),
+      libelle:e.libelle||"Encaissement manuel",
+      client:e.client||"",
+      montant:Number(e.montant)||((Number(e.montantBiens)||0)+(Number(e.montantServices)||0)),
+      paiement:normalizePaymentMethod(e.paiement||""),
+      activite:activiteEncaissement(e),
+      facture:null
+    });
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    arr.push({
+      id:s.id,
+      type:"site",
+      date:s.date||todayISO(),
+      libelle:(s.commande?("Squarespace "+s.commande):"Vente site")+" · "+(s.produit||""),
+      client:s.client||"",
+      montant:Number(s.montant)||0,
+      paiement:"Site internet",
+      activite:activiteVenteSite(s),
+      facture:null,
+      siteSale:s
+    });
+  });
+  arr.sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
+  return arr;
+}
+function activiteFacture(f){
+  if(f.devisId && (state.mariages||[]).some(function(m){return m.devisLie===f.devisId;})) return "Mariages";
+  var txt=((f.notes||"")+" "+((f.client&&f.client.nom)||"")+" "+(f.devisNumero||"")).toLowerCase();
+  if(txt.indexOf("atelier")>=0 || txt.indexOf("evjf")>=0 || txt.indexOf("qvt")>=0) return "Ateliers";
+  return "Commandes";
+}
+function activiteEncaissement(e){
+  var txt=((e.libelle||"")+" "+(e.client||"")).toLowerCase();
+  if(txt.indexOf("mariage")>=0) return "Mariages";
+  if(txt.indexOf("atelier")>=0 || txt.indexOf("evjf")>=0 || txt.indexOf("qvt")>=0) return "Ateliers";
+  return "Commandes";
+}
+function activiteVenteSite(s){
+  var a=(s.activite||"").toLowerCase();
+  if(a.indexOf("mariage")>=0) return "Mariages";
+  if(a.indexOf("atelier")>=0) return "Ateliers";
+  return "Commandes";
+}
+function groupTresorerieBy(keyFn, list){
+  var out={};
+  (list||encaissementsTresorerie()).forEach(function(e){
+    var k=keyFn(e)||"Non renseigné";
+    out[k]=(out[k]||0)+(Number(e.montant)||0);
+  });
+  return out;
+}
+function tresoBar(label,val,total){
+  var pct=total>0?Math.round((val/total)*100):0;
+  return '<div style="margin:8px 0;"><div class="flexb"><span>'+esc(label)+'</span><b>'+euro(val)+' · '+pct+'%</b></div><div class="jauge"><div class="track"><div class="fill" style="width:'+pct+'%;background:var(--bordeaux);"></div></div></div></div>';
+}
+function viewTresorerie(){
+  var now=new Date(), year=String(now.getFullYear()), month=String(now.getMonth()+1).padStart(2,"0");
+  var list=encaissementsTresorerie();
+  var listYear=list.filter(function(e){return (e.date||"").slice(0,4)===year;});
+  var listMonth=list.filter(function(e){return (e.date||"").slice(0,7)===year+"-"+month;});
+  var caM=r2(listMonth.reduce(function(s,e){return s+e.montant;},0));
+  var caA=r2(listYear.reduce(function(s,e){return s+e.montant;},0));
+  var achatsM=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), Number(month)) : 0;
+  var achatsA=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), null) : 0;
+  var byPay=groupTresorerieBy(function(e){return e.paiement;}, listYear);
+  var byAct=groupTresorerieBy(function(e){return e.activite;}, listYear);
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+
+    '<div class="grid-stats">'+
+      stat("CA encaissé du mois",euro(caM),true)+
+      stat("CA encaissé de l’année",euro(caA),true)+
+      stat("Achats du mois",euro(achatsM),false)+
+      stat("Marge brute estimée",euro(r2(caM-achatsM)),false)+
+    '</div>'+
+    '<div class="card"><h3 style="margin:0 0 10px;">Répartition par moyen de paiement '+year+'</h3>';
+  CLIENT_PAYMENT_METHODS.concat(["Non renseigné"]).forEach(function(p){
+    if(byPay[p]) html+=tresoBar(p, r2(byPay[p]), caA);
+  });
+  html+='</div><div class="card"><h3 style="margin:0 0 10px;">Répartition par activité '+year+'</h3>';
+  ["Mariages","Ateliers","Commandes"].forEach(function(a){
+    if(byAct[a]) html+=tresoBar(a, r2(byAct[a]), caA);
+  });
+  html+='</div><div class="card"><div class="flexb"><h3 style="margin:0 0 10px;">Historique des encaissements et ventes site</h3><span class="muted">'+list.length+' ligne(s)</span></div>';
+  if(!list.length) html+='<p class="muted">Aucun encaissement pour le moment.</p>';
+  else list.slice(0,100).forEach(function(e){
+    html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+
+      '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+
+      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+'</div></div>'+
+      '<div style="font-weight:800;color:var(--bordeaux);">'+euro(e.montant)+'</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+function todaySmartData(){
+  var today=todayISO();
+  var commandes=(state.commandes||[]).filter(function(c){return !c.fait;}).length;
+  var aEncaisser=(state.factures||[]).filter(function(f){return f.statut!=="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0);
+  var echues=(state.factures||[]).filter(function(f){return f.statut!=="payee" && f.echeance && f.echeance<today;}).length;
+  var mariagesLivraison=(state.mariages||[]).filter(function(m){return !mariageTermine(m) && m.dateLivraison && m.dateLivraison>=today && m.dateLivraison<=addDays(today,7);}).length;
+  var devisRelance=(state.devis||[]).filter(function(d){return d.statut==="envoye" && d.date && d.date<=addDays(today,-7);}).length;
+  var siteM=(state.ventesSite||[]).filter(function(s){return (s.date||"").slice(0,7)===today.slice(0,7);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  return {commandes:commandes,aEncaisser:r2(aEncaisser),echues:echues,mariagesLivraison:mariagesLivraison,devisRelance:devisRelance,siteM:r2(siteM)};
+}
+function viewSmartDashboard(){
+  var d=todaySmartData();
+  return '<div class="card" style="border-color:var(--bordeaux);"><h3 style="margin:0 0 10px;">Aujourd’hui</h3>'+
+    '<div class="checkrow" data-action="goto-commandes-suivi" style="cursor:pointer;"><div style="flex:1;">📦 Commandes à préparer</div><b>'+d.commandes+'</b></div>'+
+    '<div class="checkrow" data-action="dash-pending-payments" style="cursor:pointer;"><div style="flex:1;">💶 À encaisser prochainement</div><b>'+euro(d.aEncaisser)+'</b></div>'+
+    '<div class="checkrow" data-action="nav-mariages" style="cursor:pointer;"><div style="flex:1;">💍 Mariages à livrer sous 7 jours</div><b>'+d.mariagesLivraison+'</b></div>'+
+    '<div class="checkrow" data-action="nav-devis" style="cursor:pointer;"><div style="flex:1;">📞 Devis à relancer</div><b>'+d.devisRelance+'</b></div>'+
+    '<div class="checkrow" data-action="nav-ventesSite" style="cursor:pointer;"><div style="flex:1;">🌐 Ventes site du mois</div><b>'+euro(d.siteM)+'</b></div>'+
+    '<div class="checkrow" data-action="dash-pending-payments" style="cursor:pointer;border-bottom:none;"><div style="flex:1;">⚠️ Factures échues</div><b>'+d.echues+'</b></div>'+
+  '</div>';
 }
 
 /* ===================== Calendrier ===================== */
@@ -1666,7 +1933,7 @@ function viewEncaissements(){
   var list=state.encaissements.slice().sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
   var totB=r2(state.encaissements.reduce(function(s,e){return s+(e.montantBiens||0);},0));
   var totS=r2(state.encaissements.reduce(function(s,e){return s+(e.montantServices||0);},0));
-  var html='<h2 style="margin-top:0;">Encaissements</h2>'+
+  var html='<h2 style="margin-top:0;">Encaissements manuels</h2>'+
     '<p class="muted" style="margin-top:-6px;">Tes ventes encaissées <b>sans facture émise</b> (marché, boutique, atelier réglé sur place) et ton <b>historique</b>. Elles s\'ajoutent à ton CA, ventilées biens / services. Les clientes sont ajoutées automatiquement à ta base.</p>'+
     '<div class="card"><h3 style="margin:0 0 10px;">Importer mon historique (Excel → CSV)</h3>'+
       '<p class="muted" style="margin-top:0;">Depuis Excel : « Enregistrer sous » → <b>CSV (séparateur point-virgule)</b>, avec ces colonnes dans cet ordre :</p>'+
@@ -2144,6 +2411,17 @@ function handleAction(action){
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="devis"; newWizard(); render(); return; }
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
+  
+  if(action==="site-new"){ newSiteSaleDraft(); ui.tab="ventesSite"; render(); return; }
+  if(action==="site-cancel"){ ui.siteSaleDraft=null; render(); return; }
+  if(action==="site-save"){ saveSiteSale(); return; }
+  if(action.indexOf("site-del-")===0){
+    var sid=action.slice(9), skey="site:"+sid;
+    if(ui.confirmDelete!==skey){ ui.confirmDelete=skey; render(); toast("Retouche Supprimer pour confirmer."); return; }
+    state.ventesSite=(state.ventesSite||[]).filter(function(s){return s.id!==sid;});
+    ui.confirmDelete=null; saveCache(); render(); toast("Vente site supprimée."); return;
+  }
+
   if(action==="go-achats"){ ui.tab="achats"; render(); return; }
   if(action==="achat-new"){ newAchatDraft(); ui.tab="achats"; render(); return; }
   if(action==="achat-cancel"){ ui.achatDraft=null; render(); return; }
@@ -2236,6 +2514,12 @@ function handleAction(action){
   if(action.indexOf("fac-delline-")===0){ captureFactureDraft(); var flid=action.slice(12); ui.factureDraft.lignes=ui.factureDraft.lignes.filter(function(l){return l.id!==flid;}); render(); return; }
   if(action==="fac-create-manual"){ createManualFacture(); return; }
 
+  
+  if(action.indexOf("treso-open-facture-")===0){
+    var tf=state.factures.find(function(f){return f.id===action.slice(19);});
+    if(tf){ ui.preview={kind:"facture",doc:tf}; renderModal(); }
+    return;
+  }
   // factures depuis devis
   if(action.indexOf("fac-acompte-")===0){ var d1=findDevis(action.slice(12)); if(d1){ var fa=creerAcompte(d1); if(fa){ var mpA=prompt("Moyen de paiement si l'acompte est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpA!==null && mpA.trim()){ fa.paiementClient=mpA.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée."); } return; }
   if(action.indexOf("fac-solde-")===0){ var d2=findDevis(action.slice(10)); if(d2){ var fs=creerSolde(d2); if(fs){ var mpS=prompt("Moyen de paiement si le solde est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpS!==null && mpS.trim()){ fs.paiementClient=mpS.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); } return; }
@@ -2257,6 +2541,7 @@ function handleAction(action){
     var fp=state.factures.find(function(x){return x.id===action.slice(9);});
     if(fp){
       fp.statut="payee"; fp.datePaiement=fp.datePaiement||todayISO();
+      if(!fp.paiementClient){ var pm=prompt("Moyen de paiement : Espèces, CB, Wero, Virement, Site internet, Chèque", ""); if(pm!==null) fp.paiementClient=normalizePaymentMethod(pm); }
       if(!fp.paiementClient){ var mp=prompt("Moyen de paiement de la cliente ? (CB, Espèces, Virement, Wero…)", ""); if(mp!==null) fp.paiementClient=mp.trim(); }
       if(fp.type==="acompte" && fp.devisId){
         var dd=findDevis(fp.devisId);
@@ -2296,7 +2581,7 @@ function handleAction(action){
   if(action.indexOf("csv-")===0){ exportCSV(action.slice(4)); return; }
 
   // encaissements
-  if(action==="enc-add"){ var b=num(val("encBiens")), s=num(val("encServ")); if(b===0&&s===0){ toast("Indique un montant (biens et/ou services)."); return; } var cl=val("encClient").trim(); state.encaissements.push({ id:uid(), date:val("encDate")||todayISO(), libelle:val("encLib"), montantBiens:r2(b), montantServices:r2(s), montant:r2(b+s), client:cl, paiement:val("encPaiement"), source:"manuel" }); if(cl) ensureClients([cl]); saveCache(); render(); toast("Encaissement ajouté."); return; }
+  if(action==="enc-add"){ var b=num(val("encBiens")), s=num(val("encServ")); if(b===0&&s===0){ toast("Indique un montant (biens et/ou services)."); return; } var cl=val("encClient").trim(); state.encaissements.push({ id:uid(), date:val("encDate")||todayISO(), libelle:val("encLib"), montantBiens:r2(b), montantServices:r2(s), montant:r2(b+s), client:cl, paiement:val("encPaiement"), source:"manuel" }); if(cl) ensureClients([cl]); saveCache(); render(); toast("Encaissement manuel ajouté."); return; }
   if(action==="enc-clearimport"){ if(confirm("Supprimer tous les encaissements issus d'un import ? (les ventes saisies à la main sont conservées)")){ state.encaissements=state.encaissements.filter(function(e){return e.source!=="import";}); saveCache(); render(); toast("Encaissements importés supprimés."); } return; }
   if(action.indexOf("enc-del-")===0){ var eid=action.slice(8); if(confirm("Supprimer cet encaissement ?")){ state.encaissements=state.encaissements.filter(function(x){return x.id!==eid;}); saveCache(); render(); } return; }
   if(action==="enc-import"){ document.getElementById("encImport").click(); return; }
