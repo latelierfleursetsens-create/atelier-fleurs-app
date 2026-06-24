@@ -1656,9 +1656,6 @@ function clientHistoriqueComplet(c){
     }
   });
   (state.ateliers||[]).forEach(function(a){
-    if(a.client && clientNameMatches(c.nom,a.client)){
-      items.push({date:a.date,type:"Atelier",label:"Organisation atelier · "+(a.type||"Atelier")+" · "+(a.theme||""),montant:0,paid:null,source:"atelier",id:a.id,activite:"Atelier"});
-    }
     (a.participants||[]).forEach(function(p){
       if(p.nom && clientNameMatches(c.nom,p.nom)){
         items.push({date:a.date,type:"Atelier",label:(a.type||"Atelier")+" · "+(a.theme||"")+" · "+(p.prestation||""),montant:Number(p.montant)||0,paid:null,source:"atelier",id:a.id,activite:"Atelier"});
@@ -1740,32 +1737,14 @@ function atelierStatutOptions(selected){
 }
 function getAtelier(id){ return (state.ateliers||[]).find(function(a){return a.id===id;}); }
 function newAtelier(){
-  var a={
-    id:uid(),
-    clientMode:"nouveau",
-    clientId:"",
-    client:"",
-    clientEmail:"",
-    clientTel:"",
-    date:todayISO(),
-    heure:"",
-    lieu:"",
-    theme:"À compléter",
-    type:"EVJF",
-    materiel:"",
-    description:"",
-    statut:"booke",
-    participants:[],
-    createdAt:new Date().toISOString()
-  };
+  var a={id:uid(),date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
   state.ateliers=state.ateliers||[];
   state.ateliers.unshift(a);
   ui.tab="clientsModule";
   ui.clientsSub="ateliers";
-  ui.atelierOpen=null;
+  ui.atelierOpen=a.id;
   saveCache();
   render();
-  toast("Atelier créé. Clique sur « Ouvrir l’atelier » pour compléter la fiche.");
 }
 function atelierTotals(a){
   var parts=(a&&a.participants)||[];
@@ -1793,7 +1772,7 @@ function viewAteliers(){
   if(ui.atelierOpen) return viewAtelierDetail(getAtelier(ui.atelierOpen));
   var list=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
   var prevision=atelierPrevisionTotal(), nonFacture=atelierPrevisionNonFacturee();
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Créer un atelier</button></div>'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Nouvel atelier</button></div>'+
     '<p class="muted" style="margin-top:-6px;">Centralise les ateliers bookés, les participantes, les acomptes, les factures à envoyer, le matériel et le calendrier.</p>'+
     '<div class="grid-stats">'+
       stat("Ateliers à venir",atelierUpcoming().length,false)+
@@ -1805,7 +1784,7 @@ function viewAteliers(){
   list.forEach(function(a){
     var t=atelierTotals(a), st=ATELIER_STATUTS[a.statut]||a.statut||"Booké";
     html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(a.type||"Atelier")+' · '+esc(a.theme||"À compléter")+'</b>'+
-      '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+(a.client?' · Organisatrice : '+esc(a.client):'')+'</div></div>'+
+      '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+'</div></div>'+
       '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(st)+'</span></div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+
         '<span class="chip">👥 '+t.participants+' participant(s)</span>'+
@@ -1813,51 +1792,26 @@ function viewAteliers(){
         '<span class="chip">Facturé : '+euro(t.facture)+'</span>'+ '<span class="chip">Site : '+euro(t.sitePaye||0)+'</span>'+ '<span class="chip">Solde jour J : '+euro(t.siteSolde||0)+'</span>'+
         '<span class="chip">À facturer : '+euro(t.resteNonFacture)+'</span>'+
       '</div>'+
-      '<div class="row-actions"><button class="btn small primary" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
+      '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
   });
   return html;
 }
 function captureAtelier(a){
   if(!a) return;
-  function gv(id){ var e=document.getElementById(id); return e?e.value:undefined; }
-
-  a.clientMode=a.clientMode||"nouveau";
-  var cid=gv("atClientId");
-  if(cid!==undefined){ a.clientId=cid; a.clientMode="existant"; }
-
-  var c=gv("atClient"); if(c!==undefined) a.client=c;
-  var ce=gv("atClientEmail"); if(ce!==undefined) a.clientEmail=ce;
-  var ct=gv("atClientTel"); if(ct!==undefined) a.clientTel=ct;
-  applyClientToAtelier(a);
-
-  var date=gv("atDate"); if(date!==undefined) a.date=date;
-  var heure=gv("atHeure"); if(heure!==undefined) a.heure=heure;
-  var lieu=gv("atLieu"); if(lieu!==undefined) a.lieu=lieu;
-  var theme=gv("atTheme"); if(theme!==undefined) a.theme=theme;
-  var type=gv("atType"); if(type!==undefined) a.type=type||"EVJF";
-  var statut=gv("atStatut"); if(statut!==undefined) a.statut=statut||"booke";
-  var materiel=gv("atMateriel"); if(materiel!==undefined) a.materiel=materiel;
-  var description=gv("atDescription"); if(description!==undefined) a.description=description;
+  a.date=val("atDate")||"";
+  a.heure=val("atHeure")||"";
+  a.lieu=val("atLieu")||"";
+  a.theme=val("atTheme")||"";
+  a.type=val("atType")||"EVJF";
+  a.statut=val("atStatut")||"booke";
+  a.materiel=val("atMateriel")||"";
+  a.description=val("atDescription")||"";
 }
 function viewAtelierDetail(a){
   if(!a){ ui.atelierOpen=null; return viewAteliers(); }
   a.participants=a.participants||[];
   var t=atelierTotals(a);
-  a.clientMode=(a.clientMode==="existant"&&a.clientId)?"existant":"nouveau";
-  var clientPart="";
-  if(state.clients.length){
-    clientPart+=clientModeButtons("at",a.clientMode);
-  }
-  if(a.clientMode==="existant"&&state.clients.length){
-    clientPart+='<label class="field"><span>Cliente / organisatrice existante</span><select id="atClientId" data-action="at-client-select">'+clientSelectOptions(a.clientId||"")+'</select><div class="hint">La cliente organisatrice est liée à la base Clients.</div></label>';
-  }else{
-    clientPart+='<div class="inline"><div><label class="field"><span>Cliente / organisatrice</span><input id="atClient" value="'+esc(a.client||"")+'" placeholder="Nom de la cliente ou structure"></label></div>'+
-      '<div><label class="field"><span>Email</span><input id="atClientEmail" type="email" value="'+esc(a.clientEmail||"")+'"></label></div></div>'+
-      '<label class="field"><span>Téléphone</span><input id="atClientTel" value="'+esc(a.clientTel||"")+'"></label>';
-  }
   var html='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h2 style="margin:0;">Atelier · '+esc(a.type||"")+'</h2><button class="btn small ghost" data-action="at-back">← Liste</button></div>'+
-    '<p class="muted" style="margin-top:-4px;">Complète les informations de l’atelier, puis clique sur Enregistrer.</p>'+ '<div class="section-title">Cliente / organisatrice</div>'+
-    clientPart+
     '<div class="grid-stats">'+
       stat("Budget prévu",euro(t.total),false)+
       stat("Déjà facturé",euro(t.facture),false)+
@@ -2565,8 +2519,7 @@ function countdown(dateISO){
 }
 function relanceDue(m){ return m.relance && m.relance<=todayISO() && m.statut!=="realise" && m.statut!=="perdu"; }
 function newMariage(){
-  var first=state.clients&&state.clients[0]?state.clients[0]:null;
-  var m={ id:uid(), clientMode: first?"existant":"nouveau", clientId:first?first.id:"", nom:first?(first.nom||""):"", email:first?(first.email||""):"", tel:first?(first.tel||""):"", canalCommunication:first?(first.canal||""):"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"", synthese:"",
+  var m={ id:uid(), nom:"", email:"", tel:"", canalCommunication:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"", synthese:"",
     statut:"contact", livre:false, dateLivree:"", relance:"", devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"",
     articles:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};}),
     medias:[], historique:[], createdAt:todayISO() };
@@ -2575,12 +2528,9 @@ function newMariage(){
 function captureMariageInputs(){
   var m=getMariage(ui.mariageOpen); if(!m) return;
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
-  m.clientMode=m.clientMode||"nouveau";
-  var cid=g("marClientId"); if(cid!==undefined){ m.clientId=cid; m.clientMode="existant"; }
   ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
-  applyClientToMariage(m);
 }
 function mariageCardHTML(m){
   var cd=mariageCountdown(m), st=STATUT_MAR[m.statut]||STATUT_MAR.contact;
@@ -2699,20 +2649,10 @@ function viewMariageDetail(m){
   summary+='</div>';
   // infos
   function F(label,id,val,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" '+(type?'type="'+type+'" ':"")+'value="'+esc(val==null?"":val)+'"></label>'; }
-  m.clientMode=m.clientMode||((m.clientId&&state.clients.length)?"existant":"nouveau");
-  var clientPart="";
-  if(state.clients.length){
-    clientPart+=clientModeButtons("mar",m.clientMode);
-  }
-  if(m.clientMode==="existant"&&state.clients.length){
-    clientPart+='<label class="field"><span>Cliente existante</span><select id="marClientId" data-action="mar-client-select">'+clientSelectOptions(m.clientId||"")+'</select><div class="hint">Le nom, l’email et le téléphone sont repris depuis la fiche cliente.</div></label>';
-  }else{
-    clientPart+=F("Nom de la cliente / du couple","marNom",m.nom)+
-    '<div class="inline"><div>'+F("Email","marEmail",m.email)+'</div><div>'+F("Téléphone","marTel",m.tel)+'</div></div>';
-  }
   var infos='<div class="card"><div class="flexb" style="margin-bottom:6px;"><h3 style="margin:0;">'+esc(m.nom||"Nouvelle cliente")+'</h3>'+
     '<button class="btn small ghost" data-action="mar-back">← Liste</button></div>'+
-    clientPart+
+    F("Nom de la cliente / du couple","marNom",m.nom)+
+    '<div class="inline"><div>'+F("Email","marEmail",m.email)+'</div><div>'+F("Téléphone","marTel",m.tel)+'</div></div>'+
     '<label class="field"><span>Canal de communication</span><select id="marCanalCommunication">'+mariageCommunicationOptions(m.canalCommunication||"")+'</select><div class="hint">Canal préféré pour échanger avec la cliente.</div></label>'+
     '<div class="inline"><div>'+F("Date du mariage","marDateMariage",m.dateMariage,"date")+'</div><div>'+F("Lieu de réception","marLieu",m.lieu)+'</div></div>'+
     '<div class="inline"><div>'+F("Date de livraison","marDateLivraison",m.dateLivraison,"date")+'</div><div><label class="field"><span>Mode de livraison</span><select id="marModeLivraison">'+livraisonOptions(m.modeLivraison||"")+'</select></label></div></div>'+
@@ -3170,12 +3110,6 @@ function handleAction(action){
   if(action.indexOf("mod-finances-")===0){ ui.tab="financesModule"; ui.financesSub=action.slice(13); render(); return; }
 
   
-  if(action==="mar-client-mode-nouveau"){ var mm=getMariage(ui.mariageOpen); if(mm){ captureMariageInputs(); mm.clientMode="nouveau"; render(); } return; }
-  if(action==="mar-client-mode-existant"){ var me=getMariage(ui.mariageOpen); if(me){ captureMariageInputs(); me.clientMode="existant"; if(!me.clientId&&state.clients[0]) me.clientId=state.clients[0].id; applyClientToMariage(me); render(); } return; }
-  if(action==="at-client-mode-nouveau"){ var aaMode=getAtelier(ui.atelierOpen); if(aaMode){ captureAtelier(aaMode); aaMode.clientMode="nouveau"; render(); } return; }
-  if(action==="at-client-mode-existant"){ var aeMode=getAtelier(ui.atelierOpen); if(aeMode){ captureAtelier(aeMode); aeMode.clientMode="existant"; if(!aeMode.clientId&&state.clients[0]) aeMode.clientId=state.clients[0].id; applyClientToAtelier(aeMode); render(); } return; }
-
-  
   if(action==="dash-pending-payments"){
     ui.pendingPaymentsModal=true;
     renderModal();
@@ -3201,7 +3135,7 @@ function handleAction(action){
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
 
   if(action==="at-new"){ newAtelier(); return; }
-  if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.mariageOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
   if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
   if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
@@ -3406,7 +3340,7 @@ function handleAction(action){
   if(action==="dash-month-close"){ ui.monthDetail=null; render(); return; }
   if(action==="prep-cmd-add"){ var lbl=val("cmdLabel"); if(!lbl.trim()){ toast("Indique l'article à préparer."); return; } state.commandes.unshift({ id:uid(), label:lbl, client:val("cmdClient"), dateLivraison:val("cmdDate"), fait:false, createdAt:todayISO() }); saveCache(); render(); return; }
   if(action.indexOf("prep-cmd-del-")===0){ var cid=action.slice(13); state.commandes=state.commandes.filter(function(x){return x.id!==cid;}); saveCache(); render(); return; }
-  if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
   if(action==="mar-back"){ captureMariageInputs(); saveCache(); ui.mariageOpen=null; render(); return; }
@@ -3529,9 +3463,6 @@ document.addEventListener("change", function(e){
   if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-pay-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.atelierPaiementType=t.value; captureSiteSaleDraft(); render(); } return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="wz-clientsel"){ if(ui.wizard) ui.wizard.clientId=t.value; return; }
   if(t.id==="logoInput"){ onLogoFile(t.files[0]); t.value=""; return; }
-  if(t.getAttribute&&t.getAttribute("data-action")==="mar-client-select"){ var mcs=getMariage(ui.mariageOpen); if(mcs){ mcs.clientMode="existant"; mcs.clientId=t.value; applyClientToMariage(mcs); saveCache(); render(); } return; }
-  if(t.getAttribute&&t.getAttribute("data-action")==="at-client-select"){ var acs=getAtelier(ui.atelierOpen); if(acs){ acs.clientMode="existant"; acs.clientId=t.value; applyClientToAtelier(acs); saveCache(); render(); } return; }
-
   if(t.id==="marMedia"){ onMarMedia(t.files[0]); t.value=""; return; }
   if(t.id==="encImport"){ onEncImport(t.files[0]); t.value=""; return; }
   if(t.id==="restoreInput"){ onRestoreFile(t.files[0]); t.value=""; return; }
