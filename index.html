@@ -1754,10 +1754,11 @@ function atelierParticipantsCount(a){
 
 
 function atelierTypeOptions(selected){
-  selected=selected||"EVJF";
+  selected=selected||"";
   var opts=ATELIER_TYPES.slice();
   if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
-  return opts.map(function(t){return '<option value="'+esc(t)+'"'+(selected===t?' selected':'')+'>'+esc(t)+'</option>';}).join("");
+  return '<option value=""'+(!selected?' selected':'')+'></option>'+
+    opts.map(function(t){return '<option value="'+esc(t)+'"'+(selected===t?' selected':'')+'>'+esc(t)+'</option>';}).join("");
 }
 function atelierStatutOptions(selected){
   selected=selected||"booke";
@@ -1844,7 +1845,7 @@ function captureAtelier(a){
   a.lieu=val("atLieu")||"";
   a.theme=val("atTheme")||"";
   var typeCustom=(val("atTypeCustom")||"").trim();
-  a.type=typeCustom || val("atType") || "EVJF";
+  a.type=typeCustom || val("atType") || "";
   a.statut=val("atStatut")||"booke";
   a.organisatrice=val("atOrganisatrice")||"";
   a.structureNom=val("atStructureNom")||"";
@@ -1979,7 +1980,7 @@ function viewAteliersPreview(){
   var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🎨 Ateliers</h3><button class="btn small primary" data-action="nav-ateliers">Ouvrir</button></div>'+
     '<p class="muted" style="margin:8px 0 10px;">À facturer : <b style="color:var(--bordeaux);">'+euro(nonFact)+'</b> · Soldes jour J inclus dans les ateliers</p>';
   if(!upcoming.length) return html+'<p class="muted" style="margin:0;">Aucun atelier à venir.</p></div>';
-  upcoming.forEach(function(a){ var t=atelierTotals(a); html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(a.type||"Atelier")+' · '+esc(a.theme||"")+'</b><div class="muted" style="font-size:12px;">'+frDate(a.date)+(a.lieu?' · '+esc(a.lieu):'')+' · '+euro(t.total)+'</div></div>'; });
+  upcoming.forEach(function(a){ var t=atelierTotals(a); html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(a.type||"")+' · '+esc(a.theme||"")+'</b><div class="muted" style="font-size:12px;">'+frDate(a.date)+(a.lieu?' · '+esc(a.lieu):'')+' · '+euro(t.total)+'</div></div>'; });
   return html+'</div>';
 }
 
