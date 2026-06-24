@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.15 Stock - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.16 Stock visible - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
@@ -404,7 +404,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["stock","Stock"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["stock","Stock"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -675,6 +675,10 @@ function viewDashboard(){
     '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.14 — sauvegarde automatique.</p>'+
   '</div>'+
 
+  '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
+    '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.16</p>'+
+  '</div>'+
   prepBanner+
   viewSmartDashboard()+
   viewAteliersPreview()+
@@ -3379,6 +3383,14 @@ async function envoyerDocumentEmail(kind, doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
   // nav
+  
+  if(action==="nav-stock"){
+    ui.tab="stock";
+    render();
+    window.scrollTo(0,0);
+    return;
+  }
+
   if(action.indexOf("nav-")===0){
     var dest=action.slice(4);
     ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null;
