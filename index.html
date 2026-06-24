@@ -5,15 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.18 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.19 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
-// dash-todo-blur-autosave : sauvegarde seulement quand on quitte le champ, pas à chaque lettre.
+
+
+// dash-todo-focus-stable-v2019 : évite tout rafraîchissement pendant la saisie Todo.
+document.addEventListener("focusin", function(e){
+  if(isTodoField(e.target)){
+    ui.todoEditing=true;
+  }
+});
 document.addEventListener("focusout", function(e){
-  var t=e.target;
-  if(t && (t.id==="dashTodoList" || t.id==="dashShoppingList")){
+  if(isTodoField(e.target)){
     saveTodoFromFields();
-    saveCache();
+    ui.todoEditing=false;
+    saveTodoCloudDelayed();
   }
 });
 
@@ -184,7 +191,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, todoEditing:false, todoSaveTimer:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -283,12 +290,37 @@ function saveTodoFromFields(){
   if(s) state.shoppingList=s.value||"";
 }
 
+
+function isTodoField(el){
+  return !!(el && (el.id==="dashTodoList" || el.id==="dashShoppingList"));
+}
+function saveTodoFromFields(){
+  var t=document.getElementById("dashTodoList");
+  var s=document.getElementById("dashShoppingList");
+  if(t) state.todoList=t.value||"";
+  if(s) state.shoppingList=s.value||"";
+}
+function saveTodoLocalOnly(){
+  saveTodoFromFields();
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
+}
+function saveTodoCloudDelayed(){
+  clearTimeout(ui.todoSaveTimer);
+  ui.todoSaveTimer=setTimeout(function(){
+    if(ui.todoEditing) return;
+    saveTodoFromFields();
+    saveCache();
+  }, 1200);
+}
+
 function saveCache(){
   try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
+  if(ui && ui.todoEditing) return;
   saveCloud();
 }
 function saveCloud(){
   if(!docRef) return;
+  if(ui && ui.todoEditing) return;
   cloudStatus("☁️ Enregistrement…");
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
@@ -301,7 +333,7 @@ function startSync(uidStr){
   docRef=db.collection("bases").doc(uidStr);
   docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
     if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
-    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
+    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
 }
@@ -651,7 +683,7 @@ function viewTodoDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Cette liste est sauvegardée quand tu quittes le champ ou quand tu cliques sur Enregistrer.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Cette liste ne sauvegarde plus à chaque lettre. Clique sur Enregistrer ou quitte le champ.</p>'+
   '</div>';
 }
 
@@ -690,18 +722,20 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.19 — saisie Todo stabilisée</b><div class="muted" style="font-size:12px;margin-top:4px;">Si tu vois ce message, le correctif anti-rafraîchissement est bien installé.</div></div>'+
+
   '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
     '<div class="inline">'+
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.18 — saisie stabilisée.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.19 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.18</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.19</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3470,13 +3504,7 @@ function handleAction(action){
   }
 
   
-  if(action==="dash-todo-save"){
-    saveTodoFromFields();
-    saveCache();
-    toast("Todo list enregistrée.");
-    render();
-    return;
-  }
+  if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
   
   if(action==="stock-add"){ addStockItem(); return; }
@@ -3788,7 +3816,7 @@ document.addEventListener("click", function(e){
 });
 document.addEventListener("input", function(e){
   var t=e.target;
-  if(t && (t.id==="dashTodoList" || t.id==="dashShoppingList")){ state.todoList=val("dashTodoList")||""; state.shoppingList=val("dashShoppingList")||""; return; }
+  if(isTodoField(t)){ ui.todoEditing=true; saveTodoLocalOnly(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
     var l=ui.wizard&&ui.wizard.lignes.find(function(x){return x.id===id;}); if(l){ l[field]=t.value; refreshWizardTotals(); }
