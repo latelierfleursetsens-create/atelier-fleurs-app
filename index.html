@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.14 Todo list visible - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.15 Stock - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
@@ -173,7 +173,7 @@ var DEFAULT_SETTINGS = {
 };
 
 /* ===================== État ===================== */
-var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"" };
+var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
 var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false };
 var fileHandle = null;
 
@@ -243,14 +243,14 @@ var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null;
 
-function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, _meta:{savedAt:new Date().toISOString()} }; }
+function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, stockItems:state.stockItems, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
 function applyData(d){
   if(!d) return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
-  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||"";
+  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -404,7 +404,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["stock","Stock"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -463,6 +463,7 @@ function render(){
   else if(ui.tab==="clientsModule") v.innerHTML=viewClientsModule();
   else if(ui.tab==="documentsModule") v.innerHTML=viewDocumentsModule();
   else if(ui.tab==="financesModule") v.innerHTML=viewFinancesModule();
+  else if(ui.tab==="stock") v.innerHTML=viewStock();
   else if(ui.tab==="calendrier") v.innerHTML=viewCalendrier();
   else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
   else if(ui.tab==="params") v.innerHTML=viewParams();
@@ -479,6 +480,7 @@ function render(){
   else if(ui.tab==="ventesSite") v.innerHTML=viewVentesSite();
   else if(ui.tab==="achats") v.innerHTML=viewAchats();
   else if(ui.tab==="clients") v.innerHTML=viewClients();
+  else if(ui.tab==="stock") v.innerHTML=viewStock();
   else v.innerHTML=viewDashboard();
   renderModal();
 }
@@ -676,6 +678,7 @@ function viewDashboard(){
   prepBanner+
   viewSmartDashboard()+
   viewAteliersPreview()+
+  viewStockPreview()+
   viewCalendarPreview()+
   viewAchatsPreview()+
   viewSiteSalesPreview()+
@@ -2071,6 +2074,125 @@ function viewAteliersPreview(){
   return html+'</div>';
 }
 
+
+/* ===================== Stock ===================== */
+function stockCategoryOptions(selected){
+  selected=selected||"Fleurs";
+  var opts=["Fleurs","Feuillages","Matériel","Consommables","Emballage","Rubans","Accessoires","Autre"];
+  if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
+  return opts.map(function(o){return '<option value="'+esc(o)+'"'+(selected===o?' selected':'')+'>'+esc(o)+'</option>';}).join("");
+}
+function stockUnitOptions(selected){
+  selected=selected||"pièce";
+  var opts=["pièce","tige","botte","lot","rouleau","mètre","sachet","boîte","kg","g"];
+  if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
+  return opts.map(function(o){return '<option value="'+esc(o)+'"'+(selected===o?' selected':'')+'>'+esc(o)+'</option>';}).join("");
+}
+function stockValue(item){
+  return r2((Number(item.quantite)||0)*(Number(item.prixUnitaire)||0));
+}
+function stockTotalValue(){
+  return r2((state.stockItems||[]).reduce(function(s,it){return s+stockValue(it);},0));
+}
+function stockCount(){
+  return (state.stockItems||[]).reduce(function(s,it){return s+(Number(it.quantite)||0);},0);
+}
+function lowStockCount(){
+  return (state.stockItems||[]).filter(function(it){return Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil);}).length;
+}
+function viewStock(){
+  state.stockItems=state.stockItems||[];
+  var total=stockTotalValue(), q=stockCount(), low=lowStockCount();
+  var cats={};
+  state.stockItems.forEach(function(it){ var c=it.categorie||"Autre"; cats[c]=(cats[c]||0)+stockValue(it); });
+  var catHtml=Object.keys(cats).sort().map(function(c){return '<span class="chip">'+esc(c)+' : '+euro(cats[c])+'</span>';}).join(" ");
+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Stock</h2><span class="muted">Fleurs, matériel et articles</span></div>'+
+    '<div class="grid-stats">'+
+      stat("Valeur du stock",euro(total),true)+
+      stat("Quantité totale",q,false)+
+      stat("Références",state.stockItems.length,false)+
+      stat("Alertes stock bas",low,false)+
+    '</div>'+
+    '<div class="card"><h3 style="margin-top:0;">Ajouter une fleur ou un article</h3>'+
+      '<div class="inline"><div><label class="field"><span>Nom</span><input id="stockNom" placeholder="Ex : Lagurus naturel, ruban rose, colle chaude…"></label></div>'+
+      '<div><label class="field"><span>Catégorie</span><select id="stockCat">'+stockCategoryOptions("Fleurs")+'</select></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Quantité</span><input id="stockQty" type="number" step="0.01" min="0"></label></div>'+
+      '<div><label class="field"><span>Unité</span><select id="stockUnit">'+stockUnitOptions("pièce")+'</select></label></div>'+
+      '<div><label class="field"><span>Prix unitaire (€)</span><input id="stockPrice" type="number" step="0.01" min="0"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Seuil alerte stock bas</span><input id="stockSeuil" type="number" step="0.01" min="0" placeholder="facultatif"></label></div>'+
+      '<div><label class="field"><span>Fournisseur</span><input id="stockFournisseur" placeholder="Ex : Floristen Center"></label></div></div>'+
+      '<label class="field"><span>Notes</span><textarea id="stockNotes" placeholder="Couleur, usage, emplacement, référence fournisseur…"></textarea></label>'+
+      '<div class="row-actions"><button class="btn primary" data-action="stock-add">+ Ajouter au stock</button></div></div>';
+
+  if(catHtml){
+    html+='<div class="card"><h3 style="margin-top:0;">Répartition par catégorie</h3><div style="display:flex;flex-wrap:wrap;gap:6px;">'+catHtml+'</div></div>';
+  }
+
+  html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Liste du stock</h3><span class="muted">'+state.stockItems.length+' référence(s)</span></div>';
+  if(!state.stockItems.length){
+    html+='<p class="muted">Aucun article en stock pour le moment.</p>';
+  }else{
+    var list=state.stockItems.slice().sort(function(a,b){return (a.categorie||"").localeCompare(b.categorie||"") || (a.nom||"").localeCompare(b.nom||"");});
+    list.forEach(function(it){
+      var alert=Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil);
+      html+='<div class="checkrow" style="align-items:flex-start;'+(alert?'border-color:#d99;background:#fff7f2;':'')+'">'+
+        '<div style="flex:1;">'+
+          '<div><b style="color:var(--bordeaux);">'+esc(it.nom||"Article")+'</b> '+(alert?'<span class="badge" style="background:#ffe1d8;color:#8a2d1b;">Stock bas</span>':'')+'</div>'+
+          '<div class="muted" style="font-size:12px;">'+esc(it.categorie||"Autre")+' · '+esc(it.quantite||0)+' '+esc(it.unite||"")+' · Prix unitaire : '+euro(it.prixUnitaire||0)+' · Valeur : '+euro(stockValue(it))+'</div>'+
+          (it.fournisseur?'<div class="muted" style="font-size:12px;">Fournisseur : '+esc(it.fournisseur)+'</div>':'')+
+          (it.notes?'<div class="muted" style="font-size:12px;">Notes : '+esc(it.notes)+'</div>':'')+
+        '</div>'+
+        '<div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
+          '<button class="btn small soft" data-action="stock-adjust-'+it.id+'">Modifier quantité</button>'+
+          '<button class="btn small danger" data-action="stock-del-'+it.id+'">Supprimer</button>'+
+        '</div></div>';
+    });
+  }
+  html+='</div>';
+  return html;
+}
+function addStockItem(){
+  var nom=val("stockNom").trim();
+  if(!nom){ toast("Indique le nom de la fleur ou de l’article."); return; }
+  var item={
+    id:uid(),
+    nom:nom,
+    categorie:val("stockCat")||"Autre",
+    quantite:num(val("stockQty")),
+    unite:val("stockUnit")||"pièce",
+    prixUnitaire:num(val("stockPrice")),
+    seuil:num(val("stockSeuil")),
+    fournisseur:val("stockFournisseur"),
+    notes:val("stockNotes"),
+    createdAt:new Date().toISOString()
+  };
+  state.stockItems=state.stockItems||[];
+  state.stockItems.unshift(item);
+  saveCache();
+  render();
+  toast("Article ajouté au stock.");
+}
+function adjustStockItem(id){
+  var it=(state.stockItems||[]).find(function(x){return x.id===id;});
+  if(!it) return;
+  var q=prompt("Nouvelle quantité pour « "+(it.nom||"article")+" » :", it.quantite||0);
+  if(q===null) return;
+  var p=prompt("Prix unitaire (€) :", it.prixUnitaire||0);
+  if(p===null) return;
+  it.quantite=num(q);
+  it.prixUnitaire=num(p);
+  saveCache();
+  render();
+  toast("Stock mis à jour.");
+}
+function viewStockPreview(){
+  var total=stockTotalValue ? stockTotalValue() : 0;
+  var low=lowStockCount ? lowStockCount() : 0;
+  return '<div class="card"><div class="flexb"><h3 style="margin:0;">📦 Stock</h3><button class="btn small primary" data-action="nav-stock">Ouvrir</button></div>'+
+    '<p class="muted" style="margin:8px 0 0;">Valeur estimée : <b style="color:var(--bordeaux);">'+euro(total)+'</b>'+ (low?' · '+low+' alerte(s) stock bas':'')+'</p></div>';
+}
+
 /* ===================== Calendrier ===================== */
 function calMonthStart(){
   var base = ui.calMonth || todayISO().slice(0,7);
@@ -3318,6 +3440,20 @@ function handleAction(action){
     saveCache();
     toast("Todo list enregistrée.");
     render();
+    return;
+  }
+
+  
+  if(action==="stock-add"){ addStockItem(); return; }
+  if(action.indexOf("stock-adjust-")===0){ adjustStockItem(action.slice(13)); return; }
+  if(action.indexOf("stock-del-")===0){
+    var sid=action.slice(10), key="stock:"+sid;
+    if(ui.confirmDelete!==key){ ui.confirmDelete=key; toast("Retouche Supprimer pour confirmer."); return; }
+    state.stockItems=(state.stockItems||[]).filter(function(it){return it.id!==sid;});
+    ui.confirmDelete=null;
+    saveCache();
+    render();
+    toast("Article supprimé du stock.");
     return;
   }
 
