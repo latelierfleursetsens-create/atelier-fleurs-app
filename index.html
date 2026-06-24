@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0 : navigation par grands modules -->
+<!-- Version V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
@@ -428,11 +428,13 @@ function moduleHeader(title, subtitle){
 
 function viewClientsModule(){
   var sub=ui.clientsSub||"clients";
-  var html=moduleHeader("Clients","Fiches clientes, mariages, ateliers et commandes regroupés au même endroit.")+
-    subNav([["clients","Fiches clientes"],["mariages","Mariages"],["ateliers","Ateliers"],["commandes","Suivi des Commandes"]],sub,"mod-clients-");
+  var html=moduleHeader("Clients","Fiches clientes, mariages, ateliers, ventes et commandes regroupés au même endroit.")+
+    subNav([["clients","Fiches clientes"],["mariages","Mariages"],["ateliers","Ateliers"],["commandes","Suivi des Commandes"],["ventesSite","Ventes site internet"],["encaissements","Encaissements manuels"]],sub,"mod-clients-");
   if(sub==="mariages") return html+viewMariages();
   if(sub==="ateliers") return html+viewAteliers();
   if(sub==="commandes") return html+viewCommandes();
+  if(sub==="ventesSite") return html+viewVentesSite();
+  if(sub==="encaissements") return html+viewEncaissements();
   return html+viewClients();
 }
 
@@ -447,10 +449,8 @@ function viewDocumentsModule(){
 
 function viewFinancesModule(){
   var sub=ui.financesSub||"tresorerie";
-  var html=moduleHeader("Finances","Trésorerie, ventes site internet, encaissements manuels et achats fournisseurs.")+
-    subNav([["tresorerie","Trésorerie"],["encaissements","Encaissements manuels"],["ventesSite","Ventes site internet"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
-  if(sub==="encaissements") return html+viewEncaissements();
-  if(sub==="ventesSite") return html+viewVentesSite();
+  var html=moduleHeader("Finances","Analyse globale : trésorerie, chiffre d’affaires, marge, achats fournisseurs.")+
+    subNav([["tresorerie","Trésorerie"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
   if(sub==="achats") return html+viewAchats();
   return html+viewTresorerie();
 }
@@ -3086,13 +3086,13 @@ function handleAction(action){
   if(action.indexOf("nav-")===0){
     var dest=action.slice(4);
     ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null;
-    if(["clients","mariages","ateliers","commandes"].indexOf(dest)>=0){
+    if(["clients","mariages","ateliers","commandes","ventesSite","encaissements"].indexOf(dest)>=0){
       ui.tab="clientsModule"; ui.clientsSub=dest;
       if(dest!=="ateliers") ui.atelierOpen=null;
       if(dest!=="mariages") ui.mariageOpen=null;
     } else if(["devis","factures","emails"].indexOf(dest)>=0){
       ui.tab="documentsModule"; ui.documentsSub=dest;
-    } else if(["tresorerie","encaissements","ventesSite","achats"].indexOf(dest)>=0){
+    } else if(["tresorerie","achats"].indexOf(dest)>=0){
       ui.tab="financesModule"; ui.financesSub=dest;
     } else {
       ui.tab=dest;
@@ -3118,7 +3118,7 @@ function handleAction(action){
   if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }
 
   
-  if(action==="site-new"){ newSiteSaleDraft(); ui.tab="financesModule"; ui.financesSub="ventesSite"; render(); return; }
+  if(action==="site-new"){ newSiteSaleDraft(); ui.tab="clientsModule"; ui.clientsSub="ventesSite"; render(); return; }
   if(action==="site-cancel"){ ui.siteSaleDraft=null; render(); return; }
   if(action==="site-mode-nouveau"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="nouveau"; render(); return; }
   if(action==="site-mode-existant"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="existant"; if(!ui.siteSaleDraft.clientId&&state.clients[0]) ui.siteSaleDraft.clientId=state.clients[0].id; render(); return; }
@@ -3135,7 +3135,7 @@ function handleAction(action){
     ui.confirmDelete=null; saveCache(); render(); toast("Vente site supprimée."); return;
   }
 
-  if(action==="go-achats"){ ui.tab="achats"; render(); return; }
+  if(action==="go-achats"){ ui.tab="financesModule"; ui.financesSub="achats"; render(); return; }
   if(action==="achat-new"){ newAchatDraft(); ui.tab="financesModule"; ui.financesSub="achats"; render(); return; }
   if(action==="achat-cancel"){ ui.achatDraft=null; render(); return; }
   if(action==="achat-save"){ saveAchat(); return; }
