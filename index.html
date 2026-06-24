@@ -516,11 +516,67 @@ function anneesDispo(){
   return Object.keys(s).sort();
 }
 
+
+function atelierPendingPaymentItems(){
+  var items=[];
+  (state.ateliers||[]).forEach(function(a){
+    if(!a || a.statut==="annule" || a.statut==="termine") return;
+    var t=atelierTotals(a);
+    var date=a.date||todayISO();
+    var title=(typeof atelierModeLabel==="function"?atelierModeLabel(atelierMode(a)):"Atelier")+" · "+(a.theme||a.type||"atelier");
+    var contact=a.organisatrice||a.structureNom||"";
+    if((Number(t.resteNonFacture)||0)>0){
+      items.push({
+        kind:"atelier",
+        id:a.id,
+        date:date,
+        label:title,
+        client:contact||"Atelier",
+        montant:Number(t.resteNonFacture)||0,
+        motif:"À facturer",
+        detail:"Montant atelier prévu non encore facturé"
+      });
+    }
+    if((Number(t.siteSolde)||0)>0){
+      items.push({
+        kind:"atelier",
+        id:a.id,
+        date:date,
+        label:title,
+        client:contact||"Participantes site internet",
+        montant:Number(t.siteSolde)||0,
+        motif:"Solde jour J",
+        detail:"Solde restant à encaisser le jour de l’atelier"
+      });
+    }
+  });
+  return items;
+}
+function pendingPaymentsTotal(){
+  var factures=state.factures.filter(function(f){return f.statut!=="payee";}).reduce(function(a,f){return a+(Number(f.montant)||0);},0);
+  var ateliers=atelierPendingPaymentItems().reduce(function(a,i){return a+(Number(i.montant)||0);},0);
+  return r2(factures+ateliers);
+}
+
 function pendingPaymentsList(){
-  return state.factures.filter(function(f){return f.statut!=="payee";})
-    .slice()
+  var factures=state.factures.filter(function(f){return f.statut!=="payee";})
+    .map(function(f){
+      return {
+        kind:"facture",
+        id:f.id,
+        date:f.echeance||f.date||"9999",
+        numero:f.numero||"Facture",
+        type:f.type,
+        statut:f.statut,
+        client:(f.client&&f.client.nom)||"Cliente non renseignée",
+        montant:Number(f.montant)||0,
+        paiementClient:f.paiementClient||"",
+        devisNumero:f.devisNumero||""
+      };
+    });
+  return factures.concat(atelierPendingPaymentItems())
     .sort(function(a,b){
-      return (a.echeance||"9999").localeCompare(b.echeance||"9999") || (a.numero||"").localeCompare(b.numero||"");
+      return (a.date||"9999").localeCompare(b.date||"9999") || (a.numero||a.label||"").localeCompare(b.numero||b.label||"");
     });
 }
 function viewPendingPaymentsModal(){
@@ -529,22 +585,32 @@ function viewPendingPaymentsModal(){
   var html='<div id="modal" class="modal"><div class="modal-inner">'+
     '<div class="modal-actions"><button class="btn ghost" data-action="pending-close">Fermer</button></div>'+
     '<div class="card" style="background:#fff;"><div class="flexb"><h2 style="margin:0;">À encaisser prochainement</h2><div style="font-weight:800;color:var(--bordeaux);font-size:20px;">'+euro(total)+'</div></div>'+
-    '<p class="muted" style="margin:8px 0 12px;">Détail des factures non payées, classées par date d’échéance.</p>';
+    '<p class="muted" style="margin:8px 0 12px;">Détail des factures non payées, des ateliers à facturer et des soldes à encaisser.</p>';
   if(!list.length){
-    html+='<p class="muted" style="margin:0;">Aucune facture en attente de paiement.</p>';
+    html+='<p class="muted" style="margin:0;">Aucun montant en attente.</p>';
   }else{
     list.forEach(function(f){
-      var client=(f.client&&f.client.nom)||"Cliente non renseignée";
-      var st=ST_FAC[f.statut]||ST_FAC.a_envoyer;
-      html+='<div class="checkrow" style="align-items:flex-start;">'+
-        '<div style="flex:1;">'+
-          '<div><b style="color:var(--bordeaux);">'+esc(f.numero||"Facture")+'</b> · '+esc(TYPE_FAC[f.type]||"Facture")+' <span class="badge" style="color:'+st.c+';background:'+st.b+';">'+st.l+'</span></div>'+
-          '<div class="muted" style="font-size:12px;">Cliente : '+esc(client)+'</div>'+
-          '<div class="muted" style="font-size:12px;">Échéance : '+(f.echeance?frDate(f.echeance):"non renseignée")+(f.paiementClient?' · Paiement prévu/renseigné : '+esc(f.paiementClient):'')+'</div>'+
-          (f.devisNumero?'<div class="muted" style="font-size:12px;">Réf. devis : '+esc(f.devisNumero)+'</div>':'')+
-        '</div>'+
-        '<div style="text-align:right;min-width:110px;"><b style="color:var(--bordeaux);">'+euro(f.montant||0)+'</b><div style="margin-top:6px;"><button class="btn small ghost" data-action="pending-preview-'+f.id+'">Aperçu</button></div></div>'+
-      '</div>';
+      if(f.kind==="atelier"){
+        html+='<div class="checkrow" style="align-items:flex-start;">'+
+          '<div style="flex:1;">'+
+            '<div><b style="color:var(--bordeaux);">🎨 '+esc(f.motif)+'</b> · '+esc(f.label||"Atelier")+'</div>'+
+            '<div class="muted" style="font-size:12px;">Contact : '+esc(f.client||"Atelier")+'</div>'+
+            '<div class="muted" style="font-size:12px;">Date atelier : '+(f.date?frDate(f.date):"non renseignée")+' · '+esc(f.detail||"")+'</div>'+
+          '</div>'+
+          '<div style="text-align:right;min-width:110px;"><b style="color:var(--bordeaux);">'+euro(f.montant||0)+'</b><div style="margin-top:6px;"><button class="btn small ghost" data-action="pending-atelier-'+f.id+'">Ouvrir</button></div></div>'+
+        '</div>';
+      }else{
+        var st=ST_FAC[f.statut]||ST_FAC.a_envoyer;
+        html+='<div class="checkrow" style="align-items:flex-start;">'+
+          '<div style="flex:1;">'+
+            '<div><b style="color:var(--bordeaux);">'+esc(f.numero||"Facture")+'</b> · '+esc(TYPE_FAC[f.type]||"Facture")+' <span class="badge" style="color:'+st.c+';background:'+st.b+';">'+st.l+'</span></div>'+
+            '<div class="muted" style="font-size:12px;">Cliente : '+esc(f.client||"Cliente non renseignée")+'</div>'+
+            '<div class="muted" style="font-size:12px;">Échéance : '+(f.date?frDate(f.date):"non renseignée")+(f.paiementClient?' · Paiement prévu/renseigné : '+esc(f.paiementClient):'')+'</div>'+
+            (f.devisNumero?'<div class="muted" style="font-size:12px;">Réf. devis : '+esc(f.devisNumero)+'</div>':'')+
+          '</div>'+
+          '<div style="text-align:right;min-width:110px;"><b style="color:var(--bordeaux);">'+euro(f.montant||0)+'</b><div style="margin-top:6px;"><button class="btn small ghost" data-action="pending-preview-'+f.id+'">Aperçu</button></div></div>'+
+        '</div>';
+      }
     });
   }
   html+='</div></div></div>';
@@ -559,7 +625,7 @@ function viewDashboard(){
   var maxM=Math.max(1, Math.max.apply(null, ca.biens.map(function(b,i){return b+ca.services[i];})));
   var s=state.settings;
   var cotB=r2(totB*s.tauxCotisBiens/100), cotS=r2(totS*s.tauxCotisServices/100);
-  var enAttente=state.factures.filter(function(f){return f.statut!=="payee";}).reduce(function(a,f){return a+(f.montant||0);},0);
+  var enAttente=pendingPaymentsTotal();
   function pct(v,seuil){ return Math.min(100,(v/seuil)*100); }
 
   var bars=MOIS.map(function(m,i){
@@ -3202,6 +3268,18 @@ function handleAction(action){
     renderModal();
     return;
   }
+  
+  if(action.indexOf("pending-atelier-")===0){
+    ui.pendingPaymentsModal=false;
+    ui.preview=null;
+    ui.tab="clientsModule";
+    ui.clientsSub="ateliers";
+    ui.atelierOpen=action.slice(16);
+    render();
+    window.scrollTo(0,0);
+    return;
+  }
+
   if(action.indexOf("pending-preview-")===0){
     var pf=state.factures.find(function(f){return f.id===action.slice(16);});
     if(pf){
