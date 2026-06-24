@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.19 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.20 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -21,6 +21,21 @@ document.addEventListener("focusout", function(e){
     saveTodoFromFields();
     ui.todoEditing=false;
     saveTodoCloudDelayed();
+  }
+});
+
+
+// global-search-keydown-v2020
+document.addEventListener("keydown", function(e){
+  if(e.target && e.target.id==="globalSearchInput" && e.key==="Escape"){
+    clearGlobalSearch();
+  }
+});
+document.addEventListener("click", function(e){
+  var wrap=e.target.closest && e.target.closest(".global-search");
+  if(!wrap && e.target.id!=="globalSearchInput"){
+    var box=document.getElementById("globalSearchResults");
+    if(box){ box.className="global-results"; }
   }
 });
 
@@ -51,6 +66,24 @@ document.addEventListener("focusout", function(e){
   header.app .brand-logo{width:150px;max-width:46vw;height:auto;display:block;}
   header.app .title{font-family:Georgia,serif;font-size:18px;font-weight:700;color:var(--bordeaux);}
   header.app .sub{font-size:12px;color:var(--ink-s);}
+
+  header.app .header-actions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:260px;max-width:380px;flex:1;}
+  .global-search{position:relative;width:100%;max-width:380px;}
+  .global-search input{padding-left:34px;background:#fffdfb;border-color:var(--gold-s);}
+  .global-search:before{content:"🔎";position:absolute;left:10px;top:9px;z-index:1;font-size:14px;opacity:.75;}
+  .global-results{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.14);max-height:320px;overflow:auto;display:none;}
+  .global-results.open{display:block;}
+  .global-result{display:block;width:100%;border:none;background:#fff;text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;font-family:inherit;color:var(--ink);}
+  .global-result:hover{background:var(--blush-s);}
+  .global-result b{color:var(--bordeaux);}
+  .global-result .type{font-size:11px;font-weight:700;color:var(--ink-s);text-transform:uppercase;letter-spacing:.02em;margin-bottom:2px;}
+  .global-result .sub{font-size:12px;color:var(--ink-s);margin-top:2px;}
+  .global-nores{padding:12px;color:var(--ink-s);font-size:13px;}
+  @media (max-width:700px){
+    header.app .header-actions{width:100%;max-width:none;align-items:stretch;min-width:0;}
+    .global-search{max-width:none;}
+  }
+
   @media (max-width:560px){ header.app{padding:16px 18px;} header.app .brand-logo{width:170px;} header.app .title, header.app .sub{display:none;} }
   nav.tabs{display:flex;gap:4px;padding:8px 10px;overflow-x:auto;background:var(--blush-s);border-bottom:1px solid var(--line);}
   nav.tabs button{border:none;background:transparent;color:var(--ink-s);font-weight:500;font-size:14px;padding:8px 13px;border-radius:8px;cursor:pointer;white-space:nowrap;font-family:inherit;}
@@ -161,7 +194,13 @@ document.addEventListener("focusout", function(e){
       <div class="sub">Gestion devis · factures · commandes · mariages</div>
     </div>
   </div>
-  <button class="btn gold" data-action="newdevis">+ Nouveau devis</button>
+  <div class="header-actions">
+    <div class="global-search">
+      <input id="globalSearchInput" placeholder="Rechercher partout : devis, facture, client, stock…" autocomplete="off">
+      <div id="globalSearchResults" class="global-results"></div>
+    </div>
+    <button class="btn gold" data-action="newdevis">+ Nouveau devis</button>
+  </div>
 </header>
 
 <nav class="tabs" id="tabs"></nav>
@@ -191,7 +230,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, todoEditing:false, todoSaveTimer:null };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, todoEditing:false, todoSaveTimer:null, globalSearch:"" };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -468,6 +507,8 @@ function renderTabs(){
 }
 function renderTopbar(){
   var en=document.getElementById("entName"); if(en) en.innerHTML=esc(state.settings.nomEntreprise||"L'Atelier Fleurs & Sens");
+  var gs=document.getElementById("globalSearchInput");
+  if(gs && ui.globalSearch){ gs.value=ui.globalSearch; renderGlobalSearchBox(); }
 }
 
 
@@ -509,6 +550,105 @@ function viewFinancesModule(){
     subNav([["tresorerie","Trésorerie"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
   if(sub==="achats") return html+viewAchats();
   return html+viewTresorerie();
+}
+
+
+/* ===================== Recherche globale ===================== */
+function searchNorm(s){
+  return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+}
+function searchText(parts){
+  return searchNorm(parts.map(function(p){
+    if(p===undefined||p===null) return "";
+    if(typeof p==="object"){ try{return JSON.stringify(p);}catch(e){return "";} }
+    return String(p);
+  }).join(" "));
+}
+function addSearchResult(arr,q,type,id,label,sub,parts,score){
+  var text=searchText([label,sub].concat(parts||[]));
+  var nq=searchNorm(q);
+  if(!nq || text.indexOf(nq)<0) return;
+  var exact=searchNorm(label).indexOf(nq)===0 ? 100 : 0;
+  arr.push({type:type,id:id,label:label||"Résultat",sub:sub||"",score:(score||0)+exact});
+}
+function globalSearchResults(q){
+  q=(q||"").trim();
+  if(q.length<2) return [];
+  var res=[];
+  (state.clients||[]).forEach(function(c){
+    addSearchResult(res,q,"client",c.id,"👤 "+(c.nom||"Client"),[c.email,c.tel,c.canal].filter(Boolean).join(" · "),[c],30);
+  });
+  (state.devis||[]).forEach(function(d){
+    var t=totals(d.lignes||[],state.settings.partService);
+    addSearchResult(res,q,"devis",d.id,"📄 "+(d.numero||"Devis")+" · "+((d.client&&d.client.nom)||"Client"),frDate(d.date)+" · "+euro(t.total),[d],50);
+  });
+  (state.factures||[]).forEach(function(f){
+    addSearchResult(res,q,"facture",f.id,"🧾 "+(f.numero||"Facture")+" · "+((f.client&&f.client.nom)||"Client"),frDate(f.date)+" · "+euro(f.montant||0)+" · "+(TYPE_FAC[f.type]||"Facture"),[f],50);
+  });
+  (state.mariages||[]).forEach(function(m){
+    addSearchResult(res,q,"mariage",m.id,"💍 Mariage · "+(m.nom||"Cliente"),[m.dateMariage?frDate(m.dateMariage):"",m.lieu,m.theme].filter(Boolean).join(" · "),[m],40);
+  });
+  (state.ateliers||[]).forEach(function(a){
+    var mode=(typeof atelierModeLabel==="function")?atelierModeLabel(atelierMode(a)):"Atelier";
+    addSearchResult(res,q,"atelier",a.id,"🎨 "+mode+" · "+(a.theme||a.type||"Atelier"),[a.date?frDate(a.date):"",a.lieu,a.organistrice||a.organisatrice,a.structureNom].filter(Boolean).join(" · "),[a],35);
+  });
+  (state.commandes||[]).forEach(function(c){
+    addSearchResult(res,q,"commande",c.id,"📦 Commande · "+(c.client||c.label||"Client"),[c.dateLivraison?frDate(c.dateLivraison):"",c.label].filter(Boolean).join(" · "),[c],35);
+  });
+  (state.stockItems||[]).forEach(function(it){
+    addSearchResult(res,q,"stock",it.id,"🌸 Stock · "+(it.nom||"Article"),[it.categorie,it.fournisseur,(it.quantite||0)+" "+(it.unite||""),euro(it.prixUnitaire||0)].filter(Boolean).join(" · "),[it],45);
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    addSearchResult(res,q,"venteSite",s.id,"🌐 Vente site · "+(s.client||"Client"),[s.commande,s.produit,euro(s.montant||0),s.date?frDate(s.date):""].filter(Boolean).join(" · "),[s],25);
+  });
+  (state.encaissements||[]).forEach(function(e){
+    addSearchResult(res,q,"encaissement",e.id,"💶 Encaissement · "+(e.client||e.libelle||"Vente"),[e.date?frDate(e.date):"",e.libelle,euro((e.montantBiens||0)+(e.montantServices||0))].filter(Boolean).join(" · "),[e],20);
+  });
+  (state.achats||[]).forEach(function(a){
+    addSearchResult(res,q,"achat",a.id,"🛒 Achat · "+(a.fournisseur||a.libelle||"Fournisseur"),[a.date?frDate(a.date):"",a.categorie,euro(a.montant||0)].filter(Boolean).join(" · "),[a],20);
+  });
+  (state.catalogue||[]).forEach(function(p){
+    addSearchResult(res,q,"catalogue",p.id,"📦 Catalogue · "+(p.designation||p.nom||"Article"),[p.type,euro(p.prix||0)].filter(Boolean).join(" · "),[p],15);
+  });
+  return res.sort(function(a,b){return b.score-a.score || a.label.localeCompare(b.label);}).slice(0,14);
+}
+function renderGlobalSearchBox(){
+  var input=document.getElementById("globalSearchInput"), box=document.getElementById("globalSearchResults");
+  if(!input||!box) return;
+  var q=input.value||"";
+  ui.globalSearch=q;
+  if(q.trim().length<2){ box.className="global-results"; box.innerHTML=""; return; }
+  var res=globalSearchResults(q);
+  box.className="global-results open";
+  if(!res.length){ box.innerHTML='<div class="global-nores">Aucun résultat trouvé.</div>'; return; }
+  box.innerHTML=res.map(function(r){
+    return '<button class="global-result" data-action="global-open-'+esc(r.type)+'-'+esc(r.id)+'">'+
+      '<div class="type">'+esc(r.type)+'</div>'+
+      '<b>'+esc(r.label)+'</b>'+
+      (r.sub?'<div class="sub">'+esc(r.sub)+'</div>':'')+
+    '</button>';
+  }).join("");
+}
+function clearGlobalSearch(){
+  ui.globalSearch="";
+  var input=document.getElementById("globalSearchInput"), box=document.getElementById("globalSearchResults");
+  if(input) input.value="";
+  if(box){ box.className="global-results"; box.innerHTML=""; }
+}
+function openGlobalResult(type,id){
+  clearGlobalSearch();
+  ui.preview=null; ui.wizard=null; ui.confirmDelete=null;
+  if(type==="client"){ ui.tab="clientsModule"; ui.clientsSub="clients"; ui.clientOpen=id; render(); window.scrollTo(0,0); return; }
+  if(type==="devis"){ var d=findDevis(id); if(d){ ui.tab="documentsModule"; ui.documentsSub="devis"; ui.preview={kind:"devis",doc:d}; render(); } return; }
+  if(type==="facture"){ var f=(state.factures||[]).find(function(x){return x.id===id;}); if(f){ ui.tab="documentsModule"; ui.documentsSub="factures"; ui.preview={kind:"facture",doc:f}; render(); } return; }
+  if(type==="mariage"){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=id; ui.atelierOpen=null; ui.commandeOpen=null; render(); window.scrollTo(0,0); return; }
+  if(type==="atelier"){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=id; ui.mariageOpen=null; ui.commandeOpen=null; render(); window.scrollTo(0,0); return; }
+  if(type==="commande"){ ui.tab="clientsModule"; ui.clientsSub="commandes"; ui.commandeOpen=id; ui.commandeDraft=null; render(); window.scrollTo(0,0); return; }
+  if(type==="stock"){ ui.tab="stock"; render(); window.scrollTo(0,0); return; }
+  if(type==="venteSite"){ ui.tab="clientsModule"; ui.clientsSub="ventesSite"; render(); window.scrollTo(0,0); return; }
+  if(type==="encaissement"){ ui.tab="clientsModule"; ui.clientsSub="encaissements"; render(); window.scrollTo(0,0); return; }
+  if(type==="achat"){ ui.tab="financesModule"; ui.financesSub="achats"; render(); window.scrollTo(0,0); return; }
+  if(type==="catalogue"){ ui.tab="catalogue"; render(); window.scrollTo(0,0); return; }
 }
 
 /* ===================== Vue principale ===================== */
@@ -722,7 +862,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.19 — saisie Todo stabilisée</b><div class="muted" style="font-size:12px;margin-top:4px;">Si tu vois ce message, le correctif anti-rafraîchissement est bien installé.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.20 — saisie Todo stabilisée</b><div class="muted" style="font-size:12px;margin-top:4px;">Si tu vois ce message, le correctif anti-rafraîchissement est bien installé.</div></div>'+
 
   '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
@@ -730,12 +870,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.19 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.20 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.19</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.20</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3442,6 +3582,16 @@ function findDevis(id){ return state.devis.find(function(d){return d.id===id;});
 function handleAction(action){
   // nav
   
+  
+  if(action.indexOf("global-open-")===0){
+    var rest=action.slice(12);
+    var dash=rest.indexOf("-");
+    if(dash>0){
+      openGlobalResult(rest.slice(0,dash), rest.slice(dash+1));
+    }
+    return;
+  }
+
   if(action==="nav-stock"){
     ui.tab="stock";
     render();
@@ -3816,6 +3966,7 @@ document.addEventListener("click", function(e){
 });
 document.addEventListener("input", function(e){
   var t=e.target;
+  if(t && t.id==="globalSearchInput"){ renderGlobalSearchBox(); return; }
   if(isTodoField(t)){ ui.todoEditing=true; saveTodoLocalOnly(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
