@@ -1334,13 +1334,13 @@ function viewSiteSaleForm(){
 
   var atelierPart='';
   if(s.activite==="Atelier"){
-    var ateliers=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
+    var ateliers=(state.ateliers||[]).filter(function(a){return atelierMode(a)==="thematique";}).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
     var prixTotal=num(s.atelierPrixTotal)||0;
     var montantSug=s.atelierPaiementType==="acompte30"?r2(prixTotal*0.30):prixTotal;
     var soldeSug=s.atelierPaiementType==="acompte30"?r2(prixTotal-montantSug):0;
     atelierPart+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Lien avec un atelier</h3>';
     if(!ateliers.length){
-      atelierPart+='<p class="muted">Aucun atelier créé pour le moment. Crée d’abord l’atelier dans le module Clients → Ateliers pour pouvoir synchroniser la participante.</p>';
+      atelierPart+='<p class="muted">Aucun atelier thématique site créé pour le moment. Crée d’abord un atelier en catégorie « Atelier thématique site » dans Clients → Ateliers.</p>';
     } else {
       atelierPart+='<label class="field"><span>Atelier concerné</span><select id="siteAtelierId" data-action="site-atelier-change">'+ateliers.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc((a.date?frDate(a.date)+" · ":"")+(a.type||"Atelier")+" · "+(a.theme||"Sans thème")+(a.lieu?" · "+a.lieu:""))+'</option>';}).join("")+'</select><div class="hint">La participante sera ajoutée automatiquement dans cet atelier.</div></label>'+
       '<label class="field"><span>Prestation / place réservée</span><input id="sitePrestation" value="'+esc(s.prestation||"")+'" placeholder="Ex : Place atelier couronne, demi-couronne…"></label>'+
@@ -1416,6 +1416,7 @@ function syncSiteSaleToAtelier(s){
   if(!s || s.activite!=="Atelier" || !s.atelierId) return;
   var a=getAtelier(s.atelierId);
   if(!a) return;
+  if(atelierMode(a)!=="thematique") return;
   a.participants=a.participants||[];
   var existing=a.participants.find(function(p){return p.siteSaleId===s.id;});
   var prestation=s.prestation||s.produit||"Réservation site internet";
@@ -1727,6 +1728,31 @@ function viewCRMPreview(){
 var ATELIER_TYPES=["EVJF","Structure","Anniversaire","Moment entre copine"];
 var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",termine:"Terminé",annule:"Annulé"};
 
+function atelierMode(a){
+  return (a&&a.modeAtelier)||"thematique";
+}
+function atelierModeLabel(mode){
+  return mode==="structure"?"Structure":(mode==="prive"?"Atelier privé":"Atelier thématique site");
+}
+function atelierModeOptions(selected){
+  selected=selected||"thematique";
+  return '<option value="thematique"'+(selected==="thematique"?' selected':'')+'>Atelier thématique site — réservation par place</option>'+
+    '<option value="structure"'+(selected==="structure"?' selected':'')+'>Atelier en structure — prestation forfaitaire</option>'+
+    '<option value="prive"'+(selected==="prive"?' selected':'')+'>Atelier privé — nombre d’invités défini</option>';
+}
+function atelierModeHelp(mode){
+  if(mode==="structure") return "Atelier organisé avec une structure : tu notes l’organisatrice, le lieu et le montant de la prestation. Le nombre de participants n’impacte pas le prix.";
+  if(mode==="prive") return "Atelier privé chez une cliente : tu notes l’organisatrice, le nombre de personnes prévues et le montant forfaitaire défini.";
+  return "Atelier thématique proposé sur le site : chaque personne réserve sa place, via Squarespace ou ajout manuel.";
+}
+function atelierParticipantsCount(a){
+  var mode=atelierMode(a);
+  if(mode==="prive") return Number(a.nbPersonnes)||0;
+  if(mode==="structure") return Number(a.nbParticipantsPrevu)||0;
+  return ((a&&a.participants)||[]).length;
+}
+
+
 function atelierTypeOptions(selected){
   selected=selected||"EVJF";
   return ATELIER_TYPES.map(function(t){return '<option value="'+esc(t)+'"'+(selected===t?' selected':'')+'>'+esc(t)+'</option>';}).join("");
@@ -1737,7 +1763,10 @@ function atelierStatutOptions(selected){
 }
 function getAtelier(id){ return (state.ateliers||[]).find(function(a){return a.id===id;}); }
 function newAtelier(){
-  var a={id:uid(),date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
+  var a={id:uid(),modeAtelier:"thematique",date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",
+    organisatrice:"",structureNom:"",contactEmail:"",contactTel:"",
+    nbPersonnes:0,nbParticipantsPrevu:0,montantForfait:0,montantPrestation:0,
+    materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
   state.ateliers=state.ateliers||[];
   state.ateliers.unshift(a);
   ui.tab="clientsModule";
@@ -1747,8 +1776,13 @@ function newAtelier(){
   render();
 }
 function atelierTotals(a){
+  var mode=atelierMode(a);
   var parts=(a&&a.participants)||[];
-  var total=parts.reduce(function(s,p){return s+(Number(p.montant)||0);},0);
+  var participantTotal=parts.reduce(function(s,p){return s+(Number(p.montant)||0);},0);
+  var total=participantTotal;
+  if(mode==="structure") total=Number(a.montantPrestation)||0;
+  if(mode==="prive") total=Number(a.montantForfait)||0;
+
   var sitePaye=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.payeSiteMontant)||Number(p.montant)||0);},0);
   var siteSolde=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.soldeSite)||0);},0);
   var factures=(state.factures||[]).filter(function(f){return f.origine==="atelier"&&f.atelierId===a.id;});
@@ -1756,7 +1790,7 @@ function atelierTotals(a){
   var paye=r2(sitePaye+factures.filter(function(f){return f.statut==="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
   var attente=r2(siteSolde+factures.filter(function(f){return f.statut!=="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
   var couvert=r2(facture+sitePaye+siteSolde);
-  return {participants:parts.length,total:r2(total),facture:r2(facture),sitePaye:r2(sitePaye),siteSolde:r2(siteSolde),couvert:couvert,paye:paye,attente:attente,resteNonFacture:r2(Math.max(0,total-couvert))};
+  return {participants:atelierParticipantsCount(a),total:r2(total),facture:r2(facture),sitePaye:r2(sitePaye),siteSolde:r2(siteSolde),couvert:couvert,paye:paye,attente:attente,resteNonFacture:r2(Math.max(0,total-couvert))};
 }
 function atelierPrevisionTotal(){
   return (state.ateliers||[]).filter(function(a){return a.statut!=="annule";}).reduce(function(s,a){return s+atelierTotals(a).total;},0);
@@ -1772,24 +1806,28 @@ function viewAteliers(){
   if(ui.atelierOpen) return viewAtelierDetail(getAtelier(ui.atelierOpen));
   var list=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
   var prevision=atelierPrevisionTotal(), nonFacture=atelierPrevisionNonFacturee();
+  var totalParticipants=list.reduce(function(s,a){return s+atelierParticipantsCount(a);},0);
   var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Nouvel atelier</button></div>'+
-    '<p class="muted" style="margin-top:-6px;">Centralise les ateliers bookés, les participantes, les acomptes, les factures à envoyer, le matériel et le calendrier.</p>'+
+    '<p class="muted" style="margin-top:-6px;">Distingue les ateliers en structure, les ateliers thématiques vendus sur le site et les ateliers privés.</p>'+
     '<div class="grid-stats">'+
       stat("Ateliers à venir",atelierUpcoming().length,false)+
       stat("Prévisionnel ateliers",euro(prevision),false)+
       stat("À facturer",euro(nonFacture),false)+
-      stat("Participants",list.reduce(function(s,a){return s+((a.participants||[]).length);},0),false)+
+      stat("Participants / invités",totalParticipants,false)+
     '</div>';
   if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucun atelier enregistré pour le moment.</p></div>';
   list.forEach(function(a){
-    var t=atelierTotals(a), st=ATELIER_STATUTS[a.statut]||a.statut||"Booké";
-    html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(a.type||"Atelier")+' · '+esc(a.theme||"À compléter")+'</b>'+
-      '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+'</div></div>'+
+    var mode=atelierMode(a), t=atelierTotals(a), st=ATELIER_STATUTS[a.statut]||a.statut||"Booké";
+    var contact=a.organisatrice||a.structureNom||"";
+    html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(atelierModeLabel(mode))+' · '+esc(a.theme||"À compléter")+'</b>'+
+      '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+(contact?' · '+esc(contact):'')+'</div></div>'+
       '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(st)+'</span></div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+
-        '<span class="chip">👥 '+t.participants+' participant(s)</span>'+
+        '<span class="chip">🏷️ '+esc(atelierModeLabel(mode))+'</span>'+
+        '<span class="chip">👥 '+t.participants+' '+(mode==="thematique"?'participant(s)':'personne(s) prévue(s)')+'</span>'+
         '<span class="chip">Prévu : '+euro(t.total)+'</span>'+
-        '<span class="chip">Facturé : '+euro(t.facture)+'</span>'+ '<span class="chip">Site : '+euro(t.sitePaye||0)+'</span>'+ '<span class="chip">Solde jour J : '+euro(t.siteSolde||0)+'</span>'+
+        '<span class="chip">Facturé : '+euro(t.facture)+'</span>'+
+        (mode==="thematique"?'<span class="chip">Site : '+euro(t.sitePaye||0)+'</span><span class="chip">Solde jour J : '+euro(t.siteSolde||0)+'</span>':'')+
         '<span class="chip">À facturer : '+euro(t.resteNonFacture)+'</span>'+
       '</div>'+
       '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
@@ -1798,66 +1836,105 @@ function viewAteliers(){
 }
 function captureAtelier(a){
   if(!a) return;
+  a.modeAtelier=val("atModeAtelier")||a.modeAtelier||"thematique";
   a.date=val("atDate")||"";
   a.heure=val("atHeure")||"";
   a.lieu=val("atLieu")||"";
   a.theme=val("atTheme")||"";
   a.type=val("atType")||"EVJF";
   a.statut=val("atStatut")||"booke";
+  a.organisatrice=val("atOrganisatrice")||"";
+  a.structureNom=val("atStructureNom")||"";
+  a.contactEmail=val("atContactEmail")||"";
+  a.contactTel=val("atContactTel")||"";
+  a.nbPersonnes=num(val("atNbPersonnes"));
+  a.nbParticipantsPrevu=num(val("atNbParticipantsPrevu"));
+  a.montantForfait=num(val("atMontantForfait"));
+  a.montantPrestation=num(val("atMontantPrestation"));
   a.materiel=val("atMateriel")||"";
   a.description=val("atDescription")||"";
 }
 function viewAtelierDetail(a){
   if(!a){ ui.atelierOpen=null; return viewAteliers(); }
   a.participants=a.participants||[];
-  var t=atelierTotals(a);
-  var html='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h2 style="margin:0;">Atelier · '+esc(a.type||"")+'</h2><button class="btn small ghost" data-action="at-back">← Liste</button></div>'+
+  a.modeAtelier=a.modeAtelier||"thematique";
+  var mode=atelierMode(a), t=atelierTotals(a);
+  var html='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h2 style="margin:0;">Atelier · '+esc(atelierModeLabel(mode))+'</h2><button class="btn small ghost" data-action="at-back">← Liste</button></div>'+
+    '<p class="muted" style="margin-top:0;">'+esc(atelierModeHelp(mode))+'</p>'+
     '<div class="grid-stats">'+
       stat("Budget prévu",euro(t.total),false)+
       stat("Déjà facturé",euro(t.facture),false)+
-      stat("Payé site internet",euro(t.sitePaye||0),false)+
-      stat("Soldes jour J",euro(t.siteSolde||0),false)+
+      (mode==="thematique"?stat("Payé site internet",euro(t.sitePaye||0),false):'')+
+      (mode==="thematique"?stat("Soldes jour J",euro(t.siteSolde||0),false):'')+
       stat("À encaisser",euro(t.attente),false)+
       stat("À facturer",euro(t.resteNonFacture),false)+
     '</div>'+
+    '<label class="field"><span>Catégorie d’atelier</span><select id="atModeAtelier" data-action="at-mode-change">'+atelierModeOptions(mode)+'</select></label>'+
     '<div class="inline"><div><label class="field"><span>Date</span><input id="atDate" type="date" value="'+esc(a.date||"")+'"></label></div>'+
     '<div><label class="field"><span>Heure</span><input id="atHeure" value="'+esc(a.heure||"")+'" placeholder="Ex : 14h-16h"></label></div></div>'+
     '<div class="inline"><div><label class="field"><span>Lieu</span><input id="atLieu" value="'+esc(a.lieu||"")+'" placeholder="Ex : La Barjo Onnaing"></label></div>'+
-    '<div><label class="field"><span>Type d’atelier</span><select id="atType">'+atelierTypeOptions(a.type)+'</select></label></div></div>'+
-    '<div class="inline"><div><label class="field"><span>Thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Bridgerton, Couronne florale…"></label></div>'+
-    '<div><label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label></div></div>'+
-    '<label class="field"><span>Matériel nécessaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
+    '<div><label class="field"><span>Contexte</span><select id="atType">'+atelierTypeOptions(a.type)+'</select></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Bridgerton, couronne florale…"></label></div>'+
+    '<div><label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label></div></div>';
+
+  if(mode==="structure"){
+    html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier en structure</h3>'+
+      '<p class="muted">Tu es payée à la prestation, peu importe le nombre de participants.</p>'+
+      '<div class="inline"><div><label class="field"><span>Nom de la structure</span><input id="atStructureNom" value="'+esc(a.structureNom||"")+'" placeholder="Médiathèque, EHPAD, CCAS…"></label></div>'+
+      '<div><label class="field"><span>Organisatrice / référente</span><input id="atOrganisatrice" value="'+esc(a.organisatrice||"")+'"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Email référente</span><input id="atContactEmail" type="email" value="'+esc(a.contactEmail||"")+'"></label></div>'+
+      '<div><label class="field"><span>Téléphone référente</span><input id="atContactTel" value="'+esc(a.contactTel||"")+'"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Nombre de participants prévu</span><input id="atNbParticipantsPrevu" type="number" min="0" value="'+esc(a.nbParticipantsPrevu||"")+'"></label></div>'+
+      '<div><label class="field"><span>Montant de la prestation (€)</span><input id="atMontantPrestation" type="number" min="0" step="0.01" value="'+esc(a.montantPrestation||"")+'"></label></div></div>'+
+      '</div>';
+  }else if(mode==="prive"){
+    html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier privé</h3>'+
+      '<p class="muted">Une cliente organise chez elle et invite un nombre de personnes défini. Tu n’as pas besoin de l’identité de chaque participante.</p>'+
+      '<div class="inline"><div><label class="field"><span>Cliente organisatrice</span><input id="atOrganisatrice" value="'+esc(a.organisatrice||"")+'"></label></div>'+
+      '<div><label class="field"><span>Téléphone</span><input id="atContactTel" value="'+esc(a.contactTel||"")+'"></label></div></div>'+
+      '<label class="field"><span>Email</span><input id="atContactEmail" type="email" value="'+esc(a.contactEmail||"")+'"></label>'+
+      '<div class="inline"><div><label class="field"><span>Nombre de personnes prévu</span><input id="atNbPersonnes" type="number" min="0" value="'+esc(a.nbPersonnes||"")+'"></label></div>'+
+      '<div><label class="field"><span>Montant forfaitaire défini (€)</span><input id="atMontantForfait" type="number" min="0" step="0.01" value="'+esc(a.montantForfait||"")+'"></label></div></div>'+
+      '</div>';
+  }
+
+  html+='<label class="field"><span>Matériel nécessaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
     '<label class="field"><span>Description / mémo</span><textarea id="atDescription" placeholder="Infos organisation, demandes particulières, déroulé de l’atelier…">'+esc(a.description||"")+'</textarea></label>'+
     '<div class="row-actions"><button class="btn primary" data-action="at-save">Enregistrer l’atelier</button></div></div>';
 
-  html+='<div class="card"><h3 style="margin-top:0;">Ajouter une participante</h3>'+
-    '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+
-    '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+
-    '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+
-    '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+
-    '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01"></label></div>'+
-    '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+
-    '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
+  if(mode==="thematique"){
+    html+='<div class="card"><h3 style="margin-top:0;">Ajouter une participante</h3>'+
+      '<p class="muted" style="margin-top:0;">Pour les ateliers thématiques du site, les participantes peuvent aussi être ajoutées automatiquement depuis Ventes site internet.</p>'+
+      '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+
+      '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+
+      '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01"></label></div>'+
+      '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+
+      '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
 
-  html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Participantes</h3><span class="muted">'+a.participants.length+' participante(s)</span></div>';
-  if(!a.participants.length){ html+='<p class="muted">Aucune participante renseignée.</p>'; }
-  else {
-    a.participants.forEach(function(p){
-      var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0), siteAcompte=(p.facturation==='site_acompte'), already=(p.factureId||p.factureSoldeId), acompte=r2((Number(p.montant)||0)*0.30), solde=r2((Number(p.montant)||0)-acompte);
-      html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
-        '<div><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b> · '+esc(p.prestation||"Prestation")+'</div>'+
-        '<div class="muted" style="font-size:12px;">Montant : '+euro(p.montant||0)+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"prix total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+
-        (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+
-        (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+
-        (isSite?'<div class="muted" style="font-size:12px;">✅ Payé via Squarespace : '+euro(p.payeSiteMontant||p.montant||0)+(p.soldeSite?' · Solde à payer le jour de l’atelier : '+euro(p.soldeSite):'')+(p.commande?' · Commande '+esc(p.commande):'')+'</div>':'')+
-        '</div><div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
-          (!p.factureId&&!isSite?'<button class="btn small primary" data-action="at-fac-'+p.facturation+'-'+a.id+'-'+p.id+'">Créer facture '+(p.facturation==="total"?"totale":"acompte "+euro(acompte))+'</button>':'')+
-          (p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId&&!isSite?'<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>':'')+
-          '<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>'+
-        '</div></div>';
-    });
+    html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Participantes</h3><span class="muted">'+a.participants.length+' participante(s)</span></div>';
+    if(!a.participants.length){ html+='<p class="muted">Aucune participante renseignée.</p>'; }
+    else {
+      a.participants.forEach(function(p){
+        var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0), siteAcompte=(p.facturation==='site_acompte'), acompte=r2((Number(p.montant)||0)*0.30), solde=r2((Number(p.montant)||0)-acompte);
+        html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
+          '<div><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b> · '+esc(p.prestation||"Prestation")+'</div>'+
+          '<div class="muted" style="font-size:12px;">Montant : '+euro(p.montant||0)+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"prix total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+
+          (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+
+          (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+
+          (isSite?'<div class="muted" style="font-size:12px;">✅ Payé via Squarespace : '+euro(p.payeSiteMontant||p.montant||0)+(p.soldeSite?' · Solde à payer le jour de l’atelier : '+euro(p.soldeSite):'')+(p.commande?' · Commande '+esc(p.commande):'')+'</div>':'')+
+          '</div><div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
+            (!p.factureId&&!isSite?'<button class="btn small primary" data-action="at-fac-'+p.facturation+'-'+a.id+'-'+p.id+'">Créer facture '+(p.facturation==="total"?"totale":"acompte "+euro(acompte))+'</button>':'')+
+            (p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId&&!isSite?'<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>':'')+
+            '<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>'+
+          '</div></div>';
+      });
+    }
+    html+='</div>';
+  }else{
+    html+='<div class="card"><h3 style="margin-top:0;">Participants</h3><p class="muted" style="margin:0;">Pour ce type d’atelier, le détail nominatif des participants n’est pas nécessaire. Le budget est basé sur le montant renseigné ci-dessus.</p></div>';
   }
-  html+='</div>';
   return html;
 }
 function atelierClientFromParticipant(p){
@@ -3138,6 +3215,7 @@ function handleAction(action){
   if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.mariageOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
   if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
+  if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
   if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
   if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; aa.participants.push({id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}); ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée."); } return; }
   if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); saveCache(); render(); toast("Participante supprimée."); } return; }
@@ -3467,6 +3545,7 @@ document.addEventListener("change", function(e){
   if(t.id==="encImport"){ onEncImport(t.files[0]); t.value=""; return; }
   if(t.id==="restoreInput"){ onRestoreFile(t.files[0]); t.value=""; return; }
   var act=t.getAttribute&&t.getAttribute("data-action");
+  if(act==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
   if(act==="mar-statut"){ var ms=getMariage(ui.mariageOpen); if(ms){ captureMariageInputs(); ms.statut=t.value; saveCache(); render(); } return; }
   if(act==="mar-link"){ var ml=getMariage(ui.mariageOpen); if(ml){ captureMariageInputs(); ml.devisLie=t.value; saveCache(); render(); } return; }
   if(act==="mar-devis-toggle"){ var md=getMariage(ui.mariageOpen); if(md){ captureMariageInputs(); md.devisEnvoye=t.checked; if(t.checked&&!md.devisDate) md.devisDate=todayISO(); if(md.statut==="contact"&&t.checked) md.statut="devis_envoye"; saveCache(); render(); } return; }
