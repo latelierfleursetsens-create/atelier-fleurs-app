@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
+<!-- Version V2.0 : navigation par grands modules -->
+<!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
@@ -171,8 +173,8 @@ var DEFAULT_SETTINGS = {
 };
 
 /* ===================== État ===================== */
-var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], logo:"" };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null };
+var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie" };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -241,14 +243,14 @@ var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null;
 
-function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
+function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
 function applyData(d){
   if(!d) return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
-  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.logo=d.logo||"";
+  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||"";
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -402,7 +404,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["calendrier","Calendrier"],["commandes","Commandes"],["mariages","Mariages"],["devis","Devis"],["factures","Factures"],["emails","Emails"],["encaissements","Encaissements manuels"],["tresorerie","Trésorerie"],["ventesSite","Ventes site internet"],["achats","Achats"],["catalogue","Catalogue"],["clients","Clients"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -412,13 +414,63 @@ function renderTopbar(){
   var en=document.getElementById("entName"); if(en) en.innerHTML=esc(state.settings.nomEntreprise||"L'Atelier Fleurs & Sens");
 }
 
+
+/* ===================== Navigation V2.0 : modules ===================== */
+function subNav(items, current, prefix){
+  return '<div class="row-actions" style="margin:0 0 14px;">'+items.map(function(it){
+    return '<button class="btn small '+(current===it[0]?'primary':'ghost')+'" data-action="'+prefix+it[0]+'">'+esc(it[1])+'</button>';
+  }).join("")+'</div>';
+}
+
+function moduleHeader(title, subtitle){
+  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">V2.0</span></div>';
+}
+
+function viewClientsModule(){
+  var sub=ui.clientsSub||"clients";
+  var html=moduleHeader("Clients","Fiches clientes, mariages, ateliers et commandes regroupés au même endroit.")+
+    subNav([["clients","Fiches clientes"],["mariages","Mariages"],["ateliers","Ateliers"],["commandes","Suivi des Commandes"]],sub,"mod-clients-");
+  if(sub==="mariages") return html+viewMariages();
+  if(sub==="ateliers") return html+viewAteliers();
+  if(sub==="commandes") return html+viewCommandes();
+  return html+viewClients();
+}
+
+function viewDocumentsModule(){
+  var sub=ui.documentsSub||"devis";
+  var html=moduleHeader("Documents","Création, suivi et envoi des devis, factures et emails.")+
+    subNav([["devis","Devis"],["factures","Factures"],["emails","Emails"]],sub,"mod-documents-");
+  if(sub==="factures") return html+viewFactures();
+  if(sub==="emails") return html+viewEmails();
+  return html+(ui.wizard?viewWizard():viewDevis());
+}
+
+function viewFinancesModule(){
+  var sub=ui.financesSub||"tresorerie";
+  var html=moduleHeader("Finances","Trésorerie, ventes site internet, encaissements manuels et achats fournisseurs.")+
+    subNav([["tresorerie","Trésorerie"],["encaissements","Encaissements manuels"],["ventesSite","Ventes site internet"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
+  if(sub==="encaissements") return html+viewEncaissements();
+  if(sub==="ventesSite") return html+viewVentesSite();
+  if(sub==="achats") return html+viewAchats();
+  return html+viewTresorerie();
+}
+
 /* ===================== Vue principale ===================== */
 function render(){
   renderTabs(); renderTopbar();
   var v=document.getElementById("view");
   if(ui.tab==="accueil") v.innerHTML=viewDashboard();
+  else if(ui.tab==="clientsModule") v.innerHTML=viewClientsModule();
+  else if(ui.tab==="documentsModule") v.innerHTML=viewDocumentsModule();
+  else if(ui.tab==="financesModule") v.innerHTML=viewFinancesModule();
   else if(ui.tab==="calendrier") v.innerHTML=viewCalendrier();
+  else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
+  else if(ui.tab==="params") v.innerHTML=viewParams();
+
+  // Fallbacks internes : utiles pour les anciens raccourcis, liens de calendrier ou restaurations
   else if(ui.tab==="commandes") v.innerHTML=viewCommandes();
+  else if(ui.tab==="ateliers") v.innerHTML=viewAteliers();
+  else if(ui.tab==="mariages") v.innerHTML=viewMariages();
   else if(ui.tab==="devis") v.innerHTML= ui.wizard? viewWizard() : viewDevis();
   else if(ui.tab==="factures") v.innerHTML=viewFactures();
   else if(ui.tab==="emails") v.innerHTML=viewEmails();
@@ -426,10 +478,8 @@ function render(){
   else if(ui.tab==="tresorerie") v.innerHTML=viewTresorerie();
   else if(ui.tab==="ventesSite") v.innerHTML=viewVentesSite();
   else if(ui.tab==="achats") v.innerHTML=viewAchats();
-  else if(ui.tab==="mariages") v.innerHTML=viewMariages();
-  else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
   else if(ui.tab==="clients") v.innerHTML=viewClients();
-  else if(ui.tab==="params") v.innerHTML=viewParams();
+  else v.innerHTML=viewDashboard();
   renderModal();
 }
 function renderModal(){
@@ -538,9 +588,11 @@ function viewDashboard(){
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
   prepBanner+
   viewSmartDashboard()+
+  viewAteliersPreview()+
   viewCalendarPreview()+
   viewAchatsPreview()+
   viewSiteSalesPreview()+
+  viewCRMPreview()+
   '<div class="row-actions" style="margin-bottom:14px;">'+
     '<button class="btn small gold" data-action="csv-'+an+'">Exporter '+an+' (Excel / CSV)</button>'+
     '<button class="btn small ghost" data-action="csv-all">Exporter toutes les années</button></div>'+
@@ -1187,15 +1239,24 @@ function viewAchatsPreview(){
 var SITE_ACTIVITES=["Atelier","Produit","Box DIY","Mariage","Autre"];
 
 function newSiteSaleDraft(){
+  var firstAtelier=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");})[0];
   ui.siteSaleDraft={
     id:uid(),
     date:todayISO(),
+    clientMode:state.clients.length?"existant":"nouveau",
+    clientId:state.clients[0]?state.clients[0].id:"",
     client:"",
     email:"",
     tel:"",
     produit:"",
     commande:"",
     activite:"Atelier",
+    atelierId:firstAtelier?firstAtelier.id:"",
+    atelierParticipantId:"",
+    atelierLabel:"",
+    prestation:"Place atelier",
+    atelierPaiementType:"acompte30",
+    atelierPrixTotal:0,
     montant:0,
     frais:0,
     notes:"",
@@ -1208,13 +1269,40 @@ function newSiteSaleDraft(){
 function captureSiteSaleDraft(){
   var s=ui.siteSaleDraft; if(!s) return;
   s.date=val("siteDate")||todayISO();
-  s.client=val("siteClient");
-  s.email=val("siteEmail");
-  s.tel=val("siteTel");
-  s.produit=val("siteProduit");
   s.commande=val("siteCommande");
   s.activite=val("siteActivite")||"Autre";
-  s.montant=num(val("siteMontant"));
+  s.clientMode=s.clientMode||"nouveau";
+
+  if(s.clientMode==="existant" && state.clients.length){
+    s.clientId=val("siteClientId")||s.clientId;
+    var c=state.clients.find(function(x){return x.id===s.clientId;});
+    if(c){ s.client=c.nom||""; s.email=c.email||""; s.tel=c.tel||""; }
+  } else {
+    s.client=val("siteClient");
+    s.email=val("siteEmail");
+    s.tel=val("siteTel");
+  }
+
+  s.atelierId=val("siteAtelierId")||s.atelierId||"";
+  s.prestation=val("sitePrestation")||s.prestation||"";
+  s.produit=val("siteProduit");
+  s.atelierPaiementType=val("siteAtelierPaiementType")||s.atelierPaiementType||"acompte30";
+  s.atelierPrixTotal=num(val("siteAtelierPrixTotal"))||num(s.atelierPrixTotal)||0;
+
+  if(s.activite==="Atelier"){
+    var a=getAtelier(s.atelierId);
+    s.atelierLabel=a?((a.type||"Atelier")+" · "+(a.theme||"")+" · "+(a.date?frDate(a.date):"")):"";
+    if(!s.produit) s.produit=s.prestation||"Réservation atelier";
+
+    var paid=num(val("siteMontant"));
+    if(!paid && s.atelierPrixTotal>0){
+      paid=s.atelierPaiementType==="acompte30"?r2(s.atelierPrixTotal*0.30):s.atelierPrixTotal;
+    }
+    s.montant=paid;
+  } else {
+    s.montant=num(val("siteMontant"));
+  }
+
   s.frais=num(val("siteFrais"));
   s.notes=val("siteNotes");
   s.paiement="Site internet";
@@ -1230,17 +1318,49 @@ function siteActiviteOptions(selected){
 
 function viewSiteSaleForm(){
   var s=ui.siteSaleDraft;
+  var clientPart='';
+  if(state.clients.length){
+    clientPart+='<div class="row-actions" style="margin-top:0;margin-bottom:12px;">'+
+      '<button class="btn small '+(s.clientMode==="nouveau"?"primary":"ghost")+'" data-action="site-mode-nouveau">Nouvelle cliente</button>'+
+      '<button class="btn small '+(s.clientMode==="existant"?"primary":"ghost")+'" data-action="site-mode-existant">Cliente enregistrée</button></div>';
+  }
+  if(s.clientMode==="existant"&&state.clients.length){
+    clientPart+='<label class="field"><span>Cliente liée à la base clients</span><select id="siteClientId" data-action="site-clientsel">'+sortedClients().map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===s.clientId?' selected':'')+'>'+esc(c.nom)+'</option>';}).join("")+'</select><div class="hint">La vente sera automatiquement ajoutée dans l’historique de cette cliente.</div></label>';
+  } else {
+    clientPart+='<div class="inline"><div><label class="field"><span>Cliente</span><input id="siteClient" value="'+esc(s.client||"")+'" placeholder="Nom de la cliente"></label></div>'+
+      '<div><label class="field"><span>Email</span><input id="siteEmail" type="email" value="'+esc(s.email||"")+'" placeholder="email@exemple.fr"></label></div></div>'+
+      '<label class="field"><span>Téléphone</span><input id="siteTel" value="'+esc(s.tel||"")+'"></label>';
+  }
+
+  var atelierPart='';
+  if(s.activite==="Atelier"){
+    var ateliers=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
+    var prixTotal=num(s.atelierPrixTotal)||0;
+    var montantSug=s.atelierPaiementType==="acompte30"?r2(prixTotal*0.30):prixTotal;
+    var soldeSug=s.atelierPaiementType==="acompte30"?r2(prixTotal-montantSug):0;
+    atelierPart+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Lien avec un atelier</h3>';
+    if(!ateliers.length){
+      atelierPart+='<p class="muted">Aucun atelier créé pour le moment. Crée d’abord l’atelier dans le module Clients → Ateliers pour pouvoir synchroniser la participante.</p>';
+    } else {
+      atelierPart+='<label class="field"><span>Atelier concerné</span><select id="siteAtelierId" data-action="site-atelier-change">'+ateliers.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc((a.date?frDate(a.date)+" · ":"")+(a.type||"Atelier")+" · "+(a.theme||"Sans thème")+(a.lieu?" · "+a.lieu:""))+'</option>';}).join("")+'</select><div class="hint">La participante sera ajoutée automatiquement dans cet atelier.</div></label>'+
+      '<label class="field"><span>Prestation / place réservée</span><input id="sitePrestation" value="'+esc(s.prestation||"")+'" placeholder="Ex : Place atelier couronne, demi-couronne…"></label>'+
+      '<div class="inline"><div><label class="field"><span>Type de réservation Squarespace</span><select id="siteAtelierPaiementType" data-action="site-atelier-pay-change"><option value="acompte30"'+(s.atelierPaiementType==="acompte30"?' selected':'')+'>Acompte 30 %</option><option value="total"'+(s.atelierPaiementType==="total"?' selected':'')+'>Prix total</option></select></label></div>'+
+      '<div><label class="field"><span>Prix total de la place (€)</span><input id="siteAtelierPrixTotal" data-action="site-atelier-price" type="number" min="0" step="0.01" value="'+esc(s.atelierPrixTotal||"")+'"></label></div></div>'+
+      '<div class="summary" style="margin-bottom:0;"><div class="totrow"><span>Montant à saisir / encaissé Squarespace</span><b>'+(prixTotal?euro(montantSug):"—")+'</b></div><div class="totrow"><span>Solde restant le jour de l’atelier</span><b>'+(soldeSug?euro(soldeSug):"0,00 €")+'</b></div></div>';
+    }
+    atelierPart+='</div>';
+  }
+
   return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">Nouvelle vente site internet</h3><button class="btn small ghost" data-action="site-cancel">Annuler</button></div>'+
-    '<p class="muted" style="margin-top:0;">À utiliser pour les commandes Squarespace déjà facturées et payées par le site. Aucune facture ne sera recréée ici.</p>'+
+    '<p class="muted" style="margin-top:0;">À utiliser pour les commandes Squarespace déjà facturées et payées par le site. Si c’est une réservation atelier, elle sera aussi ajoutée dans l’atelier correspondant.</p>'+
     '<div class="inline"><div><label class="field"><span>Date de commande</span><input id="siteDate" type="date" value="'+esc(s.date)+'"></label></div>'+
     '<div><label class="field"><span>N° commande Squarespace</span><input id="siteCommande" value="'+esc(s.commande||"")+'" placeholder="Ex : #000123"></label></div></div>'+
-    '<div class="inline"><div><label class="field"><span>Cliente</span><input id="siteClient" value="'+esc(s.client||"")+'" placeholder="Nom de la cliente"></label></div>'+
-    '<div><label class="field"><span>Email</span><input id="siteEmail" type="email" value="'+esc(s.email||"")+'" placeholder="email@exemple.fr"></label></div></div>'+
-    '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="siteTel" value="'+esc(s.tel||"")+'"></label></div>'+
-    '<div><label class="field"><span>Activité</span><select id="siteActivite">'+siteActiviteOptions(s.activite)+'</select></label></div></div>'+
-    '<label class="field"><span>Produit / atelier acheté</span><input id="siteProduit" value="'+esc(s.produit||"")+'" placeholder="Ex : Atelier couronne, Box DIY, bouquet…"></label>'+
-    '<div class="inline"><div><label class="field"><span>Montant encaissé (€)</span><input id="siteMontant" type="number" min="0" step="0.01" value="'+esc(s.montant||"")+'"></label></div>'+
-    '<div><label class="field"><span>Frais éventuels (€)</span><input id="siteFrais" type="number" min="0" step="0.01" value="'+esc(s.frais||"")+'"></label></div></div>'+
+    clientPart+
+    '<div class="inline"><div><label class="field"><span>Type de vente</span><select id="siteActivite" data-action="site-activite-change">'+siteActiviteOptions(s.activite)+'</select></label></div>'+
+    '<div><label class="field"><span>Montant encaissé sur Squarespace (€)</span><input id="siteMontant" type="number" min="0" step="0.01" value="'+esc(s.montant||"")+'"><div class="hint">Pour un atelier avec acompte, indique seulement le montant réellement payé sur Squarespace.</div></label></div></div>'+
+    atelierPart+
+    '<label class="field"><span>Produit / libellé affiché</span><input id="siteProduit" value="'+esc(s.produit||"")+'" placeholder="Ex : Atelier couronne, Box DIY, bouquet…"></label>'+
+    '<label class="field"><span>Frais éventuels (€)</span><input id="siteFrais" type="number" min="0" step="0.01" value="'+esc(s.frais||"")+'"></label>'+
     '<label class="field"><span>Notes</span><textarea id="siteNotes" placeholder="Infos utiles, nombre de participantes, produit expédié…">'+esc(s.notes||"")+'</textarea></label>'+
     '<div class="summary"><div class="totrow"><span>Moyen de paiement</span><b>Site internet</b></div><div class="totrow"><span>Statut</span><b>Payé</b></div></div>'+
     '<div class="row-actions"><button class="btn primary" data-action="site-save">Enregistrer la vente site</button></div></div>';
@@ -1261,7 +1381,7 @@ function viewVentesSite(){
     html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
       '<div><b style="color:var(--bordeaux);">'+esc(s.produit||"Vente site")+'</b> <span class="achat-cat">'+esc(s.activite||"Autre")+'</span></div>'+
       '<div class="muted" style="font-size:12px;">'+frDate(s.date)+(s.client?' · '+esc(s.client):'')+(s.commande?' · Commande '+esc(s.commande):'')+'</div>'+
-      '<div class="muted" style="font-size:12px;">Paiement : Site internet · Statut : payé'+(s.email?' · '+esc(s.email):'')+'</div>'+
+      '<div class="muted" style="font-size:12px;">Paiement : Site internet · Statut : payé'+(s.email?' · '+esc(s.email):'')+(s.atelierLabel?' · Atelier lié : '+esc(s.atelierLabel):'')+'</div>'+
       (s.notes?'<div class="muted" style="font-size:12px;">'+esc(s.notes)+'</div>':'')+
       '</div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(s.montant||0)+'</b><div style="margin-top:6px;"><button class="btn small danger" data-action="site-del-'+s.id+'">'+(del?'Confirmer':'Supprimer')+'</button></div></div></div>';
   });
@@ -1269,17 +1389,91 @@ function viewVentesSite(){
   return html;
 }
 
+function resolveSiteSaleClient(s){
+  var client=null;
+  if(s.clientMode==="existant"&&s.clientId){
+    client=state.clients.find(function(c){return c.id===s.clientId;})||null;
+  }
+  if(!client){
+    var k=normName(s.client||"");
+    client=(state.clients||[]).find(function(c){return normName(c.nom)===k;})||null;
+  }
+  if(client){
+    if(s.email&&!client.email) client.email=s.email;
+    if(s.tel&&!client.tel) client.tel=s.tel;
+    s.client=client.nom||s.client;
+    s.email=client.email||s.email||"";
+    s.tel=client.tel||s.tel||"";
+    s.clientId=client.id;
+    return client;
+  }
+  client={id:uid(),nom:(s.client||"").trim(),adresse:"",email:s.email||"",tel:s.tel||"",canal:"",anniversaire:"",notes:""};
+  state.clients.push(client);
+  s.clientId=client.id;
+  return client;
+}
+function syncSiteSaleToAtelier(s){
+  if(!s || s.activite!=="Atelier" || !s.atelierId) return;
+  var a=getAtelier(s.atelierId);
+  if(!a) return;
+  a.participants=a.participants||[];
+  var existing=a.participants.find(function(p){return p.siteSaleId===s.id;});
+  var prestation=s.prestation||s.produit||"Réservation site internet";
+  var prixTotal=num(s.atelierPrixTotal)||num(s.montant)||0;
+  var paye=num(s.montant)||0;
+  var solde=Math.max(0,r2(prixTotal-paye));
+  var facturationSite=s.atelierPaiementType==="acompte30"?"site_acompte":"site_total";
+
+  if(existing){
+    existing.nom=s.client;
+    existing.email=s.email;
+    existing.tel=s.tel;
+    existing.prestation=prestation;
+    existing.montant=prixTotal;
+    existing.payeSiteMontant=paye;
+    existing.soldeSite=solde;
+    existing.source="site";
+    existing.facturation=facturationSite;
+    existing.payeSite=true;
+    existing.commande=s.commande||"";
+    s.atelierParticipantId=existing.id;
+  } else {
+    var p={id:uid(),nom:s.client,email:s.email||"",tel:s.tel||"",prestation:prestation,montant:prixTotal,payeSiteMontant:paye,soldeSite:solde,facturation:facturationSite,source:"site",payeSite:true,siteSaleId:s.id,commande:s.commande||""};
+    a.participants.push(p);
+    s.atelierParticipantId=p.id;
+  }
+  s.atelierPrixTotal=prixTotal;
+  s.atelierSolde=solde;
+  s.atelierLabel=(a.type||"Atelier")+" · "+(a.theme||"")+" · "+(a.date?frDate(a.date):"");
+}
+function removeSiteSaleFromAtelier(s){
+  if(!s) return;
+  (state.ateliers||[]).forEach(function(a){
+    a.participants=(a.participants||[]).filter(function(p){return p.siteSaleId!==s.id;});
+  });
+}
 function saveSiteSale(){
   captureSiteSaleDraft();
   var s=ui.siteSaleDraft; if(!s) return;
   if(!(s.client||"").trim()){ toast("Indique la cliente."); return; }
-  if(!(s.produit||"").trim()){ toast("Indique le produit ou l’atelier acheté."); return; }
-  if(!(Number(s.montant)>0)){ toast("Indique le montant encaissé."); return; }
+  if(s.activite==="Atelier"){
+    if(!s.atelierId){ toast("Choisis l’atelier concerné pour synchroniser la participante."); return; }
+    if(!(num(s.atelierPrixTotal)>0)){ toast("Indique le prix total de la place."); return; }
+    if(!(num(s.montant)>0)){
+      s.montant=s.atelierPaiementType==="acompte30"?r2(num(s.atelierPrixTotal)*0.30):num(s.atelierPrixTotal);
+    }
+  } else if(!(Number(s.montant)>0)){
+    toast("Indique le montant encaissé."); return;
+  }
+
+  resolveSiteSaleClient(s);
+  if(!(s.produit||"").trim()) s.produit=(s.activite==="Atelier"?(s.prestation||"Réservation atelier"):"Vente site internet");
+  syncSiteSaleToAtelier(s);
+
   state.ventesSite=state.ventesSite||[];
   state.ventesSite.unshift(Object.assign({},s));
-  ensureClients([s.client]);
   ui.siteSaleDraft=null;
-  saveCache(); render(); toast("Vente site internet enregistrée.");
+  saveCache(); render(); toast("Vente site enregistrée et synchronisée.");
 }
 
 
@@ -1343,6 +1537,7 @@ function encaissementsTresorerie(){
   return arr;
 }
 function activiteFacture(f){
+  if(f && f.origine==="atelier") return "Ateliers";
   if(f.devisId && (state.mariages||[]).some(function(m){return m.devisLie===f.devisId;})) return "Mariages";
   var txt=((f.notes||"")+" "+((f.client&&f.client.nom)||"")+" "+(f.devisNumero||"")).toLowerCase();
   if(txt.indexOf("atelier")>=0 || txt.indexOf("evjf")>=0 || txt.indexOf("qvt")>=0) return "Ateliers";
@@ -1417,7 +1612,8 @@ function todaySmartData(){
   var mariagesLivraison=(state.mariages||[]).filter(function(m){return !mariageTermine(m) && m.dateLivraison && m.dateLivraison>=today && m.dateLivraison<=addDays(today,7);}).length;
   var devisRelance=(state.devis||[]).filter(function(d){return d.statut==="envoye" && d.date && d.date<=addDays(today,-7);}).length;
   var siteM=(state.ventesSite||[]).filter(function(s){return (s.date||"").slice(0,7)===today.slice(0,7);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
-  return {commandes:commandes,aEncaisser:r2(aEncaisser),echues:echues,mariagesLivraison:mariagesLivraison,devisRelance:devisRelance,siteM:r2(siteM)};
+  var ateliersSoon=(typeof atelierUpcoming==='function')?atelierUpcoming().filter(function(a){return a.date<=addDays(today,7);}).length:0;
+  return {commandes:commandes,aEncaisser:r2(aEncaisser),echues:echues,mariagesLivraison:mariagesLivraison,devisRelance:devisRelance,siteM:r2(siteM),ateliersSoon:ateliersSoon};
 }
 function viewSmartDashboard(){
   var d=todaySmartData();
@@ -1426,9 +1622,279 @@ function viewSmartDashboard(){
     '<div class="checkrow" data-action="dash-pending-payments" style="cursor:pointer;"><div style="flex:1;">💶 À encaisser prochainement</div><b>'+euro(d.aEncaisser)+'</b></div>'+
     '<div class="checkrow" data-action="nav-mariages" style="cursor:pointer;"><div style="flex:1;">💍 Mariages à livrer sous 7 jours</div><b>'+d.mariagesLivraison+'</b></div>'+
     '<div class="checkrow" data-action="nav-devis" style="cursor:pointer;"><div style="flex:1;">📞 Devis à relancer</div><b>'+d.devisRelance+'</b></div>'+
+    '<div class="checkrow" data-action="nav-ateliers" style="cursor:pointer;"><div style="flex:1;">🎨 Ateliers à venir sous 7 jours</div><b>'+d.ateliersSoon+'</b></div>'+ 
     '<div class="checkrow" data-action="nav-ventesSite" style="cursor:pointer;"><div style="flex:1;">🌐 Ventes site du mois</div><b>'+euro(d.siteM)+'</b></div>'+
     '<div class="checkrow" data-action="dash-pending-payments" style="cursor:pointer;border-bottom:none;"><div style="flex:1;">⚠️ Factures échues</div><b>'+d.echues+'</b></div>'+
   '</div>';
+}
+
+
+/* ===================== Clients V1.2 ===================== */
+function clientKey(cOrName){ return normName(typeof cOrName==="string"?cOrName:(cOrName&&cOrName.nom)||""); }
+function clientNameMatches(nom, candidate){ return candidate && clientKey(candidate)===clientKey(nom); }
+
+function clientHistoriqueComplet(c){
+  var key=clientKey(c), items=[];
+  (state.devis||[]).forEach(function(d){
+    if(d.client && clientNameMatches(c.nom,d.client.nom)){
+      items.push({date:d.date,type:"Devis",label:d.numero+" · "+((ST_DEVIS[d.statut]||ST_DEVIS.brouillon).l),montant:totals(d.lignes,state.settings.partService).total,paid:null,source:"devis",id:d.id});
+    }
+  });
+  (state.factures||[]).forEach(function(f){
+    if(f.client && clientNameMatches(c.nom,f.client.nom)){
+      items.push({date:f.datePaiement||f.date,type:"Facture",label:(f.numero||"Facture")+" · "+(TYPE_FAC[f.type]||"Facture"),montant:Number(f.montant)||0,paid:f.statut==="payee",source:"facture",id:f.id,paiement:f.paiementClient||""});
+    }
+  });
+  (state.encaissements||[]).forEach(function(e){
+    if(e.client && clientNameMatches(c.nom,e.client)){
+      items.push({date:e.date,type:"Encaissement manuel",label:e.libelle||"Encaissement",montant:Number(e.montant)||((Number(e.montantBiens)||0)+(Number(e.montantServices)||0)),paid:true,source:"encaissement",id:e.id,paiement:e.paiement||""});
+    }
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(s.client && clientNameMatches(c.nom,s.client)){
+      items.push({date:s.date,type:"Vente site internet",label:(s.commande?("Squarespace "+s.commande+" · "):"")+ (s.produit||"Vente site"),montant:Number(s.montant)||0,paid:true,source:"site",id:s.id,paiement:"Site internet",activite:s.activite||""});
+    }
+  });
+  (state.ateliers||[]).forEach(function(a){
+    (a.participants||[]).forEach(function(p){
+      if(p.nom && clientNameMatches(c.nom,p.nom)){
+        items.push({date:a.date,type:"Atelier",label:(a.type||"Atelier")+" · "+(a.theme||"")+" · "+(p.prestation||""),montant:Number(p.montant)||0,paid:null,source:"atelier",id:a.id,activite:"Atelier"});
+      }
+    });
+  });
+  (state.mariages||[]).forEach(function(m){
+    if(clientNameMatches(c.nom,m.nom)){
+      items.push({date:m.dateLivraison||m.dateMariage||m.createdAt,type:"Mariage",label:(m.dateLivraison?"Livraison ":"Mariage ")+(m.dateLivraison?frDate(m.dateLivraison):(m.dateMariage?frDate(m.dateMariage):""))+(m.statut?(" · "+((STATUT_MAR[m.statut]||{}).l||m.statut)):""),montant:0,paid:null,source:"mariage",id:m.id});
+    }
+  });
+  items.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+  return items;
+}
+
+function clientStats(c){
+  var h=clientHistoriqueComplet(c);
+  var paid=h.filter(function(i){return i.paid===true && Number(i.montant)>0;});
+  var total=r2(paid.reduce(function(s,i){return s+(Number(i.montant)||0);},0));
+  var nb=paid.length;
+  var panier=nb?r2(total/nb):0;
+  var dates=paid.map(function(i){return i.date;}).filter(Boolean).sort();
+  var payCount={};
+  paid.forEach(function(i){ var p=normalizePaymentMethod(i.paiement||""); payCount[p]=(payCount[p]||0)+1; });
+  var paiementHabituel=Object.keys(payCount).sort(function(a,b){return payCount[b]-payCount[a];})[0]||"Non renseigné";
+  var hasMariage=h.some(function(i){return i.source==="mariage";});
+  var hasAtelier=h.some(function(i){return (i.activite||"").toLowerCase().indexOf("atelier")>=0 || (i.label||"").toLowerCase().indexOf("atelier")>=0;});
+  var badges=[];
+  if(hasMariage) badges.push("💍 Mariée");
+  if(hasAtelier) badges.push("🎨 Atelier");
+  if(nb>=3) badges.push("⭐ Fidèle");
+  if(total>=500) badges.push("💎 VIP");
+  if(total>=1000) badges.push("🏆 Top cliente");
+  return {historique:h,payees:paid,total:total,nb:nb,panier:panier,first:dates[0]||"",last:dates[dates.length-1]||"",paiementHabituel:paiementHabituel,badges:badges};
+}
+
+function clientTimelineHTML(c){
+  var st=clientStats(c), h=st.historique;
+  if(!h.length) return '<p class="muted" style="margin:0;">Aucun historique pour cette cliente.</p>';
+  return h.map(function(i){
+    var clickable=i.source==="facture"?' data-action="crm-open-facture-'+i.id+'" style="cursor:pointer;"':'';
+    var paidTxt=i.paid===false?' · non payée':(i.paid===true?' · payée':'');
+    return '<div class="checkrow" '+clickable+'><div style="flex:1;">'+
+      '<div><b style="color:var(--bordeaux);">'+esc(i.type)+'</b> · '+esc(i.label||"")+'</div>'+
+      '<div class="muted" style="font-size:12px;">'+(i.date?frDate(i.date):"date inconnue")+paidTxt+(i.paiement?' · '+esc(normalizePaymentMethod(i.paiement)):'')+'</div>'+
+    '</div><div style="font-weight:700;color:var(--bordeaux);white-space:nowrap;">'+(i.montant?euro(i.montant):"")+'</div></div>';
+  }).join("");
+}
+
+function topClientsCRM(limit){
+  return (state.clients||[]).map(function(c){ var st=clientStats(c); return {c:c,total:st.total,nb:st.nb,badges:st.badges}; })
+    .filter(function(x){return x.total>0 || x.nb>0;})
+    .sort(function(a,b){return b.total-a.total;})
+    .slice(0,limit||5);
+}
+
+function viewCRMPreview(){
+  var top=topClientsCRM(3);
+  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">👥 Clients</h3><button class="btn small primary" data-action="nav-clients">Ouvrir</button></div>';
+  if(!top.length) return html+'<p class="muted" style="margin:8px 0 0;">Aucune statistique client pour le moment.</p></div>';
+  top.forEach(function(x){
+    html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(x.c.nom)+'</b><div class="muted" style="font-size:12px;">'+euro(x.total)+' · '+x.nb+' achat(s) '+(x.badges.length?' · '+x.badges.join(" "):'')+'</div></div>';
+  });
+  return html+'</div>';
+}
+
+
+/* ===================== Ateliers V1.3 ===================== */
+var ATELIER_TYPES=["EVJF","Structure","Anniversaire","Moment entre copine"];
+var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",termine:"Terminé",annule:"Annulé"};
+
+function atelierTypeOptions(selected){
+  selected=selected||"EVJF";
+  return ATELIER_TYPES.map(function(t){return '<option value="'+esc(t)+'"'+(selected===t?' selected':'')+'>'+esc(t)+'</option>';}).join("");
+}
+function atelierStatutOptions(selected){
+  selected=selected||"booke";
+  return Object.keys(ATELIER_STATUTS).map(function(k){return '<option value="'+esc(k)+'"'+(selected===k?' selected':'')+'>'+esc(ATELIER_STATUTS[k])+'</option>';}).join("");
+}
+function getAtelier(id){ return (state.ateliers||[]).find(function(a){return a.id===id;}); }
+function newAtelier(){
+  var a={id:uid(),date:todayISO(),heure:"",lieu:"",theme:"",type:"EVJF",materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
+  state.ateliers=state.ateliers||[];
+  state.ateliers.unshift(a); ui.atelierOpen=a.id; saveCache(); render();
+}
+function atelierTotals(a){
+  var parts=(a&&a.participants)||[];
+  var total=parts.reduce(function(s,p){return s+(Number(p.montant)||0);},0);
+  var sitePaye=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.payeSiteMontant)||Number(p.montant)||0);},0);
+  var siteSolde=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.soldeSite)||0);},0);
+  var factures=(state.factures||[]).filter(function(f){return f.origine==="atelier"&&f.atelierId===a.id;});
+  var facture=factures.reduce(function(s,f){return s+(Number(f.montant)||0);},0);
+  var paye=r2(sitePaye+factures.filter(function(f){return f.statut==="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
+  var attente=r2(siteSolde+factures.filter(function(f){return f.statut!=="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
+  var couvert=r2(facture+sitePaye+siteSolde);
+  return {participants:parts.length,total:r2(total),facture:r2(facture),sitePaye:r2(sitePaye),siteSolde:r2(siteSolde),couvert:couvert,paye:paye,attente:attente,resteNonFacture:r2(Math.max(0,total-couvert))};
+}
+function atelierPrevisionTotal(){
+  return (state.ateliers||[]).filter(function(a){return a.statut!=="annule";}).reduce(function(s,a){return s+atelierTotals(a).total;},0);
+}
+function atelierPrevisionNonFacturee(){
+  return (state.ateliers||[]).filter(function(a){return a.statut!=="annule";}).reduce(function(s,a){return s+atelierTotals(a).resteNonFacture;},0);
+}
+function atelierUpcoming(){
+  var today=todayISO();
+  return (state.ateliers||[]).filter(function(a){return a.date>=today&&a.statut!=="annule"&&a.statut!=="termine";}).sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
+}
+function viewAteliers(){
+  if(ui.atelierOpen) return viewAtelierDetail(getAtelier(ui.atelierOpen));
+  var list=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
+  var prevision=atelierPrevisionTotal(), nonFacture=atelierPrevisionNonFacturee();
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Nouvel atelier</button></div>'+
+    '<p class="muted" style="margin-top:-6px;">Centralise les ateliers bookés, les participantes, les acomptes, les factures à envoyer, le matériel et le calendrier.</p>'+
+    '<div class="grid-stats">'+
+      stat("Ateliers à venir",atelierUpcoming().length,false)+
+      stat("Prévisionnel ateliers",euro(prevision),false)+
+      stat("À facturer",euro(nonFacture),false)+
+      stat("Participants",list.reduce(function(s,a){return s+((a.participants||[]).length);},0),false)+
+    '</div>';
+  if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucun atelier enregistré pour le moment.</p></div>';
+  list.forEach(function(a){
+    var t=atelierTotals(a), st=ATELIER_STATUTS[a.statut]||a.statut||"Booké";
+    html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(a.type||"Atelier")+' · '+esc(a.theme||"Sans thème")+'</b>'+
+      '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+'</div></div>'+
+      '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(st)+'</span></div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+
+        '<span class="chip">👥 '+t.participants+' participant(s)</span>'+
+        '<span class="chip">Prévu : '+euro(t.total)+'</span>'+
+        '<span class="chip">Facturé : '+euro(t.facture)+'</span>'+ '<span class="chip">Site : '+euro(t.sitePaye||0)+'</span>'+ '<span class="chip">Solde jour J : '+euro(t.siteSolde||0)+'</span>'+
+        '<span class="chip">À facturer : '+euro(t.resteNonFacture)+'</span>'+
+      '</div>'+
+      '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir l’atelier</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
+  });
+  return html;
+}
+function captureAtelier(a){
+  if(!a) return;
+  a.date=val("atDate")||"";
+  a.heure=val("atHeure")||"";
+  a.lieu=val("atLieu")||"";
+  a.theme=val("atTheme")||"";
+  a.type=val("atType")||"EVJF";
+  a.statut=val("atStatut")||"booke";
+  a.materiel=val("atMateriel")||"";
+  a.description=val("atDescription")||"";
+}
+function viewAtelierDetail(a){
+  if(!a){ ui.atelierOpen=null; return viewAteliers(); }
+  a.participants=a.participants||[];
+  var t=atelierTotals(a);
+  var html='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h2 style="margin:0;">Atelier · '+esc(a.type||"")+'</h2><button class="btn small ghost" data-action="at-back">← Liste</button></div>'+
+    '<div class="grid-stats">'+
+      stat("Budget prévu",euro(t.total),false)+
+      stat("Déjà facturé",euro(t.facture),false)+
+      stat("Payé site internet",euro(t.sitePaye||0),false)+
+      stat("Soldes jour J",euro(t.siteSolde||0),false)+
+      stat("À encaisser",euro(t.attente),false)+
+      stat("À facturer",euro(t.resteNonFacture),false)+
+    '</div>'+
+    '<div class="inline"><div><label class="field"><span>Date</span><input id="atDate" type="date" value="'+esc(a.date||"")+'"></label></div>'+
+    '<div><label class="field"><span>Heure</span><input id="atHeure" value="'+esc(a.heure||"")+'" placeholder="Ex : 14h-16h"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Lieu</span><input id="atLieu" value="'+esc(a.lieu||"")+'" placeholder="Ex : La Barjo Onnaing"></label></div>'+
+    '<div><label class="field"><span>Type d’atelier</span><select id="atType">'+atelierTypeOptions(a.type)+'</select></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Bridgerton, Couronne florale…"></label></div>'+
+    '<div><label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label></div></div>'+
+    '<label class="field"><span>Matériel nécessaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
+    '<label class="field"><span>Description / mémo</span><textarea id="atDescription" placeholder="Infos organisation, demandes particulières, déroulé de l’atelier…">'+esc(a.description||"")+'</textarea></label>'+
+    '<div class="row-actions"><button class="btn primary" data-action="at-save">Enregistrer l’atelier</button></div></div>';
+
+  html+='<div class="card"><h3 style="margin-top:0;">Ajouter une participante</h3>'+
+    '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+
+    '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+
+    '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01"></label></div>'+
+    '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+
+    '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
+
+  html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Participantes</h3><span class="muted">'+a.participants.length+' participante(s)</span></div>';
+  if(!a.participants.length){ html+='<p class="muted">Aucune participante renseignée.</p>'; }
+  else {
+    a.participants.forEach(function(p){
+      var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0), siteAcompte=(p.facturation==='site_acompte'), already=(p.factureId||p.factureSoldeId), acompte=r2((Number(p.montant)||0)*0.30), solde=r2((Number(p.montant)||0)-acompte);
+      html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
+        '<div><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b> · '+esc(p.prestation||"Prestation")+'</div>'+
+        '<div class="muted" style="font-size:12px;">Montant : '+euro(p.montant||0)+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"prix total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+
+        (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+
+        (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+
+        (isSite?'<div class="muted" style="font-size:12px;">✅ Payé via Squarespace : '+euro(p.payeSiteMontant||p.montant||0)+(p.soldeSite?' · Solde à payer le jour de l’atelier : '+euro(p.soldeSite):'')+(p.commande?' · Commande '+esc(p.commande):'')+'</div>':'')+
+        '</div><div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
+          (!p.factureId&&!isSite?'<button class="btn small primary" data-action="at-fac-'+p.facturation+'-'+a.id+'-'+p.id+'">Créer facture '+(p.facturation==="total"?"totale":"acompte "+euro(acompte))+'</button>':'')+
+          (p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId&&!isSite?'<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>':'')+
+          '<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>'+
+        '</div></div>';
+    });
+  }
+  html+='</div>';
+  return html;
+}
+function atelierClientFromParticipant(p){
+  var k=normName(p.nom), c=(state.clients||[]).find(function(x){return normName(x.nom)===k;});
+  if(c){
+    if(!c.email&&p.email)c.email=p.email;
+    if(!c.tel&&p.tel)c.tel=p.tel;
+    return c;
+  }
+  c={id:uid(),nom:p.nom||"Cliente atelier",adresse:"",email:p.email||"",tel:p.tel||"",canal:"",anniversaire:"",notes:""};
+  state.clients.push(c);
+  return c;
+}
+function atelierCreateFacture(a,p,mode){
+  if(!a||!p) return null;
+  var total=Number(p.montant)||0;
+  if(total<=0){ toast("Indique un montant pour cette participante."); return null; }
+  var amount=total, type="totale", label="Atelier "+(a.type||"")+" - "+(a.theme||"");
+  if(mode==="acompte30"){ amount=r2(total*0.30); type="acompte"; label="Acompte 30 % - "+label; }
+  else if(mode==="solde"){ amount=r2(total-(total*0.30)); type="solde"; label="Solde - "+label; }
+  else { label="Atelier "+(a.type||"")+" - "+(a.theme||""); }
+  if(p.prestation) label += " - "+p.prestation;
+  var lignes=[{id:uid(),designation:label,type:"service",qte:1,prix:amount}];
+  var t=totals(lignes,state.settings.partService), date=todayISO();
+  var client=atelierClientFromParticipant(p);
+  var f={id:uid(),numero:prochainNumero("facture"),type:type,pourcentage:mode==="acompte30"?30:null,date:date,echeance:addDays(date,state.settings.delaiPaiement),
+    client:client,lignes:lignes,montantBiens:t.biens,montantServices:t.services,montant:t.total,statut:"a_envoyer",paiementClient:"",
+    datePaiement:null,origine:"atelier",atelierId:a.id,participantId:p.id,atelierType:a.type,atelierTheme:a.theme,atelierDate:a.date,notes:"Facture générée depuis l’onglet Atelier."};
+  if(mode==="acompte30"){ f.devisTotal=total; f.acompteMontant=amount; }
+  if(mode==="solde"){ f.devisTotal=total; f.acompteDeduit=r2(total*0.30); }
+  state.factures.unshift(f);
+  if(mode==="solde"){ p.factureSoldeId=f.id; p.factureSoldeNumero=f.numero; }
+  else { p.factureId=f.id; p.factureNumero=f.numero; p.facturation=mode; }
+  return f;
+}
+function viewAteliersPreview(){
+  var upcoming=atelierUpcoming().slice(0,3), nonFact=atelierPrevisionNonFacturee();
+  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🎨 Ateliers</h3><button class="btn small primary" data-action="nav-ateliers">Ouvrir</button></div>'+
+    '<p class="muted" style="margin:8px 0 10px;">À facturer : <b style="color:var(--bordeaux);">'+euro(nonFact)+'</b> · Soldes jour J inclus dans les ateliers</p>';
+  if(!upcoming.length) return html+'<p class="muted" style="margin:0;">Aucun atelier à venir.</p></div>';
+  upcoming.forEach(function(a){ var t=atelierTotals(a); html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(a.type||"Atelier")+' · '+esc(a.theme||"")+'</b><div class="muted" style="font-size:12px;">'+frDate(a.date)+(a.lieu?' · '+esc(a.lieu):'')+' · '+euro(t.total)+'</div></div>'; });
+  return html+'</div>';
 }
 
 /* ===================== Calendrier ===================== */
@@ -1451,6 +1917,9 @@ function calEvents(){
   (state.mariages||[]).forEach(function(m){
     if(m.dateMariage) events.push({date:m.dateMariage,type:"mariage",icon:"💍",title:m.nom||"Mariage",sub:m.lieu||"",action:"mar-open-"+m.id});
     if(m.dateLivraison) events.push({date:m.dateLivraison,type:"mariage",icon:"📦",title:"Livraison "+(m.nom||"mariage"),sub:m.modeLivraison||"",action:"mar-open-"+m.id});
+  });
+  (state.ateliers||[]).forEach(function(a){
+    if(a.date) events.push({date:a.date,type:"atelier",icon:"🎨",title:(a.type||"Atelier")+" · "+(a.theme||"atelier"),sub:a.lieu||"",action:"at-open-"+a.id});
   });
   (state.commandes||[]).forEach(function(c){
     var label=(c.label||"").toLowerCase();
@@ -1512,9 +1981,9 @@ function commandeTotHTML(t){
 function viewCommandes(){
   if(ui.commandeOpen) return viewCommandeDetail(getCommande(ui.commandeOpen));
   var todo=cmdData().length;
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Commandes</h2><button class="btn primary" data-action="cmd-new">+ Nouvelle commande</button></div>'+ 
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Suivi des Commandes</h2><button class="btn primary" data-action="cmd-new">+ Nouvelle commande</button></div>'+ 
     '<div class="row-actions" style="margin-bottom:12px;"><button class="btn small primary" data-action="cmd-suivi">Suivi</button></div>'+ 
-    '<p class="muted" style="margin-top:-8px;">Saisis ici une commande après un contact client : une facture est créée automatiquement dans l\'onglet Factures et la commande apparaît dans ce suivi.</p>';
+    '<p class="muted" style="margin-top:-8px;">Saisis ici une commande personnalisée après un contact client : une facture est créée automatiquement dans l\'onglet Factures et la commande apparaît dans ce suivi.</p>';
   if(ui.commandeDraft){ html+=viewCommandeForm(); }
   var list=state.commandes.slice().sort(function(a,b){ return (a.fait?1:0)-(b.fait?1:0) || (a.dateLivraison||"9999").localeCompare(b.dateLivraison||"9999"); });
   if(!list.length){ return html+'<div class="card"><p class="muted" style="margin:0;">Aucune commande pour le moment.</p></div>'; }
@@ -1713,59 +2182,73 @@ function sortedClients(){
   });
 }
 function clientHistory(nom){
-  var key=normName(nom); var items=[];
-  state.encaissements.forEach(function(e){ if(e.client && normName(e.client)===key) items.push({date:e.date, type:"Encaissement", label:e.libelle||"(vente)", montant:e.montant}); });
-  state.factures.forEach(function(f){ if(f.client && normName(f.client.nom)===key) items.push({date:f.date, type:TYPE_FAC[f.type], label:f.numero, montant:f.montant, paid:f.statut==="payee"}); });
-  state.devis.forEach(function(d){ if(d.client && normName(d.client.nom)===key) items.push({date:d.date, type:"Devis", label:d.numero+" ("+(ST_DEVIS[d.statut]||ST_DEVIS.brouillon).l.toLowerCase()+")", montant:totals(d.lignes,state.settings.partService).total}); });
-  items.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
-  return items;
+  var c=(state.clients||[]).find(function(x){return clientNameMatches(nom,x.nom);}) || {nom:nom};
+  return clientHistoriqueComplet(c).map(function(i){
+    return {date:i.date,type:i.type,label:i.label,montant:i.montant,paid:i.paid};
+  });
 }
 function clientCA(nom){
-  var key=normName(nom), t=0;
-  state.encaissements.forEach(function(e){ if(e.client && normName(e.client)===key) t+=e.montant||0; });
-  state.factures.forEach(function(f){ if(f.statut==="payee" && f.client && normName(f.client.nom)===key) t+=f.montant||0; });
-  return r2(t);
+  var c=(state.clients||[]).find(function(x){return clientNameMatches(nom,x.nom);}) || {nom:nom};
+  return clientStats(c).total;
 }
 function viewClients(){
   if(ui.clientOpen) return viewClientDetail(state.clients.find(function(c){return c.id===ui.clientOpen;}));
-  var html='<h2 style="margin-top:0;">Clients</h2><div class="card">'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Clients</h2><span class="muted">Suivi client</span></div>'+
+    '<div class="card">'+
     '<label class="field"><span>Nom</span><input id="cliNom"></label>'+
     '<label class="field"><span>Adresse</span><input id="cliAdr"></label>'+
     '<div class="inline"><div><label class="field"><span>Email</span><input id="cliEmail"></label></div>'+
     '<div><label class="field"><span>Téléphone</span><input id="cliTel"></label></div></div>'+
-    '<label class="field"><span>Canal de communication préféré</span><select id="cliCanal">'+commOptions("")+'</select></label>'+
+    '<div class="inline"><div><label class="field"><span>Canal de communication préféré</span><select id="cliCanal">'+commOptions("")+'</select></label></div>'+
+    '<div><label class="field"><span>Anniversaire</span><input id="cliAnniv" type="date"></label></div></div>'+
+    '<label class="field"><span>Notes privées</span><textarea id="cliNotes" placeholder="Préférences, infos importantes…"></textarea></label>'+
     '<button class="btn primary" data-action="cli-add">+ Ajouter le client</button></div>';
-  if(state.clients.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Pas encore de client. Ils s\'ajoutent ici, automatiquement lors d\'un devis, ou à l\'import de ton historique.</p></div>'; return html; }
+  if(state.clients.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Pas encore de client. Ils s’ajoutent ici, automatiquement lors d’un devis, ou à l’import de ton historique.</p></div>'; return html; }
+
+  var top=topClientsCRM(5);
+  if(top.length){
+    html+='<div class="card"><h3 style="margin:0 0 10px;">Top clientes</h3>';
+    top.forEach(function(x){ html+='<div class="checkrow"><div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(x.c.nom)+'</b><div class="muted" style="font-size:12px;">'+x.nb+' achat(s) '+(x.badges.length?' · '+x.badges.join(" "):'')+'</div></div><b>'+euro(x.total)+'</b></div>'; });
+    html+='</div>';
+  }
+
   var list=state.clients.slice().sort(function(a,b){ return normName(a.nom)<normName(b.nom)?-1:1; });
-  html+='<p class="muted">'+list.length+' cliente'+(list.length>1?"s":"")+'. Touche une fiche pour voir son historique.</p>';
+  html+='<p class="muted">'+list.length+' cliente'+(list.length>1?"s":"")+'. Touche une fiche pour voir son historique, ses statistiques et ses badges.</p>';
   list.forEach(function(c){
-    var h=clientHistory(c.nom), ca=clientCA(c.nom);
+    var st=clientStats(c);
     html+='<div class="card flexb"><button data-action="cli-open-'+c.id+'" style="border:none;background:none;text-align:left;cursor:pointer;font-family:inherit;padding:0;flex:1;">'+
-      '<div style="font-weight:600;color:var(--bordeaux);">'+esc(c.nom)+' →</div>'+
-      '<div class="muted">'+h.length+' opération'+(h.length>1?"s":"")+(ca>0?" · "+euro(ca)+" encaissé":"")+(c.canal?" · Canal : "+esc(c.canal):"")+'</div></button>'+
-      '<button class="btn small danger" data-action="cli-del-'+c.id+'">×</button></div>';
+      '<div style="font-weight:700;color:var(--bordeaux);">'+esc(c.nom)+' →</div>'+
+      '<div class="muted">'+st.nb+' achat'+(st.nb>1?'s':'')+(st.total>0?' · '+euro(st.total)+' encaissé':'')+(c.canal?' · Canal : '+esc(c.canal):'')+'</div>'+
+      (st.badges.length?'<div style="margin-top:5px;">'+st.badges.map(function(b){return '<span class="chip">'+esc(b)+'</span>';}).join(" ")+'</div>':'')+
+      '</button><button class="btn small danger" data-action="cli-del-'+c.id+'">×</button></div>';
   });
   return html;
 }
 function viewClientDetail(c){
   if(!c){ ui.clientOpen=null; return viewClients(); }
-  var h=clientHistory(c.nom), ca=clientCA(c.nom);
+  var st=clientStats(c);
   var html='<div class="card"><div class="flexb" style="margin-bottom:6px;"><h2 style="margin:0;">'+esc(c.nom)+'</h2><button class="btn small ghost" data-action="cli-back">← Liste</button></div>'+
+    (st.badges.length?'<div style="margin-bottom:10px;">'+st.badges.map(function(b){return '<span class="chip">'+esc(b)+'</span>';}).join(" ")+'</div>':'')+
+    '<div class="grid-stats">'+
+      stat("Total dépensé",euro(st.total),false)+
+      stat("Nombre d’achats",st.nb,false)+
+      stat("Panier moyen",euro(st.panier),false)+
+      stat("Paiement habituel",esc(st.paiementHabituel),false)+
+    '</div>'+
     '<div class="inline"><div><label class="field"><span>Email</span><input id="cdEmail" value="'+esc(c.email||"")+'"></label></div>'+
     '<div><label class="field"><span>Téléphone</span><input id="cdTel" value="'+esc(c.tel||"")+'"></label></div></div>'+
     '<label class="field"><span>Adresse</span><input id="cdAdr" value="'+esc(c.adresse||"")+'"></label>'+
-    '<label class="field"><span>Canal de communication préféré</span><select id="cdCanal">'+commOptions(c.canal||"")+'</select></label>'+
+    '<div class="inline"><div><label class="field"><span>Canal de communication préféré</span><select id="cdCanal">'+commOptions(c.canal||"")+'</select></label></div>'+
+    '<div><label class="field"><span>Anniversaire</span><input id="cdAnniv" type="date" value="'+esc(c.anniversaire||"")+'"></label></div></div>'+
+    '<label class="field"><span>Notes privées</span><textarea id="cdNotes" placeholder="Préférences, infos importantes, relances…">'+esc(c.notes||"")+'</textarea></label>'+
+    '<div class="muted" style="font-size:12px;margin-bottom:10px;">'+
+      (st.first?'Première commande : '+frDate(st.first):'Première commande : —')+
+      (st.last?' · Dernière commande : '+frDate(st.last):'')+
+    '</div>'+
     '<button class="btn gold" data-action="cli-savecontact-'+c.id+'">Enregistrer le contact</button></div>';
-  html+='<div class="card"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">Historique</h3><span class="muted">'+euro(ca)+' encaissé</span></div>';
-  if(h.length===0){ html+='<p class="muted" style="margin:0;">Aucune opération pour cette cliente.</p>'; }
-  else {
-    h.forEach(function(it){
-      html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><div>'+esc(it.label)+'</div>'+
-        '<div class="muted" style="font-size:12px;">'+frDate(it.date)+' · '+esc(it.type)+(it.paid===false?" · non payée":"")+'</div></div>'+
-        '<div style="font-weight:600;white-space:nowrap;">'+euro(it.montant)+'</div></div>';
-    });
-  }
-  html+='</div>';
+
+  html+='<div class="card"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">Timeline complète</h3><span class="muted">'+st.historique.length+' événement(s)</span></div>'+
+    clientTimelineHTML(c)+'</div>';
   html+='<div class="row-actions"><button class="btn danger" data-action="cli-del-'+c.id+'">Supprimer la fiche</button></div>';
   return html;
 }
@@ -1998,7 +2481,11 @@ function importEncaissementsCSV(text){
 function ensureClients(names){
   var existing={}; state.clients.forEach(function(c){ existing[normName(c.nom)]=true; });
   var added=0;
-  names.forEach(function(nm){ var k=normName(nm); if(!k||existing[k])return; state.clients.push({id:uid(),nom:nm.trim(),adresse:"",email:"",tel:""}); existing[k]=true; added++; });
+  names.forEach(function(nm){
+    var k=normName(nm); if(!k||existing[k])return;
+    state.clients.push({id:uid(),nom:nm.trim(),adresse:"",email:"",tel:"",canal:"",anniversaire:"",notes:""});
+    existing[k]=true; added++;
+  });
   return added;
 }
 function onEncImport(file){ if(!file) return; var r=new FileReader(); r.onload=function(e){ importEncaissementsCSV(e.target.result); }; r.readAsText(file); }
@@ -2596,23 +3083,60 @@ async function envoyerDocumentEmail(kind, doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
   // nav
-  if(action.indexOf("nav-")===0){ ui.tab=action.slice(4); ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null; render(); return; }
-  if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
-  if(action==="newdevis"){ ui.tab="devis"; newWizard(); render(); return; }
-  if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
+  if(action.indexOf("nav-")===0){
+    var dest=action.slice(4);
+    ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null;
+    if(["clients","mariages","ateliers","commandes"].indexOf(dest)>=0){
+      ui.tab="clientsModule"; ui.clientsSub=dest;
+      if(dest!=="ateliers") ui.atelierOpen=null;
+      if(dest!=="mariages") ui.mariageOpen=null;
+    } else if(["devis","factures","emails"].indexOf(dest)>=0){
+      ui.tab="documentsModule"; ui.documentsSub=dest;
+    } else if(["tresorerie","encaissements","ventesSite","achats"].indexOf(dest)>=0){
+      ui.tab="financesModule"; ui.financesSub=dest;
+    } else {
+      ui.tab=dest;
+    }
+    render(); return;
+  }
   
-  if(action==="site-new"){ newSiteSaleDraft(); ui.tab="ventesSite"; render(); return; }
+  if(action.indexOf("mod-clients-")===0){ ui.tab="clientsModule"; ui.clientsSub=action.slice(12); ui.commandeOpen=null; if(ui.clientsSub!=="ateliers") ui.atelierOpen=null; if(ui.clientsSub!=="mariages") ui.mariageOpen=null; render(); return; }
+  if(action.indexOf("mod-documents-")===0){ ui.tab="documentsModule"; ui.documentsSub=action.slice(14); render(); return; }
+  if(action.indexOf("mod-finances-")===0){ ui.tab="financesModule"; ui.financesSub=action.slice(13); render(); return; }
+
+  if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
+  if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
+  if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
+
+  if(action==="at-new"){ newAtelier(); return; }
+  if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); render(); window.scrollTo(0,0); return; }
+  if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
+  if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
+  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
+  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; aa.participants.push({id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}); ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée."); } return; }
+  if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); saveCache(); render(); toast("Participante supprimée."); } return; }
+  if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }
+
+  
+  if(action==="site-new"){ newSiteSaleDraft(); ui.tab="financesModule"; ui.financesSub="ventesSite"; render(); return; }
   if(action==="site-cancel"){ ui.siteSaleDraft=null; render(); return; }
+  if(action==="site-mode-nouveau"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="nouveau"; render(); return; }
+  if(action==="site-mode-existant"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="existant"; if(!ui.siteSaleDraft.clientId&&state.clients[0]) ui.siteSaleDraft.clientId=state.clients[0].id; render(); return; }
+  if(action==="site-activite-change"){ captureSiteSaleDraft(); render(); return; }
+  if(action==="site-atelier-change"){ captureSiteSaleDraft(); render(); return; }
+  if(action==="site-atelier-pay-change"){ captureSiteSaleDraft(); render(); return; }
   if(action==="site-save"){ saveSiteSale(); return; }
   if(action.indexOf("site-del-")===0){
     var sid=action.slice(9), skey="site:"+sid;
     if(ui.confirmDelete!==skey){ ui.confirmDelete=skey; render(); toast("Retouche Supprimer pour confirmer."); return; }
+    var saleToDelete=(state.ventesSite||[]).find(function(s){return s.id===sid;});
+    removeSiteSaleFromAtelier(saleToDelete);
     state.ventesSite=(state.ventesSite||[]).filter(function(s){return s.id!==sid;});
     ui.confirmDelete=null; saveCache(); render(); toast("Vente site supprimée."); return;
   }
 
   if(action==="go-achats"){ ui.tab="achats"; render(); return; }
-  if(action==="achat-new"){ newAchatDraft(); ui.tab="achats"; render(); return; }
+  if(action==="achat-new"){ newAchatDraft(); ui.tab="financesModule"; ui.financesSub="achats"; render(); return; }
   if(action==="achat-cancel"){ ui.achatDraft=null; render(); return; }
   if(action==="achat-save"){ saveAchat(); return; }
   if(action==="achat-proof-pick"){ captureAchatDraft(); var af=document.getElementById("achatFileInput"); if(af) af.click(); return; }
@@ -2752,11 +3276,13 @@ function handleAction(action){
   if(action==="cat-add"){ var nom=val("catNom"); if(!nom.trim()){ toast("Indiquez une désignation."); return; } state.catalogue.push({id:uid(),designation:nom,type:val("catType"),prix:num(val("catPrix"))}); saveCache(); render(); return; }
   if(action.indexOf("cat-del-")===0){ var cid=action.slice(8); state.catalogue=state.catalogue.filter(function(c){return c.id!==cid;}); saveCache(); render(); return; }
 
+  if(action.indexOf("crm-open-facture-")===0){ var cf=state.factures.find(function(f){return f.id===action.slice(17);}); if(cf){ ui.preview={kind:"facture",doc:cf}; renderModal(); } return; }
+
   // clients
-  if(action==="cli-add"){ var cn=val("cliNom"); if(!cn.trim()){ toast("Indiquez un nom."); return; } state.clients.push({id:uid(),nom:cn,adresse:val("cliAdr"),email:val("cliEmail"),tel:val("cliTel")}); saveCache(); render(); return; }
+  if(action==="cli-add"){ var cn=val("cliNom"); if(!cn.trim()){ toast("Indiquez un nom."); return; } state.clients.push({id:uid(),nom:cn,adresse:val("cliAdr"),email:val("cliEmail"),tel:val("cliTel"),canal:val("cliCanal"),anniversaire:val("cliAnniv"),notes:val("cliNotes")}); saveCache(); render(); return; }
   if(action.indexOf("cli-open-")===0){ ui.clientOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action==="cli-back"){ ui.clientOpen=null; render(); return; }
-  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); saveCache(); render(); toast("Contact enregistré."); } return; }
+  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); cc.canal=val("cdCanal"); cc.anniversaire=val("cdAnniv"); cc.notes=val("cdNotes"); saveCache(); render(); toast("Contact enregistré."); } return; }
   if(action.indexOf("cli-del-")===0){ var clid=action.slice(8); if(confirm("Supprimer cette fiche cliente ? (son historique de ventes n'est pas supprimé)")){ state.clients=state.clients.filter(function(c){return c.id!==clid;}); ui.clientOpen=null; saveCache(); render(); } return; }
 
   // logo
@@ -2788,7 +3314,7 @@ function handleAction(action){
   if(action==="dash-month-close"){ ui.monthDetail=null; render(); return; }
   if(action==="prep-cmd-add"){ var lbl=val("cmdLabel"); if(!lbl.trim()){ toast("Indique l'article à préparer."); return; } state.commandes.unshift({ id:uid(), label:lbl, client:val("cmdClient"), dateLivraison:val("cmdDate"), fait:false, createdAt:todayISO() }); saveCache(); render(); return; }
   if(action.indexOf("prep-cmd-del-")===0){ var cid=action.slice(13); state.commandes=state.commandes.filter(function(x){return x.id!==cid;}); saveCache(); render(); return; }
-  if(action.indexOf("mar-open-")===0){ ui.tab="mariages"; ui.mariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
   if(action==="mar-back"){ captureMariageInputs(); saveCache(); ui.mariageOpen=null; render(); return; }
@@ -2905,6 +3431,10 @@ document.addEventListener("change", function(e){
   if(t.hasAttribute&&t.hasAttribute("data-cmdopen-type")){ var oid=t.getAttribute("data-id"); var oc=getCommande(ui.commandeOpen); var ol=oc&&(oc.lignes||[]).find(function(x){return x.id===oid;}); if(ol){ ol.type=t.value; render(); } return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="cmd-clientsel"){ if(ui.commandeDraft) ui.commandeDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="fac-clientsel"){ if(ui.factureDraft) ui.factureDraft.clientId=t.value; return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-clientsel"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.clientId=t.value; captureSiteSaleDraft(); } return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-activite-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.activite=t.value; captureSiteSaleDraft(); render(); } return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.atelierId=t.value; captureSiteSaleDraft(); } return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-pay-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.atelierPaiementType=t.value; captureSiteSaleDraft(); render(); } return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="wz-clientsel"){ if(ui.wizard) ui.wizard.clientId=t.value; return; }
   if(t.id==="logoInput"){ onLogoFile(t.files[0]); t.value=""; return; }
   if(t.id==="marMedia"){ onMarMedia(t.files[0]); t.value=""; return; }
