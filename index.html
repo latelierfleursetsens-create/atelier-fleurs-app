@@ -1740,10 +1740,32 @@ function atelierStatutOptions(selected){
 }
 function getAtelier(id){ return (state.ateliers||[]).find(function(a){return a.id===id;}); }
 function newAtelier(){
-  var first=state.clients&&state.clients[0]?state.clients[0]:null;
-  var a={id:uid(),clientMode:first?"existant":"nouveau",clientId:first?first.id:"",client:first?(first.nom||""):"",clientEmail:first?(first.email||""):"",clientTel:first?(first.tel||""):"",date:todayISO(),heure:"",lieu:"",theme:"",type:"EVJF",materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
+  var a={
+    id:uid(),
+    clientMode:"nouveau",
+    clientId:"",
+    client:"",
+    clientEmail:"",
+    clientTel:"",
+    date:todayISO(),
+    heure:"",
+    lieu:"",
+    theme:"À compléter",
+    type:"EVJF",
+    materiel:"",
+    description:"",
+    statut:"booke",
+    participants:[],
+    createdAt:new Date().toISOString()
+  };
   state.ateliers=state.ateliers||[];
-  state.ateliers.unshift(a); ui.atelierOpen=a.id; saveCache(); render();
+  state.ateliers.unshift(a);
+  ui.tab="clientsModule";
+  ui.clientsSub="ateliers";
+  ui.atelierOpen=null;
+  saveCache();
+  render();
+  toast("Atelier créé. Clique sur « Ouvrir l’atelier » pour compléter la fiche.");
 }
 function atelierTotals(a){
   var parts=(a&&a.participants)||[];
@@ -1771,7 +1793,7 @@ function viewAteliers(){
   if(ui.atelierOpen) return viewAtelierDetail(getAtelier(ui.atelierOpen));
   var list=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
   var prevision=atelierPrevisionTotal(), nonFacture=atelierPrevisionNonFacturee();
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Nouvel atelier</button></div>'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Créer un atelier</button></div>'+
     '<p class="muted" style="margin-top:-6px;">Centralise les ateliers bookés, les participantes, les acomptes, les factures à envoyer, le matériel et le calendrier.</p>'+
     '<div class="grid-stats">'+
       stat("Ateliers à venir",atelierUpcoming().length,false)+
@@ -1782,7 +1804,7 @@ function viewAteliers(){
   if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucun atelier enregistré pour le moment.</p></div>';
   list.forEach(function(a){
     var t=atelierTotals(a), st=ATELIER_STATUTS[a.statut]||a.statut||"Booké";
-    html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(a.type||"Atelier")+' · '+esc(a.theme||"Sans thème")+'</b>'+
+    html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(a.type||"Atelier")+' · '+esc(a.theme||"À compléter")+'</b>'+
       '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+(a.client?' · Organisatrice : '+esc(a.client):'')+'</div></div>'+
       '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(st)+'</span></div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+
@@ -1791,32 +1813,37 @@ function viewAteliers(){
         '<span class="chip">Facturé : '+euro(t.facture)+'</span>'+ '<span class="chip">Site : '+euro(t.sitePaye||0)+'</span>'+ '<span class="chip">Solde jour J : '+euro(t.siteSolde||0)+'</span>'+
         '<span class="chip">À facturer : '+euro(t.resteNonFacture)+'</span>'+
       '</div>'+
-      '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir l’atelier</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
+      '<div class="row-actions"><button class="btn small primary" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
   });
   return html;
 }
 function captureAtelier(a){
   if(!a) return;
+  function gv(id){ var e=document.getElementById(id); return e?e.value:undefined; }
+
   a.clientMode=a.clientMode||"nouveau";
-  var cid=val("atClientId"); if(cid){ a.clientId=cid; a.clientMode="existant"; }
-  a.client=val("atClient")||a.client||"";
-  a.clientEmail=val("atClientEmail")||a.clientEmail||"";
-  a.clientTel=val("atClientTel")||a.clientTel||"";
+  var cid=gv("atClientId");
+  if(cid!==undefined){ a.clientId=cid; a.clientMode="existant"; }
+
+  var c=gv("atClient"); if(c!==undefined) a.client=c;
+  var ce=gv("atClientEmail"); if(ce!==undefined) a.clientEmail=ce;
+  var ct=gv("atClientTel"); if(ct!==undefined) a.clientTel=ct;
   applyClientToAtelier(a);
-  a.date=val("atDate")||"";
-  a.heure=val("atHeure")||"";
-  a.lieu=val("atLieu")||"";
-  a.theme=val("atTheme")||"";
-  a.type=val("atType")||"EVJF";
-  a.statut=val("atStatut")||"booke";
-  a.materiel=val("atMateriel")||"";
-  a.description=val("atDescription")||"";
+
+  var date=gv("atDate"); if(date!==undefined) a.date=date;
+  var heure=gv("atHeure"); if(heure!==undefined) a.heure=heure;
+  var lieu=gv("atLieu"); if(lieu!==undefined) a.lieu=lieu;
+  var theme=gv("atTheme"); if(theme!==undefined) a.theme=theme;
+  var type=gv("atType"); if(type!==undefined) a.type=type||"EVJF";
+  var statut=gv("atStatut"); if(statut!==undefined) a.statut=statut||"booke";
+  var materiel=gv("atMateriel"); if(materiel!==undefined) a.materiel=materiel;
+  var description=gv("atDescription"); if(description!==undefined) a.description=description;
 }
 function viewAtelierDetail(a){
   if(!a){ ui.atelierOpen=null; return viewAteliers(); }
   a.participants=a.participants||[];
   var t=atelierTotals(a);
-  a.clientMode=a.clientMode||((a.clientId&&state.clients.length)?"existant":"nouveau");
+  a.clientMode=(a.clientMode==="existant"&&a.clientId)?"existant":"nouveau";
   var clientPart="";
   if(state.clients.length){
     clientPart+=clientModeButtons("at",a.clientMode);
@@ -1829,7 +1856,7 @@ function viewAtelierDetail(a){
       '<label class="field"><span>Téléphone</span><input id="atClientTel" value="'+esc(a.clientTel||"")+'"></label>';
   }
   var html='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h2 style="margin:0;">Atelier · '+esc(a.type||"")+'</h2><button class="btn small ghost" data-action="at-back">← Liste</button></div>'+
-    '<div class="section-title">Cliente / organisatrice</div>'+
+    '<p class="muted" style="margin-top:-4px;">Complète les informations de l’atelier, puis clique sur Enregistrer.</p>'+ '<div class="section-title">Cliente / organisatrice</div>'+
     clientPart+
     '<div class="grid-stats">'+
       stat("Budget prévu",euro(t.total),false)+
@@ -3174,7 +3201,7 @@ function handleAction(action){
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
 
   if(action==="at-new"){ newAtelier(); return; }
-  if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
   if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
   if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
