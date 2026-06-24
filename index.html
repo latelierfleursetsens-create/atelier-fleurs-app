@@ -173,7 +173,7 @@ var DEFAULT_SETTINGS = {
 };
 
 /* ===================== État ===================== */
-var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"" };
+var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"" };
 var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false };
 var fileHandle = null;
 
@@ -243,14 +243,14 @@ var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null;
 
-function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, _meta:{savedAt:new Date().toISOString()} }; }
+function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
 function applyData(d){
   if(!d) return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
-  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||"";
+  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||"";
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -617,6 +617,18 @@ function viewPendingPaymentsModal(){
   return html;
 }
 
+
+function viewTodoDashboard(){
+  return '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
+    '<div class="inline">'+
+      '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
+      '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
+    '</div>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Cette liste se sauvegarde automatiquement, tu peux aussi cliquer sur Enregistrer.</p>'+
+  '</div>';
+}
+
 function viewDashboard(){
   var an=String(ui.anneeDash), ca=caAnnee(an);
   var totB=r2(ca.biens.reduce(function(a,b){return a+b;},0));
@@ -652,6 +664,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
+  viewTodoDashboard()+
   prepBanner+
   viewSmartDashboard()+
   viewAteliersPreview()+
@@ -3290,6 +3303,16 @@ function handleAction(action){
     return;
   }
 
+  
+  if(action==="dash-todo-save"){
+    state.todoList=val("dashTodoList")||"";
+    state.shoppingList=val("dashShoppingList")||"";
+    saveCache();
+    toast("Todo list enregistrée.");
+    render();
+    return;
+  }
+
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
@@ -3586,6 +3609,7 @@ document.addEventListener("click", function(e){
 });
 document.addEventListener("input", function(e){
   var t=e.target;
+  if(t && (t.id==="dashTodoList" || t.id==="dashShoppingList")){ state.todoList=val("dashTodoList")||""; state.shoppingList=val("dashShoppingList")||""; saveCache(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
     var l=ui.wizard&&ui.wizard.lignes.find(function(x){return x.id===id;}); if(l){ l[field]=t.value; refreshWizardTotals(); }
