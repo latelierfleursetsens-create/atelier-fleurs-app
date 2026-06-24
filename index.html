@@ -1674,7 +1674,7 @@ function viewTresorerie(){
 function todaySmartData(){
   var today=todayISO();
   var commandes=(state.commandes||[]).filter(function(c){return !c.fait;}).length;
-  var aEncaisser=(state.factures||[]).filter(function(f){return f.statut!=="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0);
+  var aEncaisser=pendingPaymentsTotal();
   var echues=(state.factures||[]).filter(function(f){return f.statut!=="payee" && f.echeance && f.echeance<today;}).length;
   var mariagesLivraison=(state.mariages||[]).filter(function(m){return !mariageTermine(m) && m.dateLivraison && m.dateLivraison>=today && m.dateLivraison<=addDays(today,7);}).length;
   var devisRelance=(state.devis||[]).filter(function(d){return d.statut==="envoye" && d.date && d.date<=addDays(today,-7);}).length;
