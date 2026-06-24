@@ -1755,7 +1755,9 @@ function atelierParticipantsCount(a){
 
 function atelierTypeOptions(selected){
   selected=selected||"EVJF";
-  return ATELIER_TYPES.map(function(t){return '<option value="'+esc(t)+'"'+(selected===t?' selected':'')+'>'+esc(t)+'</option>';}).join("");
+  var opts=ATELIER_TYPES.slice();
+  if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
+  return opts.map(function(t){return '<option value="'+esc(t)+'"'+(selected===t?' selected':'')+'>'+esc(t)+'</option>';}).join("");
 }
 function atelierStatutOptions(selected){
   selected=selected||"booke";
@@ -1841,7 +1843,8 @@ function captureAtelier(a){
   a.heure=val("atHeure")||"";
   a.lieu=val("atLieu")||"";
   a.theme=val("atTheme")||"";
-  a.type=val("atType")||"EVJF";
+  var typeCustom=(val("atTypeCustom")||"").trim();
+  a.type=typeCustom || val("atType") || "EVJF";
   a.statut=val("atStatut")||"booke";
   a.organisatrice=val("atOrganisatrice")||"";
   a.structureNom=val("atStructureNom")||"";
@@ -1873,9 +1876,10 @@ function viewAtelierDetail(a){
     '<div class="inline"><div><label class="field"><span>Date</span><input id="atDate" type="date" value="'+esc(a.date||"")+'"></label></div>'+
     '<div><label class="field"><span>Heure</span><input id="atHeure" value="'+esc(a.heure||"")+'" placeholder="Ex : 14h-16h"></label></div></div>'+
     '<div class="inline"><div><label class="field"><span>Lieu</span><input id="atLieu" value="'+esc(a.lieu||"")+'" placeholder="Ex : La Barjo Onnaing"></label></div>'+
-    '<div><label class="field"><span>Contexte</span><select id="atType">'+atelierTypeOptions(a.type)+'</select></label></div></div>'+
-    '<div class="inline"><div><label class="field"><span>Thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Bridgerton, couronne florale…"></label></div>'+
-    '<div><label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label></div></div>';
+    '<div><label class="field"><span>Thème</span><select id="atType">'+atelierTypeOptions(a.type)+'</select><div class="hint">Choisis un thème existant ou indique un thème libre ci-dessous.</div></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Thème libre</span><input id="atTypeCustom" value="'+esc((a.type&&ATELIER_TYPES.indexOf(a.type)<0)?a.type:"")+'" placeholder="Ex : Fête des mères, Halloween, Baby shower…"></label></div>'+
+    '<div><label class="field"><span>Nom / détails du thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Couronne florale pastel, Bridgerton…"></label></div></div>'+
+    '<label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label>';
 
   if(mode==="structure"){
     html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier en structure</h3>'+
