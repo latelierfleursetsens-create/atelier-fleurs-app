@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.28 production PDF validés : devis, factures, synthèses -->
-<!-- Version V2.0.28 saisie stabilisée - basé sur V2.0.28 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.29 production PDF validés : devis, factures, synthèses -->
+<!-- Version V2.0.29 saisie stabilisée - basé sur V2.0.29 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -231,7 +231,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, todoEditing:false, todoSaveTimer:null, globalSearch:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"" };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -863,7 +863,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.28 — PDF validés</b><div class="muted" style="font-size:12px;margin-top:4px;">Devis, factures et synthèses corrigés pour les pièces jointes email.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.29 — PDF validés + paiements en liste</b><div class="muted" style="font-size:12px;margin-top:4px;">Devis, factures, synthèses et choix de paiement corrigés.</div></div>'+
 
 
 
@@ -874,12 +874,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.28 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.29 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.28</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.29</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -1226,18 +1226,35 @@ function paymentOptions(selected){
     return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+esc(p)+'</option>';
   }).join("");
 }
-function normalizePaymentMethod(v){
-  v=(v||"").trim();
-  if(!v) return "Non renseigné";
-  var low=v.toLowerCase();
-  if(low==="especes"||low==="espèces") return "Espèces";
-  if(low==="cb"||low.indexOf("carte")>=0) return "CB";
-  if(low==="wero") return "Wero";
-  if(low.indexOf("virement")>=0) return "Virement";
-  if(low.indexOf("site")>=0||low.indexOf("internet")>=0||low.indexOf("web")>=0||low.indexOf("squarespace")>=0) return "Site internet";
-  if(low.indexOf("chèque")>=0||low.indexOf("cheque")>=0) return "Chèque";
-  return v;
+
+function paymentOptions(){
+  return ["", "Espèces", "CB", "Virement", "Wero", "PayPal", "Chèque", "Stripe", "Squarespace", "Site internet", "Autre"];
 }
+function normalizePaymentMethod(v){
+  v=String(v||"").trim();
+  var n=v.toLowerCase();
+  if(!n) return "";
+  if(n==="espece"||n==="espèces"||n==="especes") return "Espèces";
+  if(n==="carte"||n==="cb"||n==="carte bancaire") return "CB";
+  if(n==="virement bancaire") return "Virement";
+  if(n==="site"||n==="site internet") return "Site internet";
+  return v.charAt(0).toUpperCase()+v.slice(1);
+}
+function paymentSelectHtml(id, value){
+  value=normalizePaymentMethod(value||"");
+  var opts=paymentOptions();
+  var h='<select id="'+id+'">';
+  opts.forEach(function(o){
+    h+='<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+(o?esc(o):'À choisir')+'</option>';
+  });
+  h+='</select>';
+  return h;
+}
+function askPaymentMethodModal(title, message, current, callback){
+  ui.paymentPrompt={title:title||"Moyen de paiement", message:message||"Choisis le moyen de paiement dans la liste.", value:current||"", callback:callback};
+  renderModal();
+}
+
 
 
 var MARIAGE_LIVRAISON_MODES=["Remise en main propre","Envoi","Retrait domicile"];
@@ -3750,6 +3767,22 @@ async function envoyerDocumentEmail(kind, doc){
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
+
+  if(action==="payment-prompt-ok"){
+    var sel=document.getElementById("paymentPromptSelect");
+    var val=sel?sel.value:"";
+    var cb=ui.paymentPrompt&&ui.paymentPrompt.callback;
+    ui.paymentPrompt=null;
+    renderModal();
+    if(typeof cb==="function") cb(val);
+    return;
+  }
+  if(action==="payment-prompt-cancel"){
+    ui.paymentPrompt=null;
+    renderModal();
+    return;
+  }
+
   // nav
   
   
@@ -3983,9 +4016,45 @@ function handleAction(action){
     return;
   }
   // factures depuis devis
-  if(action.indexOf("fac-acompte-")===0){ var d1=findDevis(action.slice(12)); if(d1){ var fa=creerAcompte(d1); if(fa){ var mpA=prompt("Moyen de paiement si l'acompte est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpA!==null && mpA.trim()){ fa.paiementClient=mpA.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée."); } return; }
-  if(action.indexOf("fac-solde-")===0){ var d2=findDevis(action.slice(10)); if(d2){ var fs=creerSolde(d2); if(fs){ var mpS=prompt("Moyen de paiement si le solde est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpS!==null && mpS.trim()){ fs.paiementClient=mpS.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); } return; }
-  if(action.indexOf("fac-totale-")===0){ var d3=findDevis(action.slice(11)); if(d3){ var ft=creerTotale(d3); if(ft){ var mpT=prompt("Moyen de paiement si la facture est déjà réglée ?\nLaisse vide si non payée.", ""); if(mpT!==null && mpT.trim()){ ft.paiementClient=mpT.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture créée."); } return; }
+  if(action.indexOf("fac-acompte-")===0){
+    var d1=findDevis(action.slice(12));
+    if(d1){
+      var fa=creerAcompte(d1);
+      if(fa){
+        askPaymentMethodModal("Moyen de paiement", "Si l'acompte est déjà réglé, choisis le moyen de paiement. Laisse « À choisir » si non payé.", fa.paiementClient||"", function(mpA){
+          if(mpA){ fa.paiementClient=mpA; }
+          saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée.");
+        });
+      }else{ saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée."); }
+    }
+    return;
+  }
+  if(action.indexOf("fac-solde-")===0){
+    var d2=findDevis(action.slice(10));
+    if(d2){
+      var fs=creerSolde(d2);
+      if(fs){
+        askPaymentMethodModal("Moyen de paiement", "Si le solde est déjà réglé, choisis le moyen de paiement. Laisse « À choisir » si non payé.", fs.paiementClient||"", function(mpS){
+          if(mpS){ fs.paiementClient=mpS; }
+          saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée.");
+        });
+      }else{ saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); }
+    }
+    return;
+  }
+  if(action.indexOf("fac-totale-")===0){
+    var d3=findDevis(action.slice(11));
+    if(d3){
+      var ft=creerTotale(d3);
+      if(ft){
+        askPaymentMethodModal("Moyen de paiement", "Si la facture est déjà réglée, choisis le moyen de paiement. Laisse « À choisir » si non payée.", ft.paiementClient||"", function(mpT){
+          if(mpT){ ft.paiementClient=mpT; }
+          saveCache(); ui.tab="factures"; render(); toast("Facture créée.");
+        });
+      }else{ saveCache(); ui.tab="factures"; render(); toast("Facture créée."); }
+    }
+    return;
+  }
 
   // factures
   if(action.indexOf("fac-preview-")===0){ var f=state.factures.find(function(x){return x.id===action.slice(12);}); ui.preview={kind:"facture",doc:f}; renderModal(); return; }
@@ -3993,9 +4062,10 @@ function handleAction(action){
   if(action.indexOf("fac-paymethod-")===0){
     var fm=state.factures.find(function(x){return x.id===action.slice(14);});
     if(fm){
-      var current=fm.paiementClient||"";
-      var mp=prompt("Moyen de paiement de la cliente ?\nExemples : CB, Espèces, Virement, Wero, PayPal, Chèque", current);
-      if(mp!==null){ fm.paiementClient=mp.trim(); saveCache(); render(); toast("Moyen de paiement enregistré."); }
+      askPaymentMethodModal("Moyen de paiement", "Choisis le moyen de paiement de la cliente.", fm.paiementClient||"", function(mp){
+        fm.paiementClient=mp||"";
+        saveCache(); render(); toast("Moyen de paiement enregistré.");
+      });
     }
     return;
   }
@@ -4003,8 +4073,7 @@ function handleAction(action){
     var fp=state.factures.find(function(x){return x.id===action.slice(9);});
     if(fp){
       fp.statut="payee"; fp.datePaiement=fp.datePaiement||todayISO();
-      if(!fp.paiementClient){ var pm=prompt("Moyen de paiement : Espèces, CB, Wero, Virement, Site internet, Chèque", ""); if(pm!==null) fp.paiementClient=normalizePaymentMethod(pm); }
-      if(!fp.paiementClient){ var mp=prompt("Moyen de paiement de la cliente ? (CB, Espèces, Virement, Wero…)", ""); if(mp!==null) fp.paiementClient=mp.trim(); }
+      /* paiement choisi via modal */
       if(fp.type==="acompte" && fp.devisId){
         var dd=findDevis(fp.devisId);
         var hasSolde=facturesDuDevis(fp.devisId).some(function(f){return f.type==="solde";});
