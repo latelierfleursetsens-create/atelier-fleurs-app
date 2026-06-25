@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.25 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.26 PDF : doc uid_test + cache test -->
+<!-- Version V2.0.26 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -42,6 +43,7 @@ document.addEventListener("click", function(e){
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
@@ -182,7 +184,7 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ MODE TEST — données séparées de la production — essais uniquement</div>
+<div class="test-banner">⚠️ MODE TEST — génération PDF V2.0.26 — données séparées de la production</div>
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion TEST…</span>
   <span style="flex:1"></span>
@@ -866,7 +868,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ Version TEST V2.0.25 — environnement séparé</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version utilise un espace test séparé. Elle ne doit pas être utilisée pour les vraies clientes.</div></div>'+
+  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ Version TEST V2.0.26 — PDF fiables intégrés</b><div class="muted" style="font-size:12px;margin-top:4px;">Environnement test séparé. Utilise cette version pour tester les devis, factures et synthèses PDF.</div></div>'+
 
 
 
@@ -876,12 +878,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.25 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.26 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.25</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.26</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -2872,7 +2874,7 @@ function viewDoc(p){
     '<p style="margin:0;">'+esc(s.mentionTVA)+'.</p></div>';
   var signature = kind==="devis" ? '<div style="margin-top:26px;font-size:12px;"><div style="font-weight:700;">Bon pour accord</div><div class="muted">Date et signature du client :</div><div style="margin-top:30px;border-top:1px solid var(--line);width:200px;"></div></div>' : '';
   return '<div class="modal" id="modal"><div class="modal-inner">'+
-    '<div class="modal-actions"><button class="btn gold" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn primary" data-action="doc-email">Envoyer par email</button><button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
+    '<div class="modal-actions"><button class="btn gold" data-action="doc-v26-pdf">Télécharger PDF fiable</button><button class="btn ghost" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn primary" data-action="doc-email">Envoyer par email</button><button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
     '<div class="doc" id="doc">'+
       '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;"><div>'+logoImg+emetteur+'</div><div style="text-align:right;">'+rightInfo+'</div></div>'+
       client+acEncart+
@@ -3162,7 +3164,7 @@ function viewMariageDetail(m){
     '<label class="field"><span>Ses besoins / mémo</span><textarea id="marBesoins" style="min-height:90px;" placeholder="Style souhaité, fleurs préférées, contraintes, échanges…">'+esc(m.besoins)+'</textarea></label>'+
     '<div class="section-title">Synthèse</div>'+
     '<label class="field"><span>Synthèse de son bouquet de mariée et de son projet</span><textarea id="marSynthese" style="min-height:150px;" placeholder="Ex : Bouquet de mariée bohème, tons blanc cassé et sauge, format aérien, accessoires souhaités, détails importants du projet…">'+esc(m.synthese||"")+'</textarea><div class="hint">Cette synthèse pourra être jointe automatiquement au mail du devis ou de la facture.</div></label>'+
-    '<button class="btn gold" data-action="mar-save">Enregistrer la fiche</button></div>';
+    '<div class="row-actions"><button class="btn gold" data-action="mar-save">Enregistrer la fiche</button><button class="btn soft" data-action="mar-v26-synthese">Télécharger synthèse test</button><button class="btn ghost" data-action="mar-v26-devis">Télécharger devis lié test</button></div></div>';
   // devis & facture
   var df='<div class="card"><h3 style="margin:0 0 10px;">Devis & facture</h3>'+
     '<div class="checkrow"><input type="checkbox" data-action="mar-devis-toggle"'+(m.devisEnvoye?" checked":"")+'><div style="flex:1;"><b>Devis</b> édité &amp; envoyé</div><input id="marDevisDate" type="date" style="width:auto;" value="'+esc(m.devisDate||"")+'"></div>'+
@@ -3477,65 +3479,11 @@ function buildSyntheseElementForPdf(m, doc){
   return {holder:holder,node:clone};
 }
 async function pdfBase64FromSynthese(m, doc){
-  if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
-  if(!m || !String(m.synthese||"").trim()) throw new Error("Synthèse vide");
-  var built=buildSyntheseElementForPdf(m, doc);
-  if(!built) throw new Error("Synthèse introuvable");
   try{
-    try{
-      if(document.fonts && document.fonts.ready) await document.fonts.ready;
-      var imgs=Array.prototype.slice.call(built.node.querySelectorAll("img"));
-      await Promise.all(imgs.map(function(img){
-        return new Promise(function(resolve){
-          if(img.complete) return resolve();
-          img.onload=resolve; img.onerror=resolve;
-          setTimeout(resolve,1200);
-        });
-      }));
-      await new Promise(function(resolve){ setTimeout(resolve,180); });
-    }catch(waitErr){ console.warn("Attente ressources synthèse impossible", waitErr); }
-
-    var opt={
-      margin:[10,30,22,30],
-      filename:syntheseFileName(m),
-      image:{type:"jpeg",quality:0.98},
-      html2canvas:{
-        scale:2,
-        useCORS:true,
-        allowTaint:true,
-        backgroundColor:"#ffffff",
-        scrollX:0,
-        scrollY:0,
-        windowWidth:900,
-        x:0,
-        y:0
-      },
-      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
-      pagebreak:{mode:["css","legacy"],avoid:["h1","h2","h3","li",".avoid-break"]}
-    };
-    var worker=html2pdf().set(opt).from(built.node).toPdf();
-    var pdf=await worker.get("pdf");
-
-    // Ancien correctif conservé, mais uniquement s'il y a plusieurs pages.
-    // Il sert à retirer la page blanche générée par certains navigateurs.
-    try{
-      if(pdf && pdf.getNumberOfPages && pdf.getNumberOfPages()>1){
-        pdf.setPage(1);
-        // On ne supprime que si le texte de synthèse contient un récapitulatif qui commence volontairement page 2.
-        // Sinon on garde la première page pour éviter un document vide.
-        var txt=String(m.synthese||"").toLowerCase();
-        if(txt.indexOf("récapitulatif de la commande")>=0 || txt.indexOf("recapitulatif de la commande")>=0){
-          pdf.deletePage(1);
-        }
-      }
-    }catch(cleanErr){ console.warn("Nettoyage page blanche impossible", cleanErr); }
-
-    var dataUri=pdf.output("datauristring");
-    var b64=String(dataUri).split(",")[1]||"";
-    if(!b64 || b64.length<1000) throw new Error("PDF synthèse généré vide");
-    return b64;
-  } finally {
-    if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
+    return pdfV26Synthese(m, doc);
+  }catch(e){
+    console.error("PDF fiable synthèse impossible", e);
+    throw e;
   }
 }
 
@@ -3553,22 +3501,328 @@ function buildDocElementForPdf(kind, doc){
   document.body.appendChild(holder);
   return {holder:holder,node:clone};
 }
+async 
+/* ===================== PDF robustes V2.0.26 ===================== */
+function pdfV26Ctor(){
+  if(window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+  if(window.jsPDF) return window.jsPDF;
+  return null;
+}
+function pdfV26Clean(v){
+  return String(v==null?"":v)
+    .replace(/[“”]/g,'"')
+    .replace(/[‘’]/g,"'")
+    .replace(/[–—]/g,"-")
+    .replace(/[•✓✔]/g,"-")
+    .replace(/[❤♥]/g,"coeur")
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g,"")
+    .replace(/\t/g,"  ");
+}
+function pdfV26B64(pdf){
+  var data=pdf.output("datauristring");
+  var b64=String(data).split(",")[1]||"";
+  if(!b64 || b64.length<1000) throw new Error("PDF généré vide");
+  return b64;
+}
+function pdfV26Setup(){
+  var Ctor=pdfV26Ctor();
+  if(!Ctor) throw new Error("jsPDF non chargé");
+  var pdf=new Ctor({unit:"mm",format:"a4",orientation:"portrait"});
+  return {pdf:pdf,x:16,y:18,w:178,bottom:278,page:1};
+}
+function pdfV26Header(ctx, title, subtitle){
+  var pdf=ctx.pdf;
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(18);
+  pdf.setTextColor(90,34,48);
+  pdf.text(pdfV26Clean(title), 105, ctx.y, {align:"center"});
+  ctx.y += 7;
+  if(subtitle){
+    pdf.setFont("helvetica","normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(131,117,104);
+    pdf.text(pdfV26Clean(subtitle), 105, ctx.y, {align:"center"});
+    ctx.y += 7;
+  }
+  pdf.setDrawColor(231,221,213);
+  pdf.line(ctx.x, ctx.y, ctx.x+ctx.w, ctx.y);
+  ctx.y += 8;
+}
+function pdfV26NewPage(ctx){
+  ctx.pdf.addPage();
+  ctx.page += 1;
+  ctx.y = 18;
+  ctx.pdf.setFont("helvetica","normal");
+  ctx.pdf.setFontSize(8);
+  ctx.pdf.setTextColor(131,117,104);
+  ctx.pdf.text(pdfV26Clean(state.settings.nomEntreprise||"L'Atelier Fleurs & Sens"), ctx.x, 10);
+  ctx.pdf.text(String(ctx.page), ctx.x+ctx.w, 10, {align:"right"});
+  ctx.pdf.setDrawColor(231,221,213);
+  ctx.pdf.line(ctx.x, 13, ctx.x+ctx.w, 13);
+  ctx.y = 20;
+}
+function pdfV26Ensure(ctx, h){
+  if(ctx.y + h > ctx.bottom) pdfV26NewPage(ctx);
+}
+function pdfV26Text(ctx, txt, x, w, lineH, opts){
+  opts=opts||{};
+  var pdf=ctx.pdf;
+  pdf.setFont("helvetica", opts.bold?"bold":"normal");
+  pdf.setFontSize(opts.size||10);
+  if(opts.color) pdf.setTextColor(opts.color[0],opts.color[1],opts.color[2]);
+  else pdf.setTextColor(48,52,55);
+  var lines=pdf.splitTextToSize(pdfV26Clean(txt), w);
+  for(var i=0;i<lines.length;i++){
+    pdfV26Ensure(ctx, lineH+2);
+    pdf.text(lines[i], x, ctx.y);
+    ctx.y += lineH;
+  }
+}
+function pdfV26Title(ctx, txt){
+  pdfV26Ensure(ctx, 10);
+  pdfV26Text(ctx, txt, ctx.x, ctx.w, 5.5, {bold:true,size:13,color:[90,34,48]});
+  ctx.y += 2;
+}
+function pdfV26Company(ctx){
+  var s=state.settings||{}, pdf=ctx.pdf;
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(12);
+  pdf.setTextColor(90,34,48);
+  pdf.text(pdfV26Clean(s.nomEntreprise||"L'Atelier Fleurs & Sens"), ctx.x, ctx.y);
+  ctx.y += 5;
+  pdf.setFont("helvetica","normal");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(131,117,104);
+  var arr=[];
+  if(s.entrepreneur) arr.push(s.entrepreneur+" - Entrepreneur individuel (EI)");
+  if(s.adresse) arr.push(s.adresse);
+  if(s.tel) arr.push("Tél : "+s.tel);
+  if(s.email) arr.push(s.email);
+  if(s.site) arr.push(s.site);
+  if(s.siret) arr.push("SIRET : "+s.siret);
+  for(var i=0;i<arr.length;i++){
+    pdf.text(pdfV26Clean(arr[i]), ctx.x, ctx.y);
+    ctx.y += 4;
+  }
+  ctx.y += 4;
+}
+function pdfV26Client(ctx, c){
+  c=c||{};
+  var pdf=ctx.pdf;
+  pdfV26Ensure(ctx, 28);
+  pdf.setFillColor(251,248,244);
+  pdf.setDrawColor(231,221,213);
+  pdf.roundedRect(ctx.x, ctx.y, ctx.w, 26, 3, 3, "FD");
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(8);
+  pdf.setTextColor(131,117,104);
+  pdf.text("CLIENT", ctx.x+5, ctx.y+6);
+  pdf.setFontSize(10);
+  pdf.setTextColor(48,52,55);
+  pdf.text(pdfV26Clean(c.nom||"Client"), ctx.x+5, ctx.y+12);
+  pdf.setFont("helvetica","normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(131,117,104);
+  var info=[];
+  if(c.adresse) info.push(c.adresse);
+  if(c.email) info.push(c.email);
+  if(c.tel) info.push(c.tel);
+  if(c.canal) info.push("Canal : "+c.canal);
+  if(info.length){
+    var lines=pdf.splitTextToSize(pdfV26Clean(info.join("  |  ")), ctx.w-10);
+    pdf.text(lines, ctx.x+5, ctx.y+18);
+  }
+  ctx.y += 34;
+}
+function pdfV26Document(kind, doc){
+  var ctx=pdfV26Setup(), pdf=ctx.pdf, s=state.settings||{};
+  var t=totals(doc.lignes||[], s.partService);
+  var title = kind==="devis" ? "DEVIS N° "+(doc.numero||"") : ((TYPE_FAC[doc.type]||"FACTURE").toUpperCase()+" N° "+(doc.numero||""));
+  var sub = "Date : "+frDate(doc.date||todayISO());
+  if(kind==="devis" && doc.validite) sub += " · Valable jusqu'au : "+frDate(doc.validite);
+  if(kind==="facture" && doc.echeance) sub += " · Échéance : "+frDate(doc.echeance);
+  if(kind==="facture" && doc.devisNumero) sub += " · Réf. devis : "+doc.devisNumero;
+
+  pdfV26Header(ctx, title, sub);
+  pdfV26Company(ctx);
+  pdfV26Client(ctx, doc.client||{});
+
+  if(kind==="facture" && doc.type==="acompte"){
+    pdfV26Text(ctx, "Acompte de "+(doc.pourcentage||0)+" % sur le devis "+(doc.devisNumero||"")+" d'un montant total de "+euro(doc.devisTotal||0)+".", ctx.x, ctx.w, 4.5, {size:9});
+    ctx.y += 4;
+  }
+
+  pdfV26Title(ctx, "Détail");
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(90,34,48);
+  pdf.text("Désignation", ctx.x, ctx.y);
+  pdf.text("Qté", 126, ctx.y, {align:"right"});
+  pdf.text("Prix unit.", 158, ctx.y, {align:"right"});
+  pdf.text("Total", ctx.x+ctx.w, ctx.y, {align:"right"});
+  ctx.y += 4;
+  pdf.setDrawColor(231,221,213);
+  pdf.line(ctx.x, ctx.y, ctx.x+ctx.w, ctx.y);
+  ctx.y += 5;
+
+  var lignes=doc.lignes||[];
+  for(var i=0;i<lignes.length;i++){
+    var l=lignes[i];
+    var designation=(l.designation||"")+" ("+(l.type==="service"?"service":"bien")+")";
+    var descLines=pdf.splitTextToSize(pdfV26Clean(designation), 92);
+    var rowH=Math.max(8, descLines.length*4.4+2);
+    pdfV26Ensure(ctx, rowH+4);
+    pdf.setFont("helvetica","normal");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(48,52,55);
+    pdf.text(descLines, ctx.x, ctx.y);
+    pdf.text(pdfV26Clean(l.qte||""), 126, ctx.y, {align:"right"});
+    pdf.text(euro(l.prix||0), 158, ctx.y, {align:"right"});
+    pdf.text(euro((Number(l.qte)||0)*(Number(l.prix)||0)), ctx.x+ctx.w, ctx.y, {align:"right"});
+    ctx.y += rowH;
+    pdf.setDrawColor(231,221,213);
+    pdf.line(ctx.x, ctx.y, ctx.x+ctx.w, ctx.y);
+    ctx.y += 3;
+  }
+
+  ctx.y += 4;
+  function tr(label, value, bold){
+    pdfV26Ensure(ctx, 7);
+    pdf.setFont("helvetica", bold?"bold":"normal");
+    pdf.setFontSize(bold?10.5:9);
+    pdf.setTextColor(bold?90:48,bold?34:52,bold?48:55);
+    pdf.text(pdfV26Clean(label), 116, ctx.y);
+    pdf.text(pdfV26Clean(value), ctx.x+ctx.w, ctx.y, {align:"right"});
+    ctx.y += bold?7:5.5;
+  }
+  tr("Total", euro(doc.totalInitial||t.total), false);
+  tr(s.mentionTVA||"TVA non applicable", "-", false);
+  if(kind==="facture" && doc.remiseMontant){
+    tr("Réduction", "- "+euro(doc.remiseMontant), false);
+    tr("Total après réduction", euro(doc.totalApresRemise||((doc.totalInitial||t.total)-doc.remiseMontant)), false);
+  }
+  if(kind==="facture" && doc.type==="acompte") tr("Acompte "+(doc.pourcentage||0)+" %", euro(doc.montant||0), true);
+  else if(kind==="facture" && doc.type==="solde"){
+    tr("Acompte déjà versé ("+(doc.acompteNumero||"")+")", "- "+euro(doc.acompteMontant||0), false);
+    tr("Net à payer (solde)", euro(doc.montant||0), true);
+  }else if(kind==="facture" && doc.type==="totale"){
+    if(doc.acompteDejaPaye) tr("Acompte déjà payé", "- "+euro(doc.acompteDejaPaye), false);
+    tr(doc.acompteDejaPaye?"Solde à payer":"Net à payer", euro(doc.montant||0), true);
+  }else if(kind==="devis") tr("Net à payer", euro(t.total), true);
+
+  ctx.y += 4;
+  pdfV26Title(ctx, "Mentions");
+  if(doc.notes){ pdfV26Text(ctx, doc.notes, ctx.x, ctx.w, 4.2, {size:8.7,color:[131,117,104]}); ctx.y += 2; }
+  pdfV26Text(ctx, "Conditions de règlement : "+(s.conditionsReglement||""), ctx.x, ctx.w, 4.2, {size:8.7,color:[131,117,104]});
+  if(s.iban||s.bic) pdfV26Text(ctx, "Règlement par virement : "+(s.iban?("IBAN "+s.iban):"")+" "+(s.bic?(" - BIC "+s.bic):""), ctx.x, ctx.w, 4.2, {size:8.7,color:[131,117,104]});
+  if(kind==="facture" && s.penalites) pdfV26Text(ctx, s.penalites, ctx.x, ctx.w, 4.2, {size:8.7,color:[131,117,104]});
+  if(s.mentionTVA) pdfV26Text(ctx, s.mentionTVA+".", ctx.x, ctx.w, 4.2, {size:8.7,color:[131,117,104]});
+
+  if(kind==="devis"){
+    ctx.y += 7;
+    pdfV26Ensure(ctx, 25);
+    pdf.setFont("helvetica","bold");
+    pdf.setFontSize(10);
+    pdf.setTextColor(48,52,55);
+    pdf.text("Bon pour accord", ctx.x, ctx.y);
+    ctx.y += 6;
+    pdf.setFont("helvetica","normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(131,117,104);
+    pdf.text("Date et signature du client :", ctx.x, ctx.y);
+    ctx.y += 16;
+    pdf.setDrawColor(231,221,213);
+    pdf.line(ctx.x, ctx.y, ctx.x+60, ctx.y);
+  }
+  return pdfV26B64(pdf);
+}
+function pdfV26Synthese(m, sourceDoc){
+  var ctx=pdfV26Setup(), pdf=ctx.pdf;
+  pdfV26Header(ctx, "Synthèse de votre projet", "Date : "+frDate(todayISO())+(sourceDoc&&sourceDoc.numero?" · Document associé : "+sourceDoc.numero:""));
+  pdfV26Company(ctx);
+
+  pdfV26Ensure(ctx, 30);
+  pdf.setFillColor(251,248,244);
+  pdf.setDrawColor(231,221,213);
+  pdf.roundedRect(ctx.x, ctx.y, ctx.w, 28, 3, 3, "FD");
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(8);
+  pdf.setTextColor(131,117,104);
+  pdf.text("PROJET MARIAGE", ctx.x+5, ctx.y+6);
+  pdf.setFontSize(10.5);
+  pdf.setTextColor(90,34,48);
+  pdf.text(pdfV26Clean((m&&m.nom)||"Projet mariage"), ctx.x+5, ctx.y+13);
+  pdf.setFont("helvetica","normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(131,117,104);
+  var info=[];
+  if(m&&m.dateMariage) info.push("Mariage : "+frDate(m.dateMariage));
+  if(m&&m.dateLivraison) info.push("Livraison : "+frDate(m.dateLivraison)+(m.modeLivraison?" - "+m.modeLivraison:""));
+  if(m&&m.theme) info.push("Thème/couleurs : "+m.theme);
+  if(info.length) pdf.text(pdf.splitTextToSize(pdfV26Clean(info.join("  |  ")), ctx.w-10), ctx.x+5, ctx.y+20);
+  ctx.y += 36;
+
+  pdfV26Title(ctx, "Synthèse");
+  var synth=pdfV26Clean((m&&m.synthese)||"").trim();
+  if(!synth) throw new Error("Synthèse vide");
+  var lines=synth.split(/\n/);
+  for(var i=0;i<lines.length;i++){
+    var p=String(lines[i]||"").trim();
+    if(!p){ ctx.y += 3; continue; }
+    var low=p.toLowerCase();
+    if(low.indexOf("récapitulatif de la commande")>=0 || low.indexOf("recapitulatif de la commande")>=0){
+      pdfV26NewPage(ctx);
+    }
+    var isTitle=/^#{1,3}\s+/.test(p);
+    var isList=/^[-*]\s+/.test(p);
+    p=p.replace(/^#{1,3}\s+/,"").replace(/^[-*]\s+/,"").replace(/\*\*/g,"");
+    if(/^---+$/.test(p)){
+      pdfV26Ensure(ctx, 8);
+      pdf.setDrawColor(231,221,213);
+      pdf.line(ctx.x, ctx.y, ctx.x+ctx.w, ctx.y);
+      ctx.y += 6;
+    }else if(isTitle){
+      pdfV26Title(ctx, p);
+    }else if(isList){
+      pdfV26Text(ctx, "- "+p, ctx.x+4, ctx.w-4, 4.8, {size:9.8});
+      ctx.y += 1;
+    }else{
+      pdfV26Text(ctx, p, ctx.x, ctx.w, 4.8, {size:9.8});
+      ctx.y += 3;
+    }
+  }
+
+  ctx.y += 5;
+  pdfV26Ensure(ctx, 20);
+  pdf.setDrawColor(231,221,213);
+  pdf.line(ctx.x, ctx.y, ctx.x+ctx.w, ctx.y);
+  ctx.y += 6;
+  pdfV26Text(ctx, "Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.", ctx.x, ctx.w, 4.2, {size:8.5,color:[131,117,104]});
+  return pdfV26B64(pdf);
+}
+function pdfV26Download(base64, filename){
+  var a=document.createElement("a");
+  a.href="data:application/pdf;base64,"+base64;
+  a.download=filename||"document.pdf";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function pdfV26TestDoc(kind, doc){
+  try{ pdfV26Download(pdfV26Document(kind, doc), docFileName(kind, doc)); toast("PDF fiable téléchargé."); }
+  catch(e){ console.error(e); toast("PDF fiable impossible : "+(e&&e.message?e.message:e)); }
+}
+function pdfV26TestSynthese(m, doc){
+  try{ pdfV26Download(pdfV26Synthese(m, doc), syntheseFileName(m)); toast("Synthèse test téléchargée."); }
+  catch(e){ console.error(e); toast("Synthèse test impossible : "+(e&&e.message?e.message:e)); }
+}
+
 async function pdfBase64FromDoc(kind, doc){
-  if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
-  var built=buildDocElementForPdf(kind, doc);
-  if(!built) throw new Error("Document introuvable");
   try{
-    var opt={
-      margin:8,
-      filename:docFileName(kind, doc),
-      image:{type:"jpeg",quality:0.98},
-      html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff"},
-      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}
-    };
-    var dataUri=await html2pdf().set(opt).from(built.node).outputPdf("datauristring");
-    return String(dataUri).split(",")[1];
-  } finally {
-    if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
+    return pdfV26Document(kind, doc);
+  }catch(e){
+    console.error("PDF fiable principal impossible", e);
+    throw e;
   }
 }
 
@@ -3658,6 +3912,27 @@ function handleAction(action){
   // nav
   
   
+  
+  if(action==="doc-v26-pdf"){
+    if(ui.preview && ui.preview.doc){ pdfV26TestDoc(ui.preview.kind, ui.preview.doc); }
+    return;
+  }
+  if(action==="mar-v26-synthese"){
+    var ms26=getMariage(ui.mariageOpen);
+    if(ms26){ captureMariageInputs(); saveCache(); pdfV26TestSynthese(ms26, ms26.devisLie?findDevis(ms26.devisLie):null); }
+    return;
+  }
+  if(action==="mar-v26-devis"){
+    var md26=getMariage(ui.mariageOpen);
+    if(!md26){ return; }
+    captureMariageInputs(); saveCache();
+    if(!md26.devisLie){ toast("Aucun devis lié à cette fiche mariage."); return; }
+    var dv26=findDevis(md26.devisLie);
+    if(!dv26){ toast("Devis lié introuvable."); return; }
+    pdfV26TestDoc("devis", dv26);
+    return;
+  }
+
   if(action.indexOf("global-open-")===0){
     var rest=action.slice(12);
     var dash=rest.indexOf("-");
