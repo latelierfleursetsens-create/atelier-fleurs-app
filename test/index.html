@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.25-S1R saisie stabilisée - basé sur TEST V2.0.25-S1R : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.25-S1M saisie stabilisée - basé sur TEST V2.0.25-S1M : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -182,7 +182,7 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1RR — même base que la prod — uniquement pour vérifier que /test charge</div>
+<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1MR — même base que la prod — uniquement pour vérifier que /test charge</div>
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
@@ -866,7 +866,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1R — retour version test fonctionnelle</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
+  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1M — micro-correction marges synthèse</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
 
 
 
@@ -876,12 +876,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1R — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1M — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1R</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1M</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3436,21 +3436,21 @@ function viewSyntheseDoc(m, sourceDoc){
   var ref=(sourceDoc&&sourceDoc.numero)?'<div style="font-size:10.5px;color:#837568;margin-top:2px;">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
   var synth=String((m&&m.synthese)||"").trim();
 
-  return '<div id="synthese-doc" style="width:150mm;max-width:150mm;margin:0;background:#fff;color:#303437;font-family:Segoe UI,Arial,sans-serif;font-size:11px;line-height:1.34;box-sizing:border-box;padding:0 0 18mm 0;overflow:visible;overflow-wrap:break-word;word-break:break-word;white-space:normal;opacity:1;visibility:visible;">'+
+  return '<div id="synthese-doc" style="width:170mm;max-width:170mm;margin:0;background:#fff;color:#303437;font-family:Segoe UI,Arial,sans-serif;font-size:10.5px;line-height:1.34;box-sizing:border-box;padding:0 0 18mm 0;overflow:visible;overflow-wrap:break-word;word-break:break-word;white-space:normal;opacity:1;visibility:visible;">'+
 
-    '<div style="text-align:center;margin:0 0 10px 0;page-break-inside:avoid;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;">'+
-      '<div style="font-family:Georgia,serif;font-size:20px;line-height:1.2;color:#5A2230;font-weight:700;margin:0;white-space:normal;max-width:150mm;">Synthèse de votre projet</div>'+
+    '<div style="text-align:center;margin:0 0 10px 0;page-break-inside:avoid;page-break-after:avoid;max-width:170mm;overflow-wrap:break-word;">'+
+      '<div style="font-family:Georgia,serif;font-size:18px;line-height:1.2;color:#5A2230;font-weight:700;margin:0;white-space:normal;max-width:170mm;">Synthèse de votre projet</div>'+
       '<div style="font-size:10.5px;color:#837568;margin-top:5px;">Date : '+frDate(todayISO())+'</div>'+ref+
     '</div>'+
 
-    '<div style="border-bottom:1px solid #E7DDD5;padding-bottom:8px;margin-bottom:12px;page-break-inside:avoid;max-width:150mm;overflow-wrap:break-word;">'+
+    '<div style="border-bottom:1px solid #E7DDD5;padding-bottom:8px;margin-bottom:12px;page-break-inside:avoid;max-width:170mm;overflow-wrap:break-word;">'+
       '<img src="'+logo+'" alt="logo" style="width:58px;height:auto;display:block;margin:0 0 5px 0;">'+
-      '<div style="font-family:Georgia,serif;font-size:16px;color:#5A2230;font-weight:700;margin:0 0 3px 0;max-width:150mm;overflow-wrap:break-word;">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
+      '<div style="font-family:Georgia,serif;font-size:14px;color:#5A2230;font-weight:700;margin:0 0 3px 0;max-width:170mm;overflow-wrap:break-word;">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
       '<div style="font-size:10.5px;color:#837568;">'+esc(s.entrepreneur||"Élodie Rouzé")+'</div>'+
-      '<div style="font-size:10.5px;color:#837568;max-width:150mm;overflow-wrap:break-word;word-break:break-word;">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div>'+
+      '<div style="font-size:10.5px;color:#837568;max-width:170mm;overflow-wrap:break-word;word-break:break-word;">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div>'+
     '</div>'+
 
-    '<div style="background:#FBF8F4;border:1px solid #E7DDD5;border-radius:8px;padding:8px 10px;margin-bottom:12px;page-break-inside:avoid;max-width:150mm;box-sizing:border-box;overflow-wrap:break-word;word-break:break-word;">'+
+    '<div style="background:#FBF8F4;border:1px solid #E7DDD5;border-radius:8px;padding:8px 10px;margin-bottom:12px;page-break-inside:avoid;max-width:170mm;box-sizing:border-box;overflow-wrap:break-word;word-break:break-word;">'+
       '<div style="font-size:9.5px;text-transform:uppercase;color:#837568;font-weight:700;letter-spacing:.02em;">Projet mariage</div>'+
       '<div style="font-weight:700;color:#5A2230;font-size:13px;margin-top:2px;max-width:100%;overflow-wrap:break-word;">'+esc((m&&m.nom)||"Projet mariage")+'</div>'+
       ((m&&m.dateMariage)?'<div style="font-size:10.5px;color:#837568;margin-top:2px;max-width:100%;overflow-wrap:break-word;">Date du mariage : '+frDate(m.dateMariage)+'</div>':'')+
@@ -3458,12 +3458,12 @@ function viewSyntheseDoc(m, sourceDoc){
       ((m&&m.theme)?'<div style="font-size:10.5px;color:#837568;max-width:100%;overflow-wrap:break-word;">Thème / couleurs : '+esc(m.theme)+'</div>':'')+
     '</div>'+
 
-    '<div style="margin-top:6px;max-width:150mm;overflow-wrap:break-word;word-break:break-word;">'+
-      '<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:15px;margin:0 0 6px;page-break-after:avoid;max-width:150mm;">Synthèse</h2>'+
-      '<div style="font-size:11px;line-height:1.36;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;min-height:30mm;">'+syntheseTextHtml(synth)+'</div>'+
+    '<div style="margin-top:6px;max-width:170mm;overflow-wrap:break-word;word-break:break-word;">'+
+      '<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:14px;margin:0 0 6px;page-break-after:avoid;max-width:170mm;">Synthèse</h2>'+
+      '<div style="font-size:10.5px;line-height:1.36;max-width:170mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;min-height:30mm;">'+syntheseTextHtml(synth)+'</div>'+
     '</div>'+
 
-    '<div style="margin-top:12px;padding-top:7px;border-top:1px solid #E7DDD5;font-size:9.5px;color:#837568;page-break-inside:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;">'+
+    '<div style="margin-top:12px;padding-top:7px;border-top:1px solid #E7DDD5;font-size:9.5px;color:#837568;page-break-inside:avoid;max-width:170mm;overflow-wrap:break-word;word-break:break-word;">'+
       'Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.'+
     '</div>'+
   '</div>';
@@ -3486,8 +3486,8 @@ function buildSyntheseElementForPdf(m, doc){
   holder.style.position="fixed";
   holder.style.left="-10000px";
   holder.style.top="0";
-  holder.style.width="150mm";
-  holder.style.maxWidth="150mm";
+  holder.style.width="170mm";
+  holder.style.maxWidth="170mm";
   holder.style.background="#ffffff";
   holder.style.boxSizing="border-box";
   holder.style.zIndex="-1";
@@ -3522,11 +3522,11 @@ async function pdfBase64FromSynthese(m, doc){
     }catch(waitErr){ console.warn("Attente ressources synthèse impossible", waitErr); }
 
     var opt={
-      margin:[10,30,22,30],
+      margin:[12,15,16,15],
       filename:syntheseFileName(m),
       image:{type:"jpeg",quality:0.98},
       html2canvas:{
-        scale:2,
+        scale:1.6,
         useCORS:true,
         allowTaint:true,
         backgroundColor:"#ffffff",
@@ -3544,18 +3544,7 @@ async function pdfBase64FromSynthese(m, doc){
 
     // Ancien correctif conservé, mais uniquement s'il y a plusieurs pages.
     // Il sert à retirer la page blanche générée par certains navigateurs.
-    try{
-      if(pdf && pdf.getNumberOfPages && pdf.getNumberOfPages()>1){
-        pdf.setPage(1);
-        // On ne supprime que si le texte de synthèse contient un récapitulatif qui commence volontairement page 2.
-        // Sinon on garde la première page pour éviter un document vide.
-        var txt=String(m.synthese||"").toLowerCase();
-        if(txt.indexOf("récapitulatif de la commande")>=0 || txt.indexOf("recapitulatif de la commande")>=0){
-          pdf.deletePage(1);
-        }
-      }
-    }catch(cleanErr){ console.warn("Nettoyage page blanche impossible", cleanErr); }
-
+    // Test S1M : aucune suppression automatique de page pour éviter de perdre du contenu.
     var dataUri=pdf.output("datauristring");
     var b64=String(dataUri).split(",")[1]||"";
     if(!b64 || b64.length<1000) throw new Error("PDF synthèse généré vide");
