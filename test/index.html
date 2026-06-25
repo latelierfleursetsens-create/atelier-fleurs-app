@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.25-S1D saisie stabilisée - basé sur TEST V2.0.25-S1D : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.25-S1E saisie stabilisée - basé sur TEST V2.0.25-S1E : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -182,7 +182,7 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1DR — même base que la prod — uniquement pour vérifier que /test charge</div>
+<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1ER — même base que la prod — uniquement pour vérifier que /test charge</div>
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
@@ -866,7 +866,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1D — marges synthèse + devis/factures</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
+  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1E — devis/factures compacts</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
 
 
 
@@ -876,12 +876,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1D — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1E — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1D</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1E</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -2834,28 +2834,28 @@ function viewParams(){
 function viewDoc(p){
   var s=state.settings, doc=p.doc, kind=p.kind, t=totals(doc.lignes,s.partService);
   var titre = kind==="devis" ? "DEVIS N° "+esc(doc.numero) : TYPE_FAC[doc.type].toUpperCase()+" N° "+esc(doc.numero);
-  var emetteur='<div class="serif" style="font-size:22px;color:var(--bordeaux);font-weight:700;">'+esc(s.nomEntreprise)+'</div>'+
-    '<div class="muted" style="font-size:12px;margin-top:4px;">'+
+  var emetteur='<div class="serif" style="font-size:19px;color:var(--bordeaux);font-weight:700;">'+esc(s.nomEntreprise)+'</div>'+
+    '<div class="muted" style="font-size:10.5px;margin-top:3px;">'+
     (s.entrepreneur?'<div>'+esc(s.entrepreneur)+' — Entrepreneur individuel (EI)</div>':'')+
     (s.adresse?'<div>'+esc(s.adresse)+'</div>':'')+(s.tel?'<div>Tél : '+esc(s.tel)+'</div>':'')+
     (s.email?'<div>'+esc(s.email)+'</div>':'')+(s.site?'<div>'+esc(s.site)+'</div>':'')+(s.siret?'<div>SIRET : '+esc(s.siret)+'</div>':'')+'</div>';
-  var logoImg=(state.logo&&state.logo.length>10)?'<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:200px;object-fit:contain;display:block;margin-bottom:8px;">':'';
-  var rightInfo='<div class="serif" style="font-size:17px;color:var(--bordeaux);font-weight:700;">'+titre+'</div>'+
+  var logoImg=(state.logo&&state.logo.length>10)?'<img src="'+state.logo+'" alt="logo" style="max-height:52px;max-width:150px;object-fit:contain;display:block;margin-bottom:8px;">':'';
+  var rightInfo='<div class="serif" style="font-size:16px;color:var(--bordeaux);font-weight:700;">'+titre+'</div>'+
     '<div class="muted" style="font-size:12px;margin-top:4px;">Date : '+frDate(doc.date)+'</div>'+
     (kind==="devis"?'<div class="muted" style="font-size:12px;">Valable jusqu\'au : '+frDate(doc.validite)+'</div>':'')+
     (kind==="facture"&&doc.echeance?'<div class="muted" style="font-size:12px;">Échéance : '+frDate(doc.echeance)+'</div>':'')+
     (kind==="facture"&&doc.devisNumero?'<div class="muted" style="font-size:12px;">Réf. devis : '+esc(doc.devisNumero)+'</div>':'')+
     (kind==="facture"&&doc.paiementClient?'<div class="muted" style="font-size:12px;">Moyen de paiement : '+esc(doc.paiementClient)+'</div>':'');
-  var client='<div style="margin-top:22px;padding:12px;background:var(--cream);border-radius:8px;max-width:320px;margin-left:auto;">'+
+  var client='<div style="margin-top:12px;padding:9px;background:var(--cream);border-radius:8px;max-width:320px;margin-left:auto;">'+
     '<div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;">Client</div>'+
     '<div style="font-weight:600;">'+esc(doc.client&&doc.client.nom)+'</div>'+
     (doc.client&&doc.client.adresse?'<div style="font-size:12px;">'+esc(doc.client.adresse)+'</div>':'')+
     (doc.client&&doc.client.email?'<div style="font-size:12px;">'+esc(doc.client.email)+'</div>':'')+
     (doc.client&&doc.client.tel?'<div style="font-size:12px;">'+esc(doc.client.tel)+'</div>':'')+(doc.client&&doc.client.canal?'<div style="font-size:12px;">Canal : '+esc(doc.client.canal)+'</div>':'')+'</div>';
   var acEncart = (kind==="facture"&&doc.type==="acompte")?'<div style="margin-top:20px;padding:12px;border:1px solid var(--line);border-radius:8px;">Acompte de '+doc.pourcentage+' % sur le devis '+esc(doc.devisNumero)+' d\'un montant total de <b>'+euro(doc.devisTotal)+'</b>.</div>':'';
-  var rows=doc.lignes.map(function(l){ return '<tr style="border-bottom:1px solid var(--line);"><td style="padding:8px;overflow-wrap:break-word;word-break:normal;">'+esc(l.designation)+' <span class="muted" style="font-size:11px;">('+(l.type==="service"?"service":"bien")+')</span></td><td style="text-align:center;padding:8px;">'+esc(l.qte)+'</td><td style="text-align:right;padding:8px;">'+euro(l.prix)+'</td><td style="text-align:right;padding:8px;">'+euro(num(l.qte)*num(l.prix))+'</td></tr>'; }).join("");
-  function tr(l,v,strong,soft){ return '<div class="totrow" style="font-size:'+(strong?15:13)+'px;font-weight:'+(strong?700:400)+';color:'+(strong?"var(--bordeaux)":soft?"var(--ink-s)":"var(--ink)")+';'+(strong?"border-top:2px solid var(--bordeaux);":"")+'"><span>'+esc(l)+'</span><span>'+v+'</span></div>'; }
-  var tot='<div style="display:flex;justify-content:flex-end;margin-top:14px;"><div style="min-width:280px;">'+
+  var rows=doc.lignes.map(function(l){ return '<tr style="border-bottom:1px solid var(--line);"><td style="padding:6px;overflow-wrap:break-word;word-break:normal;">'+esc(l.designation)+' <span class="muted" style="font-size:11px;">('+(l.type==="service"?"service":"bien")+')</span></td><td style="text-align:center;padding:6px;">'+esc(l.qte)+'</td><td style="text-align:right;padding:6px;">'+euro(l.prix)+'</td><td style="text-align:right;padding:6px;">'+euro(num(l.qte)*num(l.prix))+'</td></tr>'; }).join("");
+  function tr(l,v,strong,soft){ return '<div class="totrow" style="font-size:'+(strong?14:12)+'px;font-weight:'+(strong?700:400)+';color:'+(strong?"var(--bordeaux)":soft?"var(--ink-s)":"var(--ink)")+';'+(strong?"border-top:2px solid var(--bordeaux);":"")+'"><span>'+esc(l)+'</span><span>'+v+'</span></div>'; }
+  var tot='<div style="display:flex;justify-content:flex-end;margin-top:8px;"><div style="min-width:280px;">'+
     tr("Total",euro(doc.totalInitial||t.total))+tr(s.mentionTVA,"—",false,true)+
     (kind==="facture"&&doc.remiseMontant?tr("Réduction","– "+euro(doc.remiseMontant),false,true):'')+
     (kind==="facture"&&doc.remiseMontant?tr("Total après réduction",euro(doc.totalApresRemise||((doc.totalInitial||t.total)-doc.remiseMontant)),false,false):'')+
@@ -2864,19 +2864,19 @@ function viewDoc(p){
     (kind==="facture"&&doc.type==="totale"&&doc.acompteDejaPaye?tr("Acompte déjà payé","– "+euro(doc.acompteDejaPaye),false,true):'')+
     (kind==="facture"&&doc.type==="totale"?tr((doc.acompteDejaPaye?"Solde à payer":"Net à payer"),euro(doc.montant),true):'')+
     (kind==="devis"?tr("Net à payer",euro(t.total),true):'')+'</div></div>';
-  var mentions='<div style="margin-top:22px;font-size:12px;color:var(--ink-s);">'+
+  var mentions='<div style="margin-top:12px;font-size:10.5px;color:var(--ink-s);">'+
     (doc.notes?'<p style="margin:0 0 8px;">'+esc(doc.notes)+'</p>':'')+
     '<p style="margin:0 0 6px;"><b>Conditions de règlement :</b> '+esc(s.conditionsReglement)+'</p>'+
     ((s.iban||s.bic)?'<p style="margin:0 0 6px;"><b>Règlement par virement :</b> '+(s.iban?"IBAN "+esc(s.iban):"")+' '+(s.bic?"· BIC "+esc(s.bic):"")+'</p>':'')+
     (kind==="facture"?'<p style="margin:0 0 6px;">'+esc(s.penalites)+'</p>':'')+
     '<p style="margin:0;">'+esc(s.mentionTVA)+'.</p></div>';
-  var signature = kind==="devis" ? '<div style="margin-top:26px;font-size:12px;"><div style="font-weight:700;">Bon pour accord</div><div class="muted">Date et signature du client :</div><div style="margin-top:30px;border-top:1px solid var(--line);width:200px;"></div></div>' : '';
+  var signature = kind==="devis" ? '<div style="margin-top:14px;font-size:10.5px;"><div style="font-weight:700;">Bon pour accord</div><div class="muted">Date et signature du client :</div><div style="margin-top:18px;border-top:1px solid var(--line);width:200px;"></div></div>' : '';
   return '<div class="modal" id="modal"><div class="modal-inner">'+
     '<div class="modal-actions"><button class="btn gold" data-action="doc-test-pdf-only">Télécharger PDF test</button><button class="btn ghost" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn primary" data-action="doc-email">Envoyer par email</button><button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
     '<div class="doc" id="doc" style="width:180mm;max-width:180mm;box-sizing:border-box;overflow-wrap:break-word;word-break:normal;">'+
       '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;"><div>'+logoImg+emetteur+'</div><div style="text-align:right;">'+rightInfo+'</div></div>'+
       client+acEncart+
-      '<table style="margin-top:20px;width:100%;table-layout:fixed;border-collapse:collapse;"><thead><tr style="font-size:12px;"><th style="text-align:left;padding:8px;width:52%;">Désignation</th><th style="text-align:center;padding:8px;width:60px;">Qté</th><th style="text-align:right;padding:8px;width:100px;">Prix unit.</th><th style="text-align:right;padding:8px;width:100px;">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<table style="margin-top:12px;width:100%;table-layout:fixed;border-collapse:collapse;"><thead><tr style="font-size:11px;"><th style="text-align:left;padding:6px;width:52%;">Désignation</th><th style="text-align:center;padding:6px;width:55px;">Qté</th><th style="text-align:right;padding:6px;width:92px;">Prix unit.</th><th style="text-align:right;padding:6px;width:92px;">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       tot+mentions+signature+
     '</div></div></div>';
 }
@@ -3593,10 +3593,10 @@ async function pdfBase64FromDoc(kind, doc){
   if(!built) throw new Error("Document introuvable");
   try{
     var opt={
-      margin:[10,12,14,12],
+      margin:[8,12,12,12],
       filename:docFileName(kind, doc),
       image:{type:"jpeg",quality:0.98},
-      html2canvas:{scale:1.6,useCORS:true,backgroundColor:"#ffffff"},
+      html2canvas:{scale:1.55,useCORS:true,backgroundColor:"#ffffff"},
       jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
       pagebreak:{mode:["css","legacy"],avoid:["tr",".totrow"]}
     };
