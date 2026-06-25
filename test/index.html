@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.25-S1 saisie stabilisée - basé sur TEST V2.0.25-S1 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.25-S2 saisie stabilisée - basé sur TEST V2.0.25-S2 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -182,7 +182,7 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1 — même base que la prod — uniquement pour vérifier que /test charge</div>
+<div class="test-banner">⚠️ VERSION TEST V2.0.25-S2 — même base que la prod — uniquement pour vérifier que /test charge</div>
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
@@ -866,7 +866,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1 — bouton synthèse test</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
+  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S2 — mise en page synthèse propre</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
 
 
 
@@ -876,12 +876,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S2 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S2</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3162,7 +3162,7 @@ function viewMariageDetail(m){
     '<label class="field"><span>Ses besoins / mémo</span><textarea id="marBesoins" style="min-height:90px;" placeholder="Style souhaité, fleurs préférées, contraintes, échanges…">'+esc(m.besoins)+'</textarea></label>'+
     '<div class="section-title">Synthèse</div>'+
     '<label class="field"><span>Synthèse de son bouquet de mariée et de son projet</span><textarea id="marSynthese" style="min-height:150px;" placeholder="Ex : Bouquet de mariée bohème, tons blanc cassé et sauge, format aérien, accessoires souhaités, détails importants du projet…">'+esc(m.synthese||"")+'</textarea><div class="hint">Cette synthèse pourra être jointe automatiquement au mail du devis ou de la facture.</div></label>'+
-    '<div class="row-actions"><button class="btn gold" data-action="mar-save">Enregistrer la fiche</button><button class="btn soft" data-action="mar-test-synthese-only">Télécharger synthèse test</button></div></div>';
+    '<div class="row-actions"><button class="btn gold" data-action="mar-save">Enregistrer la fiche</button><button class="btn soft" data-action="mar-test-synthese-only">Télécharger synthèse propre test</button></div></div>';
   // devis & facture
   var df='<div class="card"><h3 style="margin:0 0 10px;">Devis & facture</h3>'+
     '<div class="checkrow"><input type="checkbox" data-action="mar-devis-toggle"'+(m.devisEnvoye?" checked":"")+'><div style="flex:1;"><b>Devis</b> édité &amp; envoyé</div><input id="marDevisDate" type="date" style="width:auto;" value="'+esc(m.devisDate||"")+'"></div>'+
@@ -3341,30 +3341,177 @@ function findMariageForDoc(kind, doc){
   return candidates.find(function(m){return String(m.synthese||"").trim();}) || candidates[0] || null;
 }
 
+async 
+function cleanSynthesePlainText(txt){
+  return String(txt||"")
+    .replace(/[“”]/g,'"')
+    .replace(/[‘’]/g,"'")
+    .replace(/\r/g,"")
+    .trim();
+}
+function cleanSyntheseLineHtml(line){
+  var l=esc(cleanSynthesePlainText(line).trim());
+  l=l.replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>");
+  return l;
+}
+function syntheseCleanHtml(txt){
+  txt=cleanSynthesePlainText(txt);
+  if(!txt) return '<p class="muted">Aucune synthèse renseignée pour ce projet.</p>';
+  var raw=txt.split(/\n/);
+  var html='';
+  var inList=false;
+
+  function closeList(){
+    if(inList){ html+='</ul>'; inList=false; }
+  }
+  function isTitle(line){
+    var l=line.trim();
+    if(/^#{1,3}\s+/.test(l)) return true;
+    if(l.length<=55 && !/[.!?:;]$/.test(l) && !/^[-*]\s+/.test(l) && l.split(/\s+/).length<=7) return true;
+    return false;
+  }
+  raw.forEach(function(line){
+    var original=String(line||"");
+    var l=original.trim();
+    if(!l){ closeList(); return; }
+
+    var lower=l.toLowerCase();
+    if(lower.indexOf("récapitulatif de la commande")>=0 || lower.indexOf("recapitulatif de la commande")>=0){
+      closeList();
+      html+='<div class="page-break"></div><h2>'+cleanSyntheseLineHtml(l.replace(/^#{1,3}\s+/,""))+'</h2>';
+      return;
+    }
+
+    if(/^[-*✓✔]\s+/.test(l)){
+      if(!inList){ html+='<ul>'; inList=true; }
+      html+='<li>'+cleanSyntheseLineHtml(l.replace(/^[-*✓✔]\s+/,""))+'</li>';
+      return;
+    }
+
+    if(/^---+$/.test(l)){
+      closeList();
+      html+='<hr>';
+      return;
+    }
+
+    if(isTitle(l)){
+      closeList();
+      var clean=l.replace(/^#{1,3}\s+/,"");
+      html+='<h3>'+cleanSyntheseLineHtml(clean)+'</h3>';
+      return;
+    }
+
+    closeList();
+    html+='<p>'+cleanSyntheseLineHtml(l)+'</p>';
+  });
+  closeList();
+  return html;
+}
+function buildCleanSyntheseNode(m, sourceDoc){
+  var s=state.settings||{};
+  var logo=(state.logo&&state.logo.length>10)?state.logo:"";
+  var wrap=document.createElement("div");
+  wrap.id="clean-synthese-holder";
+  wrap.style.position="fixed";
+  wrap.style.left="0";
+  wrap.style.top="0";
+  wrap.style.width="210mm";
+  wrap.style.background="#ffffff";
+  wrap.style.zIndex="-1";
+  wrap.style.pointerEvents="none";
+  wrap.style.opacity="1";
+
+  var ref=(sourceDoc&&sourceDoc.numero)?'<div class="small">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
+  wrap.innerHTML =
+    '<style>'+
+    '#clean-synthese-pdf{width:180mm;margin:0 auto;background:#fff;color:#303437;font-family:Segoe UI,Arial,sans-serif;font-size:11.2px;line-height:1.42;box-sizing:border-box;padding:0;word-break:normal;overflow-wrap:break-word;}'+
+    '#clean-synthese-pdf .top{text-align:center;margin:0 0 12px 0;}'+
+    '#clean-synthese-pdf .title{font-family:Georgia,serif;font-size:21px;line-height:1.2;color:#5A2230;font-weight:700;margin:0 0 5px 0;white-space:normal;}'+
+    '#clean-synthese-pdf .small{font-size:10px;color:#837568;margin-top:2px;}'+
+    '#clean-synthese-pdf .brand{border-bottom:1px solid #E7DDD5;padding:0 0 9px 0;margin:0 0 12px 0;display:flex;gap:10px;align-items:center;}'+
+    '#clean-synthese-pdf .brand img{width:42px;height:auto;display:block;flex:0 0 auto;}'+
+    '#clean-synthese-pdf .brand-name{font-family:Georgia,serif;font-size:16px;color:#5A2230;font-weight:700;margin:0 0 2px 0;}'+
+    '#clean-synthese-pdf .project{background:#FBF8F4;border:1px solid #E7DDD5;border-radius:8px;padding:9px 11px;margin:0 0 14px 0;page-break-inside:avoid;}'+
+    '#clean-synthese-pdf .label{font-size:9px;text-transform:uppercase;color:#837568;font-weight:700;letter-spacing:.03em;margin-bottom:3px;}'+
+    '#clean-synthese-pdf .project-name{font-weight:700;color:#5A2230;font-size:13px;margin-bottom:3px;}'+
+    '#clean-synthese-pdf h2{font-family:Georgia,serif;color:#5A2230;font-size:15px;margin:0 0 8px 0;page-break-after:avoid;}'+
+    '#clean-synthese-pdf h3{font-family:Georgia,serif;color:#5A2230;font-size:13.5px;margin:12px 0 5px 0;page-break-after:avoid;}'+
+    '#clean-synthese-pdf p{margin:0 0 6px 0;}'+
+    '#clean-synthese-pdf ul{margin:4px 0 8px 18px;padding:0;}'+
+    '#clean-synthese-pdf li{margin:2px 0;page-break-inside:avoid;}'+
+    '#clean-synthese-pdf hr{border:none;border-top:1px solid #E7DDD5;margin:10px 0;}'+
+    '#clean-synthese-pdf .page-break{page-break-before:always;break-before:page;height:0;margin:0;padding:0;}'+
+    '#clean-synthese-pdf .footer{margin-top:12px;padding-top:8px;border-top:1px solid #E7DDD5;font-size:9.5px;color:#837568;page-break-inside:avoid;}'+
+    '</style>'+
+    '<div id="clean-synthese-pdf">'+
+      '<div class="top">'+
+        '<div class="title">Synthèse de votre projet</div>'+
+        '<div class="small">Date : '+frDate(todayISO())+'</div>'+ref+
+      '</div>'+
+      '<div class="brand">'+
+        (logo?'<img src="'+logo+'" alt="logo">':'')+
+        '<div><div class="brand-name">'+esc(s.nomEntreprise||"L’Atelier Fleurs & Sens")+'</div>'+
+        '<div class="small">'+esc(s.entrepreneur||"Élodie Rouzé")+'</div>'+
+        '<div class="small">'+esc(s.email||"latelierfleursetsens@gmail.com")+' · '+esc(s.tel||"06 50 91 63 59")+'</div></div>'+
+      '</div>'+
+      '<div class="project">'+
+        '<div class="label">Projet mariage</div>'+
+        '<div class="project-name">'+esc((m&&m.nom)||"Projet mariage")+'</div>'+
+        ((m&&m.dateMariage)?'<div class="small">Date du mariage : '+frDate(m.dateMariage)+'</div>':'')+
+        ((m&&m.dateLivraison)?'<div class="small">Livraison : '+frDate(m.dateLivraison)+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+'</div>':'')+
+        ((m&&m.theme)?'<div class="small">Thème / couleurs : '+esc(m.theme)+'</div>':'')+
+      '</div>'+
+      '<h2>Synthèse</h2>'+
+      '<div>'+syntheseCleanHtml(m&&m.synthese)+'</div>'+
+      '<div class="footer">Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.</div>'+
+    '</div>';
+  document.body.appendChild(wrap);
+  return wrap;
+}
 async function testDownloadSyntheseMariage(){
   var m=getMariage(ui.mariageOpen);
   if(!m){ toast("Fiche mariage introuvable."); return; }
+  var holder=null;
   try{
     captureMariageInputs();
     if(!String(m.synthese||"").trim()){
       toast("La synthèse est vide.");
       return;
     }
-    toast("Préparation de la synthèse test…");
+    toast("Préparation de la synthèse propre…");
     var linkedDoc = m.devisLie ? findDevis(m.devisLie) : null;
-    var b64 = await pdfBase64FromSynthese(m, linkedDoc);
+    holder=buildCleanSyntheseNode(m, linkedDoc);
+    try{
+      if(document.fonts && document.fonts.ready) await document.fonts.ready;
+      await new Promise(function(resolve){ setTimeout(resolve,250); });
+    }catch(e){}
+    var node=holder.querySelector("#clean-synthese-pdf");
+    var opt={
+      margin:[12,12,14,12],
+      filename:syntheseFileName(m),
+      image:{type:"jpeg",quality:0.98},
+      html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",windowWidth:900,scrollX:0,scrollY:0},
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
+      pagebreak:{mode:["css","legacy"]}
+    };
+    var dataUri=await html2pdf().set(opt).from(node).outputPdf("datauristring");
+    var b64=String(dataUri).split(",")[1]||"";
+    if(!b64 || b64.length<1000) throw new Error("PDF vide");
     var a=document.createElement("a");
     a.href="data:application/pdf;base64,"+b64;
     a.download=syntheseFileName(m);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    toast("Synthèse test téléchargée.");
+    toast("Synthèse propre téléchargée.");
   }catch(e){
     console.error(e);
     toast("Téléchargement synthèse impossible : "+(e&&e.message?e.message:e));
+  }finally{
+    if(holder && holder.parentNode) holder.parentNode.removeChild(holder);
   }
 }
+
 
 function syntheseFileName(m){
   var base="synthese-de-votre-projet-"+((m&&m.nom)||"mariage");
