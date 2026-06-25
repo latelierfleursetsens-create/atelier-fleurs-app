@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.22 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.23 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -862,7 +862,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.22 — saisie Todo stabilisée</b><div class="muted" style="font-size:12px;margin-top:4px;">Si tu vois ce message, le correctif anti-rafraîchissement est bien installé.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.23 — saisie Todo stabilisée</b><div class="muted" style="font-size:12px;margin-top:4px;">Si tu vois ce message, le correctif anti-rafraîchissement est bien installé.</div></div>'+
 
   '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
@@ -870,12 +870,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.22 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.23 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.22</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.23</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3470,153 +3470,67 @@ function buildSyntheseElementForPdf(m, doc){
   document.body.appendChild(holder);
   return {holder:holder,node:clone};
 }
-async 
-function cleanPdfText(txt){
-  return String(txt||"")
-    .replace(/[“”]/g,'"')
-    .replace(/[‘’]/g,"'")
-    .replace(/[•]/g,"-")
-    .replace(/[✓✔]/g,"-")
-    .replace(/[❤♥]/g,"coeur")
-    .replace(/[\u{1F300}-\u{1FAFF}]/gu,"")
-    .replace(/\t/g,"  ");
-}
-function addPdfWrappedText(pdf, text, x, y, maxWidth, lineHeight, options){
-  options=options||{};
-  text=cleanPdfText(text);
-  var lines=pdf.splitTextToSize(text, maxWidth);
-  lines.forEach(function(line){
-    if(y>270){
-      pdf.addPage();
-      y=20;
-      if(options.pageHeader) y=options.pageHeader(pdf,y);
-    }
-    pdf.text(line, x, y);
-    y+=lineHeight;
-  });
-  return y;
-}
-function pdfSyntheseManualBase64(m, sourceDoc){
-  var JsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
-  if(!JsPDF) throw new Error("Générateur PDF indisponible");
-  var pdf=new JsPDF({unit:"mm",format:"a4",orientation:"portrait"});
-  var s=state.settings||{};
-  var margin=18, pageW=210, maxW=pageW-(margin*2), y=18;
-  var bordeaux=[90,34,48], ink=[48,52,55], muted=[131,117,104], line=[231,221,213], bg=[251,248,244];
-
-  function setColor(c){ pdf.setTextColor(c[0],c[1],c[2]); }
-  function line(){ pdf.setDrawColor(line[0],line[1],line[2]); pdf.line(margin,y,pageW-margin,y); y+=6; }
-  function pageHeader(){
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(9); setColor(muted);
-    pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin, 12);
-    pdf.setDrawColor(line[0],line[1],line[2]); pdf.line(margin,15,pageW-margin,15);
-    return 24;
-  }
-  function ensure(space){
-    if(y+space>275){ pdf.addPage(); y=pageHeader(); }
-  }
-
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(20); setColor(bordeaux);
-  pdf.text("Synthèse de votre projet", pageW/2, y, {align:"center"}); y+=8;
-  pdf.setFont("helvetica","normal"); pdf.setFontSize(10); setColor(muted);
-  pdf.text("Date : "+frDate(todayISO()), pageW/2, y, {align:"center"}); y+=6;
-  if(sourceDoc&&sourceDoc.numero){ pdf.text("Document associé : "+cleanPdfText(sourceDoc.numero), pageW/2, y, {align:"center"}); y+=7; }
-
-  y+=2;
-  try{
-    if(state.logo && /^data:image\//.test(state.logo)){
-      pdf.addImage(state.logo, "JPEG", margin, y, 22, 22);
-      pdf.setFont("helvetica","bold"); pdf.setFontSize(15); setColor(bordeaux);
-      pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin+28, y+7);
-      pdf.setFont("helvetica","normal"); pdf.setFontSize(10); setColor(muted);
-      pdf.text(cleanPdfText(s.entrepreneur||"Élodie Rouzé"), margin+28, y+13);
-      pdf.text(cleanPdfText((s.email||"latelierfleursetsens@gmail.com")+" · "+(s.tel||"06 50 91 63 59")), margin+28, y+19);
-      y+=28;
-    }else{
-      pdf.setFont("helvetica","bold"); pdf.setFontSize(15); setColor(bordeaux);
-      pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin, y); y+=6;
-      pdf.setFont("helvetica","normal"); pdf.setFontSize(10); setColor(muted);
-      pdf.text(cleanPdfText(s.entrepreneur||"Élodie Rouzé"), margin, y); y+=5;
-      pdf.text(cleanPdfText((s.email||"latelierfleursetsens@gmail.com")+" · "+(s.tel||"06 50 91 63 59")), margin, y); y+=8;
-    }
-  }catch(imgErr){
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(15); setColor(bordeaux);
-    pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin, y); y+=8;
-  }
-  line();
-
-  ensure(28);
-  pdf.setFillColor(bg[0],bg[1],bg[2]); pdf.setDrawColor(line[0],line[1],line[2]);
-  pdf.roundedRect(margin, y, maxW, 28, 3, 3, "FD");
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(9); setColor(muted);
-  pdf.text("PROJET MARIAGE", margin+5, y+7);
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); setColor(bordeaux);
-  pdf.text(cleanPdfText((m&&m.nom)||"Projet mariage"), margin+5, y+14);
-  pdf.setFont("helvetica","normal"); pdf.setFontSize(9); setColor(muted);
-  var info=[];
-  if(m&&m.dateMariage) info.push("Mariage : "+frDate(m.dateMariage));
-  if(m&&m.dateLivraison) info.push("Livraison : "+frDate(m.dateLivraison)+(m.modeLivraison?" · "+m.modeLivraison:""));
-  if(m&&m.theme) info.push("Thème/couleurs : "+m.theme);
-  var infoTxt=cleanPdfText(info.join("  |  "));
-  if(infoTxt) pdf.text(pdf.splitTextToSize(infoTxt, maxW-10), margin+5, y+21);
-  y+=36;
-
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(14); setColor(bordeaux);
-  pdf.text("Synthèse", margin, y); y+=7;
-
-  pdf.setFont("helvetica","normal"); pdf.setFontSize(10.5); setColor(ink);
-  var synth=cleanPdfText((m&&m.synthese)||"").trim();
-  if(!synth) synth="Aucune synthèse renseignée pour ce projet.";
-
-  var paragraphs=synth.split(/\n/);
-  paragraphs.forEach(function(raw){
-    var p=raw.trim();
-    if(!p){ y+=3; return; }
-
-    var isTitle=/^#{1,3}\s+/.test(p);
-    var isList=/^[-*]\s+/.test(p);
-    p=p.replace(/^#{1,3}\s+/,"").replace(/^[-*]\s+/,"").replace(/\*\*/g,"");
-
-    if(p.toLowerCase().indexOf("récapitulatif de la commande")>=0 || p.toLowerCase().indexOf("recapitulatif de la commande")>=0){
-      pdf.addPage();
-      y=pageHeader();
-    }
-
-    if(isTitle){
-      ensure(12);
-      pdf.setFont("helvetica","bold"); pdf.setFontSize(12); setColor(bordeaux);
-      y=addPdfWrappedText(pdf,p,margin,y,maxW,5.5,{pageHeader:pageHeader});
-      y+=2;
-      pdf.setFont("helvetica","normal"); pdf.setFontSize(10.5); setColor(ink);
-    }else if(isList){
-      ensure(8);
-      y=addPdfWrappedText(pdf,"• "+p,margin+4,y,maxW-4,5,{pageHeader:pageHeader});
-      y+=1;
-    }else if(/^---+$/.test(p)){
-      ensure(8); line();
-    }else{
-      y=addPdfWrappedText(pdf,p,margin,y,maxW,5,{pageHeader:pageHeader});
-      y+=3;
-    }
-  });
-
-  ensure(20);
-  y+=4; line();
-  pdf.setFont("helvetica","normal"); pdf.setFontSize(9); setColor(muted);
-  y=addPdfWrappedText(pdf,"Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.",margin,y,maxW,4.5,{pageHeader:pageHeader});
-
-  var dataUri=pdf.output("datauristring");
-  var b64=String(dataUri).split(",")[1]||"";
-  if(!b64 || b64.length<1000) throw new Error("PDF synthèse généré vide");
-  return b64;
-}
-
 async function pdfBase64FromSynthese(m, doc){
+  if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
   if(!m || !String(m.synthese||"").trim()) throw new Error("Synthèse vide");
+  var built=buildSyntheseElementForPdf(m, doc);
+  if(!built) throw new Error("Synthèse introuvable");
+  try{
+    try{
+      if(document.fonts && document.fonts.ready) await document.fonts.ready;
+      var imgs=Array.prototype.slice.call(built.node.querySelectorAll("img"));
+      await Promise.all(imgs.map(function(img){
+        return new Promise(function(resolve){
+          if(img.complete) return resolve();
+          img.onload=resolve; img.onerror=resolve;
+          setTimeout(resolve,1200);
+        });
+      }));
+      await new Promise(function(resolve){ setTimeout(resolve,180); });
+    }catch(waitErr){ console.warn("Attente ressources synthèse impossible", waitErr); }
 
-  // V2.0.22 : génération PDF fiable, sans capture visuelle html2canvas.
-  // On génère le PDF ligne par ligne avec pagination automatique.
-  return pdfSyntheseManualBase64(m, doc);
+    var opt={
+      margin:[10,30,22,30],
+      filename:syntheseFileName(m),
+      image:{type:"jpeg",quality:0.98},
+      html2canvas:{
+        scale:2,
+        useCORS:true,
+        allowTaint:true,
+        backgroundColor:"#ffffff",
+        scrollX:0,
+        scrollY:0,
+        windowWidth:900,
+        x:0,
+        y:0
+      },
+      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
+      pagebreak:{mode:["css","legacy"],avoid:["h1","h2","h3","li",".avoid-break"]}
+    };
+    var worker=html2pdf().set(opt).from(built.node).toPdf();
+    var pdf=await worker.get("pdf");
+
+    // Ancien correctif conservé, mais uniquement s'il y a plusieurs pages.
+    // Il sert à retirer la page blanche générée par certains navigateurs.
+    try{
+      if(pdf && pdf.getNumberOfPages && pdf.getNumberOfPages()>1){
+        pdf.setPage(1);
+        // On ne supprime que si le texte de synthèse contient un récapitulatif qui commence volontairement page 2.
+        // Sinon on garde la première page pour éviter un document vide.
+        var txt=String(m.synthese||"").toLowerCase();
+        if(txt.indexOf("récapitulatif de la commande")>=0 || txt.indexOf("recapitulatif de la commande")>=0){
+          pdf.deletePage(1);
+        }
+      }
+    }catch(cleanErr){ console.warn("Nettoyage page blanche impossible", cleanErr); }
+
+    var dataUri=pdf.output("datauristring");
+    var b64=String(dataUri).split(",")[1]||"";
+    if(!b64 || b64.length<1000) throw new Error("PDF synthèse généré vide");
+    return b64;
+  } finally {
+    if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
+  }
 }
 
 function buildDocElementForPdf(kind, doc){
@@ -3695,10 +3609,23 @@ async function envoyerDocumentEmail(kind, doc){
     var pdf64=await pdfBase64FromDoc(kind, doc);
     var attachments=[{ name:docFileName(kind, doc), content:pdf64 }];
     var mariageSynthese=findMariageForDoc(kind, doc);
+
+    // Erreur synthèse non bloquante : ne doit jamais empêcher l'envoi du devis/facture ni casser l'appli.
     if(mariageSynthese && String(mariageSynthese.synthese||"").trim()){
-      var synth64=await pdfBase64FromSynthese(mariageSynthese, doc);
-      attachments.push({ name:syntheseFileName(mariageSynthese), content:synth64 });
+      try{
+        var synth64=await pdfBase64FromSynthese(mariageSynthese, doc);
+        if(synth64 && synth64.length>1000){
+          attachments.push({ name:syntheseFileName(mariageSynthese), content:synth64 });
+        }else{
+          console.warn("Synthèse ignorée : PDF vide ou trop court");
+          toast("Attention : la synthèse n'a pas pu être générée correctement. Le document principal sera envoyé.");
+        }
+      }catch(synthErr){
+        console.warn("Erreur synthèse non bloquante", synthErr);
+        toast("Attention : synthèse non jointe, mais le document principal sera envoyé.");
+      }
     }
+
     toast("Envoi de l'email…");
     var payload={
       email:email,
