@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.26 PDF : doc uid_test + cache test -->
-<!-- Version V2.0.26 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST LOCAL V2.0.27 saisie stabilisée - basé sur TEST LOCAL V2.0.27 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -184,9 +183,9 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ MODE TEST — génération PDF V2.0.26 — données séparées de la production</div>
+<div class="test-banner">⚠️ MODE TEST LOCAL — aucune synchro cloud — aucune donnée prod modifiée</div>
 <div class="topbar">
-  <span id="cloudStatus">☁️ Connexion TEST…</span>
+  <span id="cloudStatus">🧪 Test local…</span>
   <span style="flex:1"></span>
   <button class="btn small ghost" data-action="cloud-backup" style="color:#fff;border-color:rgba(255,255,255,.4);">Sauvegarde fichier</button>
   <button class="btn small soft" data-action="do-logout">Se déconnecter</button>
@@ -318,9 +317,9 @@ function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
   applyData(d);
   state.mariages.forEach(function(m){ if(localMedias[m.id] && (!m.medias||!m.medias.length)) m.medias=localMedias[m.id]; });
-  try{ localStorage.setItem("afs_cache_test", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache_test_local", JSON.stringify({data:serialize()})); }catch(e){}
 }
-function loadCache(){ try{ var raw=localStorage.getItem("afs_cache_test"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
+function loadCache(){ try{ var raw=localStorage.getItem("afs_cache_test_local"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
 
 function isTextEditing(){
   var a=document.activeElement;
@@ -347,7 +346,7 @@ function saveTodoFromFields(){
 }
 function saveTodoLocalOnly(){
   saveTodoFromFields();
-  try{ localStorage.setItem("afs_cache_test", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache_test_local", JSON.stringify({data:serialize()})); }catch(e){}
 }
 function saveTodoCloudDelayed(){
   clearTimeout(ui.todoSaveTimer);
@@ -359,28 +358,30 @@ function saveTodoCloudDelayed(){
 }
 
 function saveCache(){
-  try{ localStorage.setItem("afs_cache_test", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache_test_local", JSON.stringify({data:serialize()})); }catch(e){}
   if(ui && ui.todoEditing) return;
   saveCloud();
 }
-function saveCloud(){
-  if(!docRef) return;
-  if(ui && ui.todoEditing) return;
-  cloudStatus("☁️ Enregistrement…");
-  clearTimeout(cloudTimer);
-  cloudTimer=setTimeout(function(){
-    docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
-      .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
-  }, 800);
+async function saveCloud(){
+  cloudStatus("🧪 Mode test local — non synchronisé");
 }
-function startSync(uidStr){
-  docRef=db.collection("bases").doc(uidStr+"_test");
-  docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
-    if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
-    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
-    cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
-  }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
+async function startSync(user){
+  uidStr = user && user.uid ? user.uid : "test-local";
+  docRef = null;
+  try{
+    var raw=localStorage.getItem("afs_cache_test_local");
+    if(raw){
+      var parsed=JSON.parse(raw);
+      if(parsed && parsed.data) applyRemote(parsed.data);
+    }
+  }catch(e){ console.warn("Cache test local illisible", e); }
+  cloudStatus("🧪 Mode test local — données navigateur uniquement");
+  document.getElementById("login").style.display="none";
+  document.getElementById("appwrap").style.display="block";
+  try{ render(); }catch(renderErr){
+    console.error(renderErr);
+    document.getElementById("view").innerHTML='<div class="card"><h2>Erreur d’affichage test</h2><p class="muted">'+esc(renderErr.message||renderErr)+'</p><button class="btn danger" data-action="test-clear-local">Réinitialiser le test local</button></div>';
+  }
 }
 function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) el.textContent=t; }
 function downloadJSON(text,name){
@@ -415,7 +416,7 @@ async function googleDriveBackup(manual){
     state.settings.googleDriveLast=todayISO();
     state.settings.googleDriveLastAt=new Date().toISOString();
     if(out.filename) state.settings.googleDriveLastFile=out.filename;
-    try{ localStorage.setItem("afs_cache_test", JSON.stringify({data:serialize()})); }catch(e){}
+    try{ localStorage.setItem("afs_cache_test_local", JSON.stringify({data:serialize()})); }catch(e){}
     saveCloud();
     if(manual) toast((out.replaced?"Sauvegarde du jour remplacée dans Google Drive.":"Sauvegarde créée dans Google Drive.")+(out.filename?" Fichier : "+out.filename:""));
     render();
@@ -659,32 +660,23 @@ function openGlobalResult(type,id){
 
 /* ===================== Vue principale ===================== */
 function render(){
-  renderTabs(); renderTopbar();
-  var v=document.getElementById("view");
-  if(ui.tab==="accueil") v.innerHTML=viewDashboard();
-  else if(ui.tab==="clientsModule") v.innerHTML=viewClientsModule();
-  else if(ui.tab==="documentsModule") v.innerHTML=viewDocumentsModule();
-  else if(ui.tab==="financesModule") v.innerHTML=viewFinancesModule();
-  else if(ui.tab==="stock") v.innerHTML=viewStock();
-  else if(ui.tab==="calendrier") v.innerHTML=viewCalendrier();
-  else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
-  else if(ui.tab==="params") v.innerHTML=viewParams();
-
-  // Fallbacks internes : utiles pour les anciens raccourcis, liens de calendrier ou restaurations
-  else if(ui.tab==="commandes") v.innerHTML=viewCommandes();
-  else if(ui.tab==="ateliers") v.innerHTML=viewAteliers();
-  else if(ui.tab==="mariages") v.innerHTML=viewMariages();
-  else if(ui.tab==="devis") v.innerHTML= ui.wizard? viewWizard() : viewDevis();
-  else if(ui.tab==="factures") v.innerHTML=viewFactures();
-  else if(ui.tab==="emails") v.innerHTML=viewEmails();
-  else if(ui.tab==="encaissements") v.innerHTML=viewEncaissements();
-  else if(ui.tab==="tresorerie") v.innerHTML=viewTresorerie();
-  else if(ui.tab==="ventesSite") v.innerHTML=viewVentesSite();
-  else if(ui.tab==="achats") v.innerHTML=viewAchats();
-  else if(ui.tab==="clients") v.innerHTML=viewClients();
-  else if(ui.tab==="stock") v.innerHTML=viewStock();
-  else v.innerHTML=viewDashboard();
-  renderModal();
+  try{
+    renderTabs(); renderTopbar();
+    var v=document.getElementById("view");
+    if(ui.tab==="accueil") v.innerHTML=viewDashboard();
+    else if(ui.tab==="clientsModule") v.innerHTML=viewClientsModule();
+    else if(ui.tab==="documentsModule") v.innerHTML=viewDocumentsModule();
+    else if(ui.tab==="financesModule") v.innerHTML=viewFinancesModule();
+    else if(ui.tab==="stock") v.innerHTML=viewStock();
+    else if(ui.tab==="calendrier") v.innerHTML=viewCalendrier();
+    else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
+    else if(ui.tab==="params") v.innerHTML=viewParams();
+    renderModal();
+  }catch(e){
+    console.error(e);
+    var v=document.getElementById("view");
+    if(v) v.innerHTML='<div class="card"><h2>Erreur d’affichage</h2><p class="muted">La version test a rencontré une erreur, mais l’application reste accessible.</p><pre style="white-space:pre-wrap;background:#fff3cd;padding:10px;border-radius:8px;">'+esc(e.message||e)+'</pre><button class="btn danger" data-action="test-clear-local">Réinitialiser le test local</button></div>';
+  }
 }
 function renderModal(){
   var ex=document.getElementById("modal"); if(ex) ex.remove();
@@ -868,7 +860,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ Version TEST V2.0.26 — PDF fiables intégrés</b><div class="muted" style="font-size:12px;margin-top:4px;">Environnement test séparé. Utilise cette version pour tester les devis, factures et synthèses PDF.</div></div>'+
+  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST LOCAL V2.0.27 — PDF à tester</b><div class="muted" style="font-size:12px;margin-top:4px;">Aucune synchronisation cloud. Les données restent dans ce navigateur. Tu peux importer une sauvegarde de prod pour tester.</div></div>'+
 
 
 
@@ -878,12 +870,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.26 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST LOCAL V2.0.27 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.26</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST LOCAL V2.0.27</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3502,7 +3494,7 @@ function buildDocElementForPdf(kind, doc){
   return {holder:holder,node:clone};
 }
 async 
-/* ===================== PDF robustes V2.0.26 ===================== */
+/* ===================== PDF robustes TEST LOCAL V2.0.27 ===================== */
 function pdfV26Ctor(){
   if(window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
   if(window.jsPDF) return window.jsPDF;
@@ -3930,6 +3922,15 @@ function handleAction(action){
     var dv26=findDevis(md26.devisLie);
     if(!dv26){ toast("Devis lié introuvable."); return; }
     pdfV26TestDoc("devis", dv26);
+    return;
+  }
+
+  
+  if(action==="test-clear-local"){
+    if(confirm("Réinitialiser les données locales de la version test ?")){
+      localStorage.removeItem("afs_cache_test_local");
+      location.reload();
+    }
     return;
   }
 
