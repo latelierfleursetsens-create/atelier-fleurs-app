@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.20 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.22 saisie stabilisée - basé sur V2.0.3 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -862,7 +862,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.20 — saisie Todo stabilisée</b><div class="muted" style="font-size:12px;margin-top:4px;">Si tu vois ce message, le correctif anti-rafraîchissement est bien installé.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.22 — saisie Todo stabilisée</b><div class="muted" style="font-size:12px;margin-top:4px;">Si tu vois ce message, le correctif anti-rafraîchissement est bien installé.</div></div>'+
 
   '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
@@ -870,12 +870,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.20 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.22 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.20</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.22</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3303,13 +3303,36 @@ function clientEmailOrPrompt(doc){
 
 function findMariageForDoc(kind, doc){
   if(!doc) return null;
-  if(kind==="devis"){
-    return (state.mariages||[]).find(function(m){ return m.devisLie===doc.id; }) || null;
+
+  // 1. Si une fiche mariage est ouverte et contient une synthèse, on la capture avant l'envoi.
+  if(ui && ui.mariageOpen){
+    try{ captureMariageInputs(); }catch(e){}
   }
-  if(kind==="facture" && doc.devisId){
-    return (state.mariages||[]).find(function(m){ return m.devisLie===doc.devisId; }) || null;
+
+  var devisId="";
+  if(kind==="devis") devisId=doc.id||"";
+  if(kind==="facture") devisId=doc.devisId||doc.devisLie||"";
+
+  var nomDoc=searchNorm((doc.client&&doc.client.nom)||"");
+  var emailDoc=searchNorm((doc.client&&doc.client.email)||"");
+  var telDoc=searchNorm((doc.client&&doc.client.tel)||"");
+
+  // 2. Lien direct devis <-> mariage.
+  if(devisId){
+    var byLink=(state.mariages||[]).find(function(m){ return m.devisLie===devisId; });
+    if(byLink) return byLink;
   }
-  return null;
+
+  // 3. Cas où le lien devis a été perdu mais le nom/email/tel correspondent.
+  var candidates=(state.mariages||[]).filter(function(m){
+    var mn=searchNorm(m.nom||""), me=searchNorm(m.email||""), mt=searchNorm(m.tel||"");
+    return (nomDoc && mn && (mn===nomDoc || mn.indexOf(nomDoc)>=0 || nomDoc.indexOf(mn)>=0)) ||
+           (emailDoc && me && emailDoc===me) ||
+           (telDoc && mt && telDoc===mt);
+  });
+
+  // Priorité aux fiches qui ont une synthèse renseignée.
+  return candidates.find(function(m){return String(m.synthese||"").trim();}) || candidates[0] || null;
 }
 function syntheseFileName(m){
   var base="synthese-de-votre-projet-"+((m&&m.nom)||"mariage");
@@ -3379,8 +3402,9 @@ function viewSyntheseDoc(m, sourceDoc){
   var s=state.settings||{};
   var logo=(state.logo&&state.logo.length>10)?state.logo:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/logo-mail.jpg";
   var ref=(sourceDoc&&sourceDoc.numero)?'<div style="font-size:10.5px;color:#837568;margin-top:2px;">Document associé : '+esc(sourceDoc.numero)+'</div>':'';
+  var synth=String((m&&m.synthese)||"").trim();
 
-  return '<div id="synthese-doc" style="width:150mm;max-width:150mm;margin:0;background:#fff;color:#303437;font-family:Segoe UI,Arial,sans-serif;font-size:11px;line-height:1.34;box-sizing:border-box;padding:0 0 18mm 0;overflow:visible;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+
+  return '<div id="synthese-doc" style="width:150mm;max-width:150mm;margin:0;background:#fff;color:#303437;font-family:Segoe UI,Arial,sans-serif;font-size:11px;line-height:1.34;box-sizing:border-box;padding:0 0 18mm 0;overflow:visible;overflow-wrap:break-word;word-break:break-word;white-space:normal;opacity:1;visibility:visible;">'+
 
     '<div style="text-align:center;margin:0 0 10px 0;page-break-inside:avoid;page-break-after:avoid;max-width:150mm;overflow-wrap:break-word;">'+
       '<div style="font-family:Georgia,serif;font-size:20px;line-height:1.2;color:#5A2230;font-weight:700;margin:0;white-space:normal;max-width:150mm;">Synthèse de votre projet</div>'+
@@ -3404,7 +3428,7 @@ function viewSyntheseDoc(m, sourceDoc){
 
     '<div style="margin-top:6px;max-width:150mm;overflow-wrap:break-word;word-break:break-word;">'+
       '<h2 style="font-family:Georgia,serif;color:#5A2230;font-size:15px;margin:0 0 6px;page-break-after:avoid;max-width:150mm;">Synthèse</h2>'+
-      '<div style="font-size:11px;line-height:1.36;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;">'+syntheseTextHtml(m&&m.synthese)+'</div>'+
+      '<div style="font-size:11px;line-height:1.36;max-width:150mm;overflow-wrap:break-word;word-break:break-word;white-space:normal;min-height:30mm;">'+syntheseTextHtml(synth)+'</div>'+
     '</div>'+
 
     '<div style="margin-top:12px;padding-top:7px;border-top:1px solid #E7DDD5;font-size:9.5px;color:#837568;page-break-inside:avoid;max-width:150mm;overflow-wrap:break-word;word-break:break-word;">'+
@@ -3420,18 +3444,23 @@ function buildSyntheseElementForPdf(m, doc){
 
   var clone=node.cloneNode(true);
   clone.id="synthese-email-temp";
+  clone.style.opacity="1";
+  clone.style.visibility="visible";
+  clone.style.display="block";
+  clone.style.background="#ffffff";
 
   var holder=document.createElement("div");
   holder.id="synthese-email-holder";
   holder.style.position="fixed";
-  holder.style.left="0";
+  holder.style.left="-10000px";
   holder.style.top="0";
   holder.style.width="150mm";
   holder.style.maxWidth="150mm";
   holder.style.background="#ffffff";
   holder.style.boxSizing="border-box";
-  holder.style.zIndex="99999";
-  holder.style.opacity="0";
+  holder.style.zIndex="-1";
+  holder.style.opacity="1";
+  holder.style.visibility="visible";
   holder.style.pointerEvents="none";
   holder.style.overflow="visible";
   holder.style.margin="0";
@@ -3441,41 +3470,153 @@ function buildSyntheseElementForPdf(m, doc){
   document.body.appendChild(holder);
   return {holder:holder,node:clone};
 }
-async function pdfBase64FromSynthese(m, doc){
-  if(typeof html2pdf==="undefined") throw new Error("Bibliothèque PDF non chargée");
-  var built=buildSyntheseElementForPdf(m, doc);
-  if(!built) throw new Error("Synthèse introuvable");
-  try{
-    var opt={
-      margin:[10,30,22,30],
-      filename:syntheseFileName(m),
-      image:{type:"jpeg",quality:0.98},
-      html2canvas:{
-        scale:2,
-        useCORS:true,
-        backgroundColor:"#ffffff",
-        scrollX:0,
-        scrollY:0,
-        windowWidth:570,
-        x:0,
-        y:0
-      },
-      jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
-      pagebreak:{mode:["css","legacy"],avoid:["h1","h2","h3","li",".avoid-break"]}
-    };
-    var worker=html2pdf().set(opt).from(built.node).toPdf();
-    var pdf=await worker.get("pdf");
-    try{
-      if(pdf && pdf.getNumberOfPages && pdf.getNumberOfPages()>1){
-        pdf.setPage(1);
-        pdf.deletePage(1);
-      }
-    }catch(cleanErr){ console.warn("Nettoyage page blanche impossible", cleanErr); }
-    var dataUri=pdf.output("datauristring");
-    return String(dataUri).split(",")[1];
-  } finally {
-    if(built.holder && built.holder.parentNode) built.holder.parentNode.removeChild(built.holder);
+async 
+function cleanPdfText(txt){
+  return String(txt||"")
+    .replace(/[“”]/g,'"')
+    .replace(/[‘’]/g,"'")
+    .replace(/[•]/g,"-")
+    .replace(/[✓✔]/g,"-")
+    .replace(/[❤♥]/g,"coeur")
+    .replace(/[\u{1F300}-\u{1FAFF}]/gu,"")
+    .replace(/\t/g,"  ");
+}
+function addPdfWrappedText(pdf, text, x, y, maxWidth, lineHeight, options){
+  options=options||{};
+  text=cleanPdfText(text);
+  var lines=pdf.splitTextToSize(text, maxWidth);
+  lines.forEach(function(line){
+    if(y>270){
+      pdf.addPage();
+      y=20;
+      if(options.pageHeader) y=options.pageHeader(pdf,y);
+    }
+    pdf.text(line, x, y);
+    y+=lineHeight;
+  });
+  return y;
+}
+function pdfSyntheseManualBase64(m, sourceDoc){
+  var JsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(!JsPDF) throw new Error("Générateur PDF indisponible");
+  var pdf=new JsPDF({unit:"mm",format:"a4",orientation:"portrait"});
+  var s=state.settings||{};
+  var margin=18, pageW=210, maxW=pageW-(margin*2), y=18;
+  var bordeaux=[90,34,48], ink=[48,52,55], muted=[131,117,104], line=[231,221,213], bg=[251,248,244];
+
+  function setColor(c){ pdf.setTextColor(c[0],c[1],c[2]); }
+  function line(){ pdf.setDrawColor(line[0],line[1],line[2]); pdf.line(margin,y,pageW-margin,y); y+=6; }
+  function pageHeader(){
+    pdf.setFont("helvetica","bold"); pdf.setFontSize(9); setColor(muted);
+    pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin, 12);
+    pdf.setDrawColor(line[0],line[1],line[2]); pdf.line(margin,15,pageW-margin,15);
+    return 24;
   }
+  function ensure(space){
+    if(y+space>275){ pdf.addPage(); y=pageHeader(); }
+  }
+
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(20); setColor(bordeaux);
+  pdf.text("Synthèse de votre projet", pageW/2, y, {align:"center"}); y+=8;
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(10); setColor(muted);
+  pdf.text("Date : "+frDate(todayISO()), pageW/2, y, {align:"center"}); y+=6;
+  if(sourceDoc&&sourceDoc.numero){ pdf.text("Document associé : "+cleanPdfText(sourceDoc.numero), pageW/2, y, {align:"center"}); y+=7; }
+
+  y+=2;
+  try{
+    if(state.logo && /^data:image\//.test(state.logo)){
+      pdf.addImage(state.logo, "JPEG", margin, y, 22, 22);
+      pdf.setFont("helvetica","bold"); pdf.setFontSize(15); setColor(bordeaux);
+      pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin+28, y+7);
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(10); setColor(muted);
+      pdf.text(cleanPdfText(s.entrepreneur||"Élodie Rouzé"), margin+28, y+13);
+      pdf.text(cleanPdfText((s.email||"latelierfleursetsens@gmail.com")+" · "+(s.tel||"06 50 91 63 59")), margin+28, y+19);
+      y+=28;
+    }else{
+      pdf.setFont("helvetica","bold"); pdf.setFontSize(15); setColor(bordeaux);
+      pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin, y); y+=6;
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(10); setColor(muted);
+      pdf.text(cleanPdfText(s.entrepreneur||"Élodie Rouzé"), margin, y); y+=5;
+      pdf.text(cleanPdfText((s.email||"latelierfleursetsens@gmail.com")+" · "+(s.tel||"06 50 91 63 59")), margin, y); y+=8;
+    }
+  }catch(imgErr){
+    pdf.setFont("helvetica","bold"); pdf.setFontSize(15); setColor(bordeaux);
+    pdf.text(cleanPdfText(s.nomEntreprise||"L'Atelier Fleurs & Sens"), margin, y); y+=8;
+  }
+  line();
+
+  ensure(28);
+  pdf.setFillColor(bg[0],bg[1],bg[2]); pdf.setDrawColor(line[0],line[1],line[2]);
+  pdf.roundedRect(margin, y, maxW, 28, 3, 3, "FD");
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(9); setColor(muted);
+  pdf.text("PROJET MARIAGE", margin+5, y+7);
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); setColor(bordeaux);
+  pdf.text(cleanPdfText((m&&m.nom)||"Projet mariage"), margin+5, y+14);
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(9); setColor(muted);
+  var info=[];
+  if(m&&m.dateMariage) info.push("Mariage : "+frDate(m.dateMariage));
+  if(m&&m.dateLivraison) info.push("Livraison : "+frDate(m.dateLivraison)+(m.modeLivraison?" · "+m.modeLivraison:""));
+  if(m&&m.theme) info.push("Thème/couleurs : "+m.theme);
+  var infoTxt=cleanPdfText(info.join("  |  "));
+  if(infoTxt) pdf.text(pdf.splitTextToSize(infoTxt, maxW-10), margin+5, y+21);
+  y+=36;
+
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(14); setColor(bordeaux);
+  pdf.text("Synthèse", margin, y); y+=7;
+
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(10.5); setColor(ink);
+  var synth=cleanPdfText((m&&m.synthese)||"").trim();
+  if(!synth) synth="Aucune synthèse renseignée pour ce projet.";
+
+  var paragraphs=synth.split(/\n/);
+  paragraphs.forEach(function(raw){
+    var p=raw.trim();
+    if(!p){ y+=3; return; }
+
+    var isTitle=/^#{1,3}\s+/.test(p);
+    var isList=/^[-*]\s+/.test(p);
+    p=p.replace(/^#{1,3}\s+/,"").replace(/^[-*]\s+/,"").replace(/\*\*/g,"");
+
+    if(p.toLowerCase().indexOf("récapitulatif de la commande")>=0 || p.toLowerCase().indexOf("recapitulatif de la commande")>=0){
+      pdf.addPage();
+      y=pageHeader();
+    }
+
+    if(isTitle){
+      ensure(12);
+      pdf.setFont("helvetica","bold"); pdf.setFontSize(12); setColor(bordeaux);
+      y=addPdfWrappedText(pdf,p,margin,y,maxW,5.5,{pageHeader:pageHeader});
+      y+=2;
+      pdf.setFont("helvetica","normal"); pdf.setFontSize(10.5); setColor(ink);
+    }else if(isList){
+      ensure(8);
+      y=addPdfWrappedText(pdf,"• "+p,margin+4,y,maxW-4,5,{pageHeader:pageHeader});
+      y+=1;
+    }else if(/^---+$/.test(p)){
+      ensure(8); line();
+    }else{
+      y=addPdfWrappedText(pdf,p,margin,y,maxW,5,{pageHeader:pageHeader});
+      y+=3;
+    }
+  });
+
+  ensure(20);
+  y+=4; line();
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(9); setColor(muted);
+  y=addPdfWrappedText(pdf,"Merci pour votre confiance. Cette synthèse reprend les grandes lignes de votre projet floral et peut être ajustée au fil de nos échanges.",margin,y,maxW,4.5,{pageHeader:pageHeader});
+
+  var dataUri=pdf.output("datauristring");
+  var b64=String(dataUri).split(",")[1]||"";
+  if(!b64 || b64.length<1000) throw new Error("PDF synthèse généré vide");
+  return b64;
+}
+
+async function pdfBase64FromSynthese(m, doc){
+  if(!m || !String(m.synthese||"").trim()) throw new Error("Synthèse vide");
+
+  // V2.0.22 : génération PDF fiable, sans capture visuelle html2canvas.
+  // On génère le PDF ligne par ligne avec pagination automatique.
+  return pdfSyntheseManualBase64(m, doc);
 }
 
 function buildDocElementForPdf(kind, doc){
@@ -3548,6 +3689,7 @@ async function envoyerDocumentEmail(kind, doc){
   var email=clientEmailOrPrompt(doc); if(!email) return;
   var nom=(doc.client&&doc.client.nom)||"Client";
   var titre=docTitle(kind, doc);
+  if(ui && ui.mariageOpen){ try{ captureMariageInputs(); saveCache(); }catch(capErr){ console.warn(capErr); } }
   toast("Préparation des PDF…");
   try{
     var pdf64=await pdfBase64FromDoc(kind, doc);
