@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST SIMPLE V2.0.25 saisie stabilisée - basé sur TEST SIMPLE V2.0.25 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.25-S1 saisie stabilisée - basé sur TEST V2.0.25-S1 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -182,7 +182,7 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST SIMPLE — même base que la prod — uniquement pour vérifier que /test charge</div>
+<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1 — même base que la prod — uniquement pour vérifier que /test charge</div>
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
@@ -866,7 +866,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST SIMPLE — chargement validé</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
+  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1 — bouton synthèse test</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
 
 
 
@@ -876,12 +876,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST SIMPLE V2.0.25 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST SIMPLE V2.0.25</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3162,7 +3162,7 @@ function viewMariageDetail(m){
     '<label class="field"><span>Ses besoins / mémo</span><textarea id="marBesoins" style="min-height:90px;" placeholder="Style souhaité, fleurs préférées, contraintes, échanges…">'+esc(m.besoins)+'</textarea></label>'+
     '<div class="section-title">Synthèse</div>'+
     '<label class="field"><span>Synthèse de son bouquet de mariée et de son projet</span><textarea id="marSynthese" style="min-height:150px;" placeholder="Ex : Bouquet de mariée bohème, tons blanc cassé et sauge, format aérien, accessoires souhaités, détails importants du projet…">'+esc(m.synthese||"")+'</textarea><div class="hint">Cette synthèse pourra être jointe automatiquement au mail du devis ou de la facture.</div></label>'+
-    '<button class="btn gold" data-action="mar-save">Enregistrer la fiche</button></div>';
+    '<div class="row-actions"><button class="btn gold" data-action="mar-save">Enregistrer la fiche</button><button class="btn soft" data-action="mar-test-synthese-only">Télécharger synthèse test</button></div></div>';
   // devis & facture
   var df='<div class="card"><h3 style="margin:0 0 10px;">Devis & facture</h3>'+
     '<div class="checkrow"><input type="checkbox" data-action="mar-devis-toggle"'+(m.devisEnvoye?" checked":"")+'><div style="flex:1;"><b>Devis</b> édité &amp; envoyé</div><input id="marDevisDate" type="date" style="width:auto;" value="'+esc(m.devisDate||"")+'"></div>'+
@@ -3340,6 +3340,32 @@ function findMariageForDoc(kind, doc){
   // Priorité aux fiches qui ont une synthèse renseignée.
   return candidates.find(function(m){return String(m.synthese||"").trim();}) || candidates[0] || null;
 }
+
+async function testDownloadSyntheseMariage(){
+  var m=getMariage(ui.mariageOpen);
+  if(!m){ toast("Fiche mariage introuvable."); return; }
+  try{
+    captureMariageInputs();
+    if(!String(m.synthese||"").trim()){
+      toast("La synthèse est vide.");
+      return;
+    }
+    toast("Préparation de la synthèse test…");
+    var linkedDoc = m.devisLie ? findDevis(m.devisLie) : null;
+    var b64 = await pdfBase64FromSynthese(m, linkedDoc);
+    var a=document.createElement("a");
+    a.href="data:application/pdf;base64,"+b64;
+    a.download=syntheseFileName(m);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast("Synthèse test téléchargée.");
+  }catch(e){
+    console.error(e);
+    toast("Téléchargement synthèse impossible : "+(e&&e.message?e.message:e));
+  }
+}
+
 function syntheseFileName(m){
   var base="synthese-de-votre-projet-"+((m&&m.nom)||"mariage");
   return base.replace(/[^a-z0-9_-]+/gi,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").toLowerCase()+".pdf";
@@ -3658,6 +3684,12 @@ function handleAction(action){
   // nav
   
   
+  
+  if(action==="mar-test-synthese-only"){
+    testDownloadSyntheseMariage();
+    return;
+  }
+
   if(action.indexOf("global-open-")===0){
     var rest=action.slice(12);
     var dash=rest.indexOf("-");
