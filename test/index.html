@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.25-S1G saisie stabilisée - basé sur TEST V2.0.25-S1G : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.25-S1H saisie stabilisée - basé sur TEST V2.0.25-S1H : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -182,7 +182,7 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1GR — même base que la prod — uniquement pour vérifier que /test charge</div>
+<div class="test-banner">⚠️ VERSION TEST V2.0.25-S1HR — même base que la prod — uniquement pour vérifier que /test charge</div>
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
@@ -866,7 +866,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1G — correction coupe droite PJ mail</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
+  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST V2.0.25-S1H — PDF mail recentré sans coupe droite</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sert uniquement à vérifier que l’adresse /test fonctionne correctement.</div></div>'+
 
 
 
@@ -876,12 +876,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1G — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.25-S1H — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1G</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.25-S1H</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -2846,7 +2846,7 @@ function viewDoc(p){
     (kind==="facture"&&doc.echeance?'<div class="muted" style="font-size:12px;">Échéance : '+frDate(doc.echeance)+'</div>':'')+
     (kind==="facture"&&doc.devisNumero?'<div class="muted" style="font-size:12px;">Réf. devis : '+esc(doc.devisNumero)+'</div>':'')+
     (kind==="facture"&&doc.paiementClient?'<div class="muted" style="font-size:12px;">Moyen de paiement : '+esc(doc.paiementClient)+'</div>':'');
-  var client='<div style="margin-top:12px;padding:9px;background:var(--cream);border-radius:8px;max-width:320px;margin-left:auto;">'+
+  var client='<div style="margin-top:12px;padding:9px;background:var(--cream);border-radius:8px;max-width:280px;margin-left:auto;">'+
     '<div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;">Client</div>'+
     '<div style="font-weight:600;">'+esc(doc.client&&doc.client.nom)+'</div>'+
     (doc.client&&doc.client.adresse?'<div style="font-size:12px;">'+esc(doc.client.adresse)+'</div>':'')+
@@ -2873,10 +2873,10 @@ function viewDoc(p){
   var signature = kind==="devis" ? '<div style="margin-top:14px;font-size:10.5px;"><div style="font-weight:700;">Bon pour accord</div><div class="muted">Date et signature du client :</div><div style="margin-top:18px;border-top:1px solid var(--line);width:200px;"></div></div>' : '';
   return '<div class="modal" id="modal"><div class="modal-inner">'+
     '<div class="modal-actions"><button class="btn gold" data-action="doc-test-pdf-only">Télécharger PDF test</button><button class="btn ghost" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn primary" data-action="doc-email">Envoyer par email</button><button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
-    '<div class="doc" id="doc" style="width:180mm;max-width:180mm;box-sizing:border-box;overflow-wrap:break-word;word-break:normal;">'+
+    '<div class="doc" id="doc" style="width:160mm;max-width:160mm;box-sizing:border-box;overflow-wrap:break-word;word-break:normal;margin:0 auto;">'+
       '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;"><div>'+logoImg+emetteur+'</div><div style="text-align:right;">'+rightInfo+'</div></div>'+
       client+acEncart+
-      '<table style="margin-top:12px;width:100%;table-layout:fixed;border-collapse:collapse;"><thead><tr style="font-size:11px;"><th style="text-align:left;padding:6px;width:52%;">Désignation</th><th style="text-align:center;padding:6px;width:55px;">Qté</th><th style="text-align:right;padding:6px;width:92px;">Prix unit.</th><th style="text-align:right;padding:6px;width:92px;">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<table style="margin-top:12px;width:100%;table-layout:fixed;border-collapse:collapse;"><thead><tr style="font-size:11px;"><th style="text-align:left;padding:6px;width:48%;">Désignation</th><th style="text-align:center;padding:6px;width:45px;">Qté</th><th style="text-align:right;padding:6px;width:78px;">Prix unit.</th><th style="text-align:right;padding:6px;width:78px;">Total</th></tr></thead><tbody>'+rows+'</tbody></table>'+
       tot+mentions+signature+
     '</div></div></div>';
 }
@@ -3581,13 +3581,14 @@ function buildDocElementForPdf(kind, doc){
 
   var clone=node.cloneNode(true);
   clone.id="doc-email-temp";
-  clone.style.width="180mm";
-  clone.style.maxWidth="180mm";
+  clone.style.width="160mm";
+  clone.style.maxWidth="160mm";
   clone.style.boxSizing="border-box";
   clone.style.background="#ffffff";
   clone.style.overflow="visible";
   clone.style.opacity="1";
   clone.style.visibility="visible";
+  clone.style.margin="0 auto";
 
   var holder=document.createElement("div");
   holder.id="doc-email-holder";
@@ -3599,7 +3600,7 @@ function buildDocElementForPdf(kind, doc){
   holder.style.background="#ffffff";
   holder.style.boxSizing="border-box";
   holder.style.zIndex="99999";
-  holder.style.opacity="0.02";
+  holder.style.opacity="0.01";
   holder.style.visibility="visible";
   holder.style.pointerEvents="none";
   holder.style.overflow="visible";
@@ -3631,17 +3632,17 @@ async function pdfBase64FromDoc(kind, doc){
     }catch(waitErr){ console.warn("Attente ressources PDF impossible", waitErr); }
 
     var opt={
-      margin:[8,10,12,10],
+      margin:[8,18,12,18],
       filename:docFileName(kind, doc),
       image:{type:"jpeg",quality:0.98},
       html2canvas:{
-        scale:1.55,
+        scale:1.5,
         useCORS:true,
         allowTaint:true,
         backgroundColor:"#ffffff",
         scrollX:0,
         scrollY:0,
-        windowWidth:1100,
+        windowWidth:900,
         x:0,
         y:0
       },
