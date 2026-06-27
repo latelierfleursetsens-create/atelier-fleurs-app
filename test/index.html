@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.31b : statut haut corrigé test isolé -->
-<!-- Version TEST V2.0.31bb isolée : aucune synchro prod, bandeau accueil obligatoire -->
-<!-- Version TEST V2.0.31bb production PDF validés : devis, factures, synthèses -->
-<!-- Version TEST V2.0.31bb saisie stabilisée - basé sur TEST V2.0.31b : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.31d : menu paiement visible iPhone/Chrome -->
+<!-- Version TEST V2.0.31d : texte restauration local/test corrigé -->
+<!-- Version TEST V2.0.31d : statut haut corrigé test isolé -->
+<!-- Version TEST V2.0.31db isolée : aucune synchro prod, bandeau accueil obligatoire -->
+<!-- Version TEST V2.0.31db production PDF validés : devis, factures, synthèses -->
+<!-- Version TEST V2.0.31db saisie stabilisée - basé sur TEST V2.0.31d : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -203,7 +205,7 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.31bb — NE PAS UTILISER POUR LES VRAIES CLIENTES — DONNÉES LOCALES ISOLÉES</div>
+<div class="test-banner">⚠️ VERSION TEST V2.0.31db — NE PAS UTILISER POUR LES VRAIES CLIENTES — DONNÉES LOCALES ISOLÉES</div>
 <div class="topbar">
   <span id="cloudStatus">🧪 Test isolé ✓</span>
   <span style="flex:1"></span>
@@ -711,6 +713,29 @@ function render(){
 function renderModal(){
   var ex=document.getElementById("modal"); if(ex) ex.remove();
   var lb=document.getElementById("lightbox"); if(lb) lb.remove();
+
+  if(ui.paymentPrompt){
+    var pp=ui.paymentPrompt;
+    var m=document.createElement("div");
+    m.id="modal";
+    m.className="modal";
+    m.innerHTML='<div class="card" style="max-width:520px;margin:8vh auto;">'+
+      '<h2>'+esc(pp.title||"Moyen de paiement")+'</h2>'+
+      '<p class="muted">'+esc(pp.message||"Choisis le moyen de paiement dans la liste.")+'</p>'+
+      '<label class="field"><span>Moyen de paiement</span>'+paymentSelectHtml("paymentPromptSelect", pp.value||"")+'</label>'+
+      '<div class="row-actions">'+
+        '<button class="btn primary" data-action="payment-prompt-ok">Valider</button>'+
+        '<button class="btn ghost" data-action="payment-prompt-cancel">Annuler</button>'+
+      '</div>'+
+    '</div>';
+    document.body.appendChild(m);
+    setTimeout(function(){
+      var sel=document.getElementById("paymentPromptSelect");
+      if(sel){ try{ sel.focus(); }catch(e){} }
+    },80);
+    return;
+  }
+
   if(ui.pendingPaymentsModal){ var pm=document.createElement("div"); pm.innerHTML=viewPendingPaymentsModal(); document.body.appendChild(pm.firstElementChild); }
   if(ui.preview){ var d=document.createElement("div"); d.innerHTML=viewDoc(ui.preview); document.body.appendChild(d.firstElementChild); }
   if(ui.lightbox){
@@ -890,7 +915,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="test-home-alert">⚠️ VERSION TEST V2.0.31bb — environnement isolé<br><span style="font-weight:600;font-size:12px;">Cette version sert uniquement aux essais. Elle sauvegarde dans ce navigateur et ne synchronise pas avec la production.</span><br><button class="btn ghost" data-action="test-v2031-clear" style="margin-top:8px;">Réinitialiser les données test</button></div>'+
+  '<div class="test-home-alert">⚠️ VERSION TEST V2.0.31db — environnement isolé<br><span style="font-weight:600;font-size:12px;">Cette version sert uniquement aux essais. Elle sauvegarde dans ce navigateur et ne synchronise pas avec la production.</span><br><button class="btn ghost" data-action="test-v2031-clear" style="margin-top:8px;">Réinitialiser les données test</button></div>'+
 
 
 
@@ -902,12 +927,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.31b — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.31d — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.31b</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.31d</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3006,12 +3031,12 @@ function viewParams(){
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Ces informations apparaissent sur vos devis et factures.</p>'+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
-    '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
+    '<p class="muted" style="margin-top:0;">Télécharge ou restaure une sauvegarde JSON uniquement dans cette version TEST isolée.</p>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
     '<button class="btn danger" data-action="restore-pick">Restaurer une sauvegarde JSON</button></div>'+
-    '<p class="muted" style="font-size:11px;margin:10px 0 0;">⚠️ La restauration remplace les données actuellement synchronisées dans Firebase. Avant restauration, garde toujours une sauvegarde récente.</p></div>'+
-  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive</h3>'+
-    '<p class="muted" style="margin-top:0;">Colle ici l’URL de ton script Google Apps Script. L’application pourra créer une sauvegarde JSON dans ton Google Drive.</p>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">⚠️ VERSION TEST : la restauration remplace uniquement les données locales de ce navigateur. Elle ne modifie pas la production Firebase.</p></div>'+
+  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive — désactivée en test isolé</h3>'+
+    '<p class="muted" style="margin-top:0;">En version TEST isolée, les données restent dans ce navigateur. N’utilise pas la sauvegarde automatique Google Drive pour les essais.</p>'+
     '<label class="field"><span>URL du script Google Drive</span><input id="pGoogleDriveUrl" value="'+esc(s.googleDriveUrl||"")+'" placeholder="https://script.google.com/macros/s/.../exec"></label>'+
     '<label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;"><input type="checkbox" id="pGoogleDriveAuto" '+(s.googleDriveAuto?'checked':'')+' style="width:18px;height:18px;"> Activer une sauvegarde automatique quotidienne dans Google Drive (une seule par jour)</label>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="gdrive-save">Enregistrer l’URL Google Drive</button><button class="btn primary" data-action="gdrive-backup">Tester / créer une sauvegarde Google Drive</button><button class="btn danger" data-action="gdrive-restore-latest">Restaurer la dernière sauvegarde Google Drive</button></div>'+
