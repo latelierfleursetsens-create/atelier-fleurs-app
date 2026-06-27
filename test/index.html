@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.31 isolée : aucune synchro prod, bandeau accueil obligatoire -->
-<!-- Version TEST V2.0.31 production PDF validés : devis, factures, synthèses -->
-<!-- Version TEST V2.0.31 saisie stabilisée - basé sur TEST V2.0.31 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version TEST V2.0.31b : statut haut corrigé test isolé -->
+<!-- Version TEST V2.0.31bb isolée : aucune synchro prod, bandeau accueil obligatoire -->
+<!-- Version TEST V2.0.31bb production PDF validés : devis, factures, synthèses -->
+<!-- Version TEST V2.0.31bb saisie stabilisée - basé sur TEST V2.0.31b : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -202,9 +203,9 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.31 — NE PAS UTILISER POUR LES VRAIES CLIENTES — DONNÉES LOCALES ISOLÉES</div>
+<div class="test-banner">⚠️ VERSION TEST V2.0.31bb — NE PAS UTILISER POUR LES VRAIES CLIENTES — DONNÉES LOCALES ISOLÉES</div>
 <div class="topbar">
-  <span id="cloudStatus">☁️ Connexion…</span>
+  <span id="cloudStatus">🧪 Test isolé ✓</span>
   <span style="flex:1"></span>
   <button class="btn small ghost" data-action="cloud-backup" style="color:#fff;border-color:rgba(255,255,255,.4);">Sauvegarde fichier</button>
   <button class="btn small soft" data-action="do-logout">Se déconnecter</button>
@@ -383,7 +384,7 @@ function saveCache(){
 }
 async function saveCloud(){
   try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
-  cloudStatus("🧪 Version test — sauvegarde locale uniquement");
+  cloudStatus("🧪 Test isolé ✓");
 }
 async function startSync(user){
   uidStr = user && user.uid ? user.uid : "test-v2031";
@@ -394,13 +395,14 @@ async function startSync(user){
       var parsed=JSON.parse(raw);
       if(parsed && parsed.data) applyRemote(parsed.data);
     }
-  }catch(e){ console.warn("Cache test TEST V2.0.31 illisible", e); }
-  cloudStatus("🧪 VERSION TEST — aucune synchro production");
+  }catch(e){ console.warn("Cache test V2.0.31 illisible", e); }
+  cloudStatus("🧪 Test isolé ✓");
   var login=document.getElementById("login");
   var appwrap=document.getElementById("appwrap");
   if(login) login.style.display="none";
   if(appwrap) appwrap.style.display="block";
   render();
+  cloudStatus("🧪 Test isolé ✓");
 }
 function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) el.textContent=t; }
 function downloadJSON(text,name){
@@ -888,7 +890,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="test-home-alert">⚠️ VERSION TEST V2.0.31 — environnement isolé<br><span style="font-weight:600;font-size:12px;">Cette version sert uniquement aux essais. Elle sauvegarde dans ce navigateur et ne synchronise pas avec la production.</span><br><button class="btn ghost" data-action="test-v2031-clear" style="margin-top:8px;">Réinitialiser les données test</button></div>'+
+  '<div class="test-home-alert">⚠️ VERSION TEST V2.0.31bb — environnement isolé<br><span style="font-weight:600;font-size:12px;">Cette version sert uniquement aux essais. Elle sauvegarde dans ce navigateur et ne synchronise pas avec la production.</span><br><button class="btn ghost" data-action="test-v2031-clear" style="margin-top:8px;">Réinitialiser les données test</button></div>'+
 
 
 
@@ -900,12 +902,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.31 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.31b — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.31</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.31b</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
