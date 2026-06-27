@@ -5,12 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.31d : menu paiement visible iPhone/Chrome -->
-<!-- Version TEST V2.0.31d : texte restauration local/test corrigé -->
-<!-- Version TEST V2.0.31d : statut haut corrigé test isolé -->
-<!-- Version TEST V2.0.31db isolée : aucune synchro prod, bandeau accueil obligatoire -->
-<!-- Version TEST V2.0.31db production PDF validés : devis, factures, synthèses -->
-<!-- Version TEST V2.0.31db saisie stabilisée - basé sur TEST V2.0.31d : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.32 production PDF validés : devis, factures, synthèses -->
+<!-- Version V2.0.32 saisie stabilisée - basé sur V2.0.32 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -65,27 +61,6 @@ document.addEventListener("click", function(e){
   .topbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--green);color:#fff;font-size:13px;}
   .topbar .name{color:var(--gold-s);}
   .topbar .dirty{color:#ffd9c2;font-weight:700;}
-
-  .test-banner{
-    background:#fff3cd;
-    color:#6b4b00;
-    border-bottom:2px solid #e8d28a;
-    padding:10px 14px;
-    text-align:center;
-    font-weight:900;
-    font-size:14px;
-    letter-spacing:.02em;
-  }
-  .test-home-alert{
-    background:#fff3cd;
-    border:2px solid #e8d28a;
-    color:#6b4b00;
-    border-radius:14px;
-    padding:14px;
-    margin-bottom:14px;
-    font-weight:800;
-  }
-
 /* En-tête */
   header.app{background:#fff;color:var(--ink);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:6px solid var(--green);border-bottom:6px solid var(--green);}
   header.app .brand{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -205,9 +180,8 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.31db — NE PAS UTILISER POUR LES VRAIES CLIENTES — DONNÉES LOCALES ISOLÉES</div>
 <div class="topbar">
-  <span id="cloudStatus">🧪 Test isolé ✓</span>
+  <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
   <button class="btn small ghost" data-action="cloud-backup" style="color:#fff;border-color:rgba(255,255,255,.4);">Sauvegarde fichier</button>
   <button class="btn small soft" data-action="do-logout">Se déconnecter</button>
@@ -339,9 +313,9 @@ function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
   applyData(d);
   state.mariages.forEach(function(m){ if(localMedias[m.id] && (!m.medias||!m.medias.length)) m.medias=localMedias[m.id]; });
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
-function loadCache(){ try{ var raw=localStorage.getItem("afs_cache_test_v2031"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
+function loadCache(){ try{ var raw=localStorage.getItem("afs_cache"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
 
 function isTextEditing(){
   var a=document.activeElement;
@@ -368,7 +342,7 @@ function saveTodoFromFields(){
 }
 function saveTodoLocalOnly(){
   saveTodoFromFields();
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
 function saveTodoCloudDelayed(){
   clearTimeout(ui.todoSaveTimer);
@@ -380,31 +354,28 @@ function saveTodoCloudDelayed(){
 }
 
 function saveCache(){
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
   if(ui && ui.todoEditing) return;
   saveCloud();
 }
-async function saveCloud(){
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
-  cloudStatus("🧪 Test isolé ✓");
+function saveCloud(){
+  if(!docRef) return;
+  if(ui && ui.todoEditing) return;
+  cloudStatus("☁️ Enregistrement…");
+  clearTimeout(cloudTimer);
+  cloudTimer=setTimeout(function(){
+    docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
+      .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
+  }, 800);
 }
-async function startSync(user){
-  uidStr = user && user.uid ? user.uid : "test-v2031";
-  docRef = null;
-  try{
-    var raw=localStorage.getItem("afs_cache_test_v2031");
-    if(raw){
-      var parsed=JSON.parse(raw);
-      if(parsed && parsed.data) applyRemote(parsed.data);
-    }
-  }catch(e){ console.warn("Cache test V2.0.31 illisible", e); }
-  cloudStatus("🧪 Test isolé ✓");
-  var login=document.getElementById("login");
-  var appwrap=document.getElementById("appwrap");
-  if(login) login.style.display="none";
-  if(appwrap) appwrap.style.display="block";
-  render();
-  cloudStatus("🧪 Test isolé ✓");
+function startSync(uidStr){
+  docRef=db.collection("bases").doc(uidStr);
+  docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
+    if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
+    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
+    cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
+  }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
 }
 function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) el.textContent=t; }
 function downloadJSON(text,name){
@@ -439,7 +410,7 @@ async function googleDriveBackup(manual){
     state.settings.googleDriveLast=todayISO();
     state.settings.googleDriveLastAt=new Date().toISOString();
     if(out.filename) state.settings.googleDriveLastFile=out.filename;
-    try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
     saveCloud();
     if(manual) toast((out.replaced?"Sauvegarde du jour remplacée dans Google Drive.":"Sauvegarde créée dans Google Drive.")+(out.filename?" Fichier : "+out.filename:""));
     render();
@@ -736,8 +707,16 @@ function renderModal(){
     return;
   }
 
-  if(ui.pendingPaymentsModal){ var pm=document.createElement("div"); pm.innerHTML=viewPendingPaymentsModal(); document.body.appendChild(pm.firstElementChild); }
-  if(ui.preview){ var d=document.createElement("div"); d.innerHTML=viewDoc(ui.preview); document.body.appendChild(d.firstElementChild); }
+  if(ui.pendingPaymentsModal){
+    var pm=document.createElement("div");
+    pm.innerHTML=viewPendingPaymentsModal();
+    document.body.appendChild(pm.firstElementChild);
+  }
+  if(ui.preview){
+    var d=document.createElement("div");
+    d.innerHTML=viewDoc(ui.preview);
+    document.body.appendChild(d.firstElementChild);
+  }
   if(ui.lightbox){
     var l=document.createElement("div"); l.id="lightbox"; l.className="modal"; l.setAttribute("data-action","lightbox-close");
     l.innerHTML='<div style="max-width:900px;margin:0 auto;text-align:center;"><img src="'+ui.lightbox+'" style="max-width:100%;max-height:88vh;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.4);"><div style="margin-top:10px;"><button class="btn ghost" data-action="lightbox-close">Fermer</button></div></div>';
@@ -915,8 +894,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="test-home-alert">⚠️ VERSION TEST V2.0.31db — environnement isolé<br><span style="font-weight:600;font-size:12px;">Cette version sert uniquement aux essais. Elle sauvegarde dans ce navigateur et ne synchronise pas avec la production.</span><br><button class="btn ghost" data-action="test-v2031-clear" style="margin-top:8px;">Réinitialiser les données test</button></div>'+
-
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.32 — paiement iPhone corrigé</b><div class="muted" style="font-size:12px;margin-top:4px;">Menu paiement fonctionnel sur iPhone/Chrome + ateliers avec devis/factures.</div></div>'+
 
 
 
@@ -927,12 +905,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.31d — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.32 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.31d</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.32</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3031,12 +3009,12 @@ function viewParams(){
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Ces informations apparaissent sur vos devis et factures.</p>'+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
-    '<p class="muted" style="margin-top:0;">Télécharge ou restaure une sauvegarde JSON uniquement dans cette version TEST isolée.</p>'+
+    '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
     '<button class="btn danger" data-action="restore-pick">Restaurer une sauvegarde JSON</button></div>'+
-    '<p class="muted" style="font-size:11px;margin:10px 0 0;">⚠️ VERSION TEST : la restauration remplace uniquement les données locales de ce navigateur. Elle ne modifie pas la production Firebase.</p></div>'+
-  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive — désactivée en test isolé</h3>'+
-    '<p class="muted" style="margin-top:0;">En version TEST isolée, les données restent dans ce navigateur. N’utilise pas la sauvegarde automatique Google Drive pour les essais.</p>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">⚠️ La restauration remplace les données actuellement synchronisées dans Firebase. Avant restauration, garde toujours une sauvegarde récente.</p></div>'+
+  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive</h3>'+
+    '<p class="muted" style="margin-top:0;">Colle ici l’URL de ton script Google Apps Script. L’application pourra créer une sauvegarde JSON dans ton Google Drive.</p>'+
     '<label class="field"><span>URL du script Google Drive</span><input id="pGoogleDriveUrl" value="'+esc(s.googleDriveUrl||"")+'" placeholder="https://script.google.com/macros/s/.../exec"></label>'+
     '<label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;"><input type="checkbox" id="pGoogleDriveAuto" '+(s.googleDriveAuto?'checked':'')+' style="width:18px;height:18px;"> Activer une sauvegarde automatique quotidienne dans Google Drive (une seule par jour)</label>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="gdrive-save">Enregistrer l’URL Google Drive</button><button class="btn primary" data-action="gdrive-backup">Tester / créer une sauvegarde Google Drive</button><button class="btn danger" data-action="gdrive-restore-latest">Restaurer la dernière sauvegarde Google Drive</button></div>'+
@@ -3985,15 +3963,6 @@ async function envoyerDocumentEmail(kind, doc){
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
-
-  
-  if(action==="test-v2031-clear"){
-    if(confirm("Vider uniquement les données locales de cette version TEST ?")){
-      localStorage.removeItem("afs_cache_test_v2031");
-      location.reload();
-    }
-    return;
-  }
 
   if(action==="payment-prompt-ok"){
     var sel=document.getElementById("paymentPromptSelect");
