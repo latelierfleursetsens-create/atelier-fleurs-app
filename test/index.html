@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST ISOLÉ V2.0.28 production PDF validés : devis, factures, synthèses -->
-<!-- Version TEST ISOLÉ V2.0.28 saisie stabilisée - basé sur TEST ISOLÉ V2.0.28 : ventes site et encaissements déplacés dans Clients -->
+<!-- Version V2.0.30 production PDF validés : devis, factures, synthèses -->
+<!-- Version V2.0.30 saisie stabilisée - basé sur V2.0.30 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
@@ -61,9 +61,6 @@ document.addEventListener("click", function(e){
   .topbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--green);color:#fff;font-size:13px;}
   .topbar .name{color:var(--gold-s);}
   .topbar .dirty{color:#ffd9c2;font-weight:700;}
-
-  .test-banner{background:#fff3cd;color:#6b4b00;border-bottom:1px solid #e8d28a;padding:9px 14px;text-align:center;font-weight:800;font-size:13px;}
-
 /* En-tête */
   header.app{background:#fff;color:var(--ink);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:6px solid var(--green);border-bottom:6px solid var(--green);}
   header.app .brand{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -183,7 +180,6 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ MODE TEST ISOLÉ — aucune synchronisation avec la production — données locales navigateur uniquement</div>
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
@@ -235,7 +231,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, todoEditing:false, todoSaveTimer:null, globalSearch:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"" };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -317,9 +313,9 @@ function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
   applyData(d);
   state.mariages.forEach(function(m){ if(localMedias[m.id] && (!m.medias||!m.medias.length)) m.medias=localMedias[m.id]; });
-  try{ localStorage.setItem("afs_cache_test_isole", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
-function loadCache(){ try{ var raw=localStorage.getItem("afs_cache_test_isole"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
+function loadCache(){ try{ var raw=localStorage.getItem("afs_cache"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
 
 function isTextEditing(){
   var a=document.activeElement;
@@ -346,7 +342,7 @@ function saveTodoFromFields(){
 }
 function saveTodoLocalOnly(){
   saveTodoFromFields();
-  try{ localStorage.setItem("afs_cache_test_isole", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
 function saveTodoCloudDelayed(){
   clearTimeout(ui.todoSaveTimer);
@@ -358,30 +354,28 @@ function saveTodoCloudDelayed(){
 }
 
 function saveCache(){
-  try{ localStorage.setItem("afs_cache_test_isole", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
   if(ui && ui.todoEditing) return;
   saveCloud();
 }
-async function saveCloud(){
-  try{ localStorage.setItem("afs_cache_test_isole", JSON.stringify({data:serialize()})); }catch(e){}
-  cloudStatus("🧪 Test isolé — sauvegarde locale uniquement");
+function saveCloud(){
+  if(!docRef) return;
+  if(ui && ui.todoEditing) return;
+  cloudStatus("☁️ Enregistrement…");
+  clearTimeout(cloudTimer);
+  cloudTimer=setTimeout(function(){
+    docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
+      .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
+  }, 800);
 }
-async function startSync(user){
-  uidStr = user && user.uid ? user.uid : "test-isole";
-  docRef = null;
-  try{
-    var raw=localStorage.getItem("afs_cache_test_isole");
-    if(raw){
-      var parsed=JSON.parse(raw);
-      if(parsed && parsed.data) applyRemote(parsed.data);
-    }
-  }catch(e){ console.warn("Cache test isolé illisible", e); }
-  cloudStatus("🧪 Test isolé — aucune synchro prod");
-  var login=document.getElementById("login");
-  var appwrap=document.getElementById("appwrap");
-  if(login) login.style.display="none";
-  if(appwrap) appwrap.style.display="block";
-  render();
+function startSync(uidStr){
+  docRef=db.collection("bases").doc(uidStr);
+  docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
+    if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
+    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
+    cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
+  }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
 }
 function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) el.textContent=t; }
 function downloadJSON(text,name){
@@ -416,7 +410,7 @@ async function googleDriveBackup(manual){
     state.settings.googleDriveLast=todayISO();
     state.settings.googleDriveLastAt=new Date().toISOString();
     if(out.filename) state.settings.googleDriveLastFile=out.filename;
-    try{ localStorage.setItem("afs_cache_test_isole", JSON.stringify({data:serialize()})); }catch(e){}
+    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
     saveCloud();
     if(manual) toast((out.replaced?"Sauvegarde du jour remplacée dans Google Drive.":"Sauvegarde créée dans Google Drive.")+(out.filename?" Fichier : "+out.filename:""));
     render();
@@ -869,8 +863,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#fff3cd;border-color:#e8d28a;margin-bottom:14px;"><b style="color:#6b4b00;">⚠️ TEST ISOLÉ TEST ISOLÉ V2.0.28 — aucune donnée envoyée en production</b><div class="muted" style="font-size:12px;margin-top:4px;">Cette version sauvegarde uniquement dans le navigateur. Tu peux importer une sauvegarde pour tester, sans toucher à la prod.</div><button class="btn ghost" data-action="test-isole-clear" style="margin-top:8px;">Réinitialiser le test isolé</button></div>'+
-
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.30 — ateliers avec devis/factures</b><div class="muted" style="font-size:12px;margin-top:4px;">Ajout devis/factures pour ateliers privés et structures.</div></div>'+
 
 
 
@@ -881,12 +874,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST ISOLÉ V2.0.28 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.30 — saisie sans rafraîchissement.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST ISOLÉ V2.0.28</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.30</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -1233,18 +1226,35 @@ function paymentOptions(selected){
     return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+esc(p)+'</option>';
   }).join("");
 }
-function normalizePaymentMethod(v){
-  v=(v||"").trim();
-  if(!v) return "Non renseigné";
-  var low=v.toLowerCase();
-  if(low==="especes"||low==="espèces") return "Espèces";
-  if(low==="cb"||low.indexOf("carte")>=0) return "CB";
-  if(low==="wero") return "Wero";
-  if(low.indexOf("virement")>=0) return "Virement";
-  if(low.indexOf("site")>=0||low.indexOf("internet")>=0||low.indexOf("web")>=0||low.indexOf("squarespace")>=0) return "Site internet";
-  if(low.indexOf("chèque")>=0||low.indexOf("cheque")>=0) return "Chèque";
-  return v;
+
+function paymentOptions(){
+  return ["", "Espèces", "CB", "Virement", "Wero", "PayPal", "Chèque", "Stripe", "Squarespace", "Site internet", "Autre"];
 }
+function normalizePaymentMethod(v){
+  v=String(v||"").trim();
+  var n=v.toLowerCase();
+  if(!n) return "";
+  if(n==="espece"||n==="espèces"||n==="especes") return "Espèces";
+  if(n==="carte"||n==="cb"||n==="carte bancaire") return "CB";
+  if(n==="virement bancaire") return "Virement";
+  if(n==="site"||n==="site internet") return "Site internet";
+  return v.charAt(0).toUpperCase()+v.slice(1);
+}
+function paymentSelectHtml(id, value){
+  value=normalizePaymentMethod(value||"");
+  var opts=paymentOptions();
+  var h='<select id="'+id+'">';
+  opts.forEach(function(o){
+    h+='<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+(o?esc(o):'À choisir')+'</option>';
+  });
+  h+='</select>';
+  return h;
+}
+function askPaymentMethodModal(title, message, current, callback){
+  ui.paymentPrompt={title:title||"Moyen de paiement", message:message||"Choisis le moyen de paiement dans la liste.", value:current||"", callback:callback};
+  renderModal();
+}
+
 
 
 var MARIAGE_LIVRAISON_MODES=["Remise en main propre","Envoi","Retrait domicile"];
@@ -2031,6 +2041,169 @@ function viewCRMPreview(){
 var ATELIER_TYPES=["EVJF","Structure","Anniversaire","Moment entre copine"];
 var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",termine:"Terminé",annule:"Annulé"};
 
+
+/* ===================== Documents ateliers structure / privé ===================== */
+function atelierLinkedDevis(a){
+  if(!a) return null;
+  if(a.devisId){
+    var d=findDevis(a.devisId);
+    if(d) return d;
+  }
+  return (state.devis||[]).find(function(d){return d.origine==="atelier" && d.atelierId===a.id;}) || null;
+}
+function atelierFacturesLiees(a){
+  if(!a) return [];
+  var d=atelierLinkedDevis(a);
+  return (state.factures||[]).filter(function(f){
+    return (f.origine==="atelier" && f.atelierId===a.id) || (d && f.devisId===d.id && f.origine==="atelier");
+  });
+}
+function atelierClientForDoc(a){
+  var mode=atelierMode(a);
+  var nom="";
+  if(mode==="structure") nom=a.structureNom || a.organisatrice || "Structure";
+  else nom=a.organisatrice || "Atelier privé";
+  var client={
+    nom:nom,
+    adresse:a.lieu||"",
+    email:a.contactEmail||"",
+    tel:a.contactTel||"",
+    canal:""
+  };
+  var key=normName(client.nom);
+  if(key){
+    var existing=(state.clients||[]).find(function(c){return normName(c.nom)===key;});
+    if(existing){
+      if(!existing.email && client.email) existing.email=client.email;
+      if(!existing.tel && client.tel) existing.tel=client.tel;
+      if(!existing.adresse && client.adresse) existing.adresse=client.adresse;
+      return existing;
+    }
+    var created=Object.assign({id:uid(),anniversaire:"",notes:""},client);
+    state.clients=state.clients||[];
+    state.clients.push(created);
+    return created;
+  }
+  return client;
+}
+function atelierDocDesignation(a){
+  var mode=atelierMode(a);
+  var parts=[];
+  parts.push("Atelier "+atelierModeLabel(mode));
+  if(a.type) parts.push(a.type);
+  if(a.theme) parts.push(a.theme);
+  if(a.date) parts.push(frDate(a.date));
+  if(a.lieu) parts.push(a.lieu);
+  var nb=atelierParticipantsCount(a);
+  if(nb) parts.push(nb+" participant(s)");
+  return parts.filter(Boolean).join(" - ");
+}
+function atelierDocMontant(a){
+  var mode=atelierMode(a);
+  if(mode==="structure") return Number(a.montantPrestation)||0;
+  if(mode==="prive") return Number(a.montantForfait)||0;
+  return atelierTotals(a).total;
+}
+function atelierCreateDevis(a){
+  if(!a) return null;
+  var existing=atelierLinkedDevis(a);
+  if(existing) return existing;
+  var montant=atelierDocMontant(a);
+  if(montant<=0){ toast("Indique le montant de la prestation avant de créer le devis."); return null; }
+  var client=atelierClientForDoc(a);
+  var date=todayISO();
+  var d={
+    id:uid(),
+    numero:prochainNumero("devis"),
+    date:date,
+    validite:addDays(date,state.settings.validiteDevis),
+    client:client,
+    lignes:[{id:uid(),designation:atelierDocDesignation(a),type:"service",qte:1,prix:montant}],
+    notes:"Devis généré depuis la fiche atelier"+(a.date?" du "+frDate(a.date):"")+".",
+    statut:"brouillon",
+    origine:"atelier",
+    atelierId:a.id,
+    atelierMode:atelierMode(a),
+    atelierType:a.type||"",
+    atelierTheme:a.theme||"",
+    atelierDate:a.date||""
+  };
+  state.devis=state.devis||[];
+  state.devis.unshift(d);
+  a.devisId=d.id;
+  a.devisNumero=d.numero;
+  return d;
+}
+function atelierCreateFactureFromDevis(a, type){
+  if(!a) return null;
+  var d=atelierLinkedDevis(a) || atelierCreateDevis(a);
+  if(!d) return null;
+  var f=null;
+  if(type==="acompte"){
+    f=creerAcompte(d);
+  }else if(type==="solde"){
+    f=creerSolde(d);
+    if(!f){ toast("Crée d’abord une facture d’acompte."); return null; }
+  }else{
+    f=creerTotale(d);
+  }
+  if(f){
+    f.origine="atelier";
+    f.atelierId=a.id;
+    f.atelierMode=atelierMode(a);
+    f.atelierType=a.type||"";
+    f.atelierTheme=a.theme||"";
+    f.atelierDate=a.date||"";
+    f.notes=(f.notes?f.notes+" ":"")+"Facture générée depuis la fiche atelier.";
+    a.factureIds=a.factureIds||[];
+    if(a.factureIds.indexOf(f.id)<0) a.factureIds.push(f.id);
+  }
+  return f;
+}
+function viewAtelierDocuments(a){
+  var mode=atelierMode(a);
+  if(mode==="thematique") return "";
+  var d=atelierLinkedDevis(a);
+  var fs=atelierFacturesLiees(a);
+  var total=atelierDocMontant(a);
+  var hasAcompte=fs.some(function(f){return f.type==="acompte";});
+  var hasSolde=fs.some(function(f){return f.type==="solde";});
+  var hasTotale=fs.some(function(f){return f.type==="totale";});
+  var html='<div class="card"><div class="flexb"><div><h3 style="margin:0;">Devis & facture atelier</h3><p class="muted" style="margin:4px 0 0;">Pour les ateliers privés et structures, crée les documents directement depuis cette fiche.</p></div><span class="chip">Montant : '+euro(total)+'</span></div>';
+
+  if(!d){
+    html+='<div class="row-actions"><button class="btn primary" data-action="at-doc-devis-create">Créer le devis atelier</button></div>';
+  }else{
+    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><b style="color:var(--bordeaux);">Devis '+esc(d.numero)+'</b>'+
+      '<div class="muted" style="font-size:12px;">Client : '+esc((d.client&&d.client.nom)||"")+' · Total : '+euro(totals(d.lignes||[],state.settings.partService).total)+' · Statut : '+esc((ST_DEVIS[d.statut]||ST_DEVIS.brouillon).l)+'</div></div>'+
+      '<div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
+        '<button class="btn small soft" data-action="at-doc-devis-preview">Aperçu / PDF</button>'+
+        '<button class="btn small primary" data-action="at-doc-devis-email">Envoyer devis</button>'+
+      '</div></div>';
+
+    html+='<div class="row-actions">'+
+      (!hasAcompte&&!hasTotale?'<button class="btn gold" data-action="at-doc-fac-acompte">Créer facture acompte</button>':'')+
+      (hasAcompte&&!hasSolde&&!hasTotale?'<button class="btn soft" data-action="at-doc-fac-solde">Créer facture solde</button>':'')+
+      (!hasAcompte&&!hasTotale?'<button class="btn primary" data-action="at-doc-fac-totale">Créer facture totale</button>':'')+
+    '</div>';
+
+    if(fs.length){
+      html+='<div style="margin-top:10px;">';
+      fs.forEach(function(f){
+        html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><b>Facture '+esc(f.numero)+'</b>'+
+          '<div class="muted" style="font-size:12px;">'+esc(TYPE_FAC[f.type]||"Facture")+' · '+euro(f.montant||0)+' · '+(f.statut==="payee"?"Payée":(f.statut==="envoyee"?"Envoyée":"À envoyer"))+(f.paiementClient?' · '+esc(f.paiementClient):'')+'</div></div>'+
+          '<div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
+            '<button class="btn small soft" data-action="at-doc-fac-preview-'+f.id+'">Aperçu / PDF</button>'+
+            '<button class="btn small primary" data-action="at-doc-fac-email-'+f.id+'">Envoyer facture</button>'+
+          '</div></div>';
+      });
+      html+='</div>';
+    }
+  }
+  html+='</div>';
+  return html;
+}
+
 function atelierMode(a){
   return (a&&a.modeAtelier)||"thematique";
 }
@@ -2205,6 +2378,8 @@ function viewAtelierDetail(a){
       '<div><label class="field"><span>Montant forfaitaire défini (€)</span><input id="atMontantForfait" type="number" min="0" step="0.01" value="'+esc(a.montantForfait||"")+'"></label></div></div>'+
       '</div>';
   }
+
+  if(mode!=="thematique"){ html+=viewAtelierDocuments(a); }
 
   html+='<label class="field"><span>Matériel nécessaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
     '<label class="field"><span>Description / mémo</span><textarea id="atDescription" placeholder="Infos organisation, demandes particulières, déroulé de l’atelier…">'+esc(a.description||"")+'</textarea></label>'+
@@ -3757,6 +3932,22 @@ async function envoyerDocumentEmail(kind, doc){
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
+
+  if(action==="payment-prompt-ok"){
+    var sel=document.getElementById("paymentPromptSelect");
+    var val=sel?sel.value:"";
+    var cb=ui.paymentPrompt&&ui.paymentPrompt.callback;
+    ui.paymentPrompt=null;
+    renderModal();
+    if(typeof cb==="function") cb(val);
+    return;
+  }
+  if(action==="payment-prompt-cancel"){
+    ui.paymentPrompt=null;
+    renderModal();
+    return;
+  }
+
   // nav
   
   
@@ -3769,15 +3960,6 @@ function handleAction(action){
 
   if(action==="mar-test-synthese-only"){
     testDownloadSyntheseMariage();
-    return;
-  }
-
-  
-  if(action==="test-isole-clear"){
-    if(confirm("Vider uniquement les données locales de la version test isolée ?")){
-      localStorage.removeItem("afs_cache_test_isole");
-      location.reload();
-    }
     return;
   }
 
@@ -3871,6 +4053,51 @@ function handleAction(action){
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
+
+  
+  if(action==="at-doc-devis-create"){
+    var ad=getAtelier(ui.atelierOpen);
+    if(ad){ captureAtelier(ad); var dv=atelierCreateDevis(ad); if(dv){ saveCache(); render(); toast("Devis "+dv.numero+" créé."); } }
+    return;
+  }
+  if(action==="at-doc-devis-preview"){
+    var apd=getAtelier(ui.atelierOpen), dd=atelierLinkedDevis(apd);
+    if(dd){ ui.preview={kind:"devis",doc:dd}; renderModal(); }
+    else toast("Aucun devis lié à cet atelier.");
+    return;
+  }
+  if(action==="at-doc-devis-email"){
+    var aed=getAtelier(ui.atelierOpen), de=atelierLinkedDevis(aed);
+    if(de){ envoyerDocumentEmail("devis", de); }
+    else toast("Aucun devis lié à cet atelier.");
+    return;
+  }
+  if(action==="at-doc-fac-acompte" || action==="at-doc-fac-totale" || action==="at-doc-fac-solde"){
+    var af=getAtelier(ui.atelierOpen);
+    if(af){
+      captureAtelier(af);
+      var typ=action==="at-doc-fac-acompte"?"acompte":(action==="at-doc-fac-solde"?"solde":"totale");
+      var fac=atelierCreateFactureFromDevis(af, typ);
+      if(fac){
+        saveCache();
+        render();
+        toast("Facture "+fac.numero+" créée.");
+      }
+    }
+    return;
+  }
+  if(action.indexOf("at-doc-fac-preview-")===0){
+    var fid=action.slice(19);
+    var ff=(state.factures||[]).find(function(f){return f.id===fid;});
+    if(ff){ ui.preview={kind:"facture",doc:ff}; renderModal(); }
+    return;
+  }
+  if(action.indexOf("at-doc-fac-email-")===0){
+    var fid2=action.slice(17);
+    var ff2=(state.factures||[]).find(function(f){return f.id===fid2;});
+    if(ff2){ envoyerDocumentEmail("facture", ff2); }
+    return;
+  }
 
   if(action==="at-new"){ newAtelier(); return; }
   if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.mariageOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
@@ -3999,9 +4226,45 @@ function handleAction(action){
     return;
   }
   // factures depuis devis
-  if(action.indexOf("fac-acompte-")===0){ var d1=findDevis(action.slice(12)); if(d1){ var fa=creerAcompte(d1); if(fa){ var mpA=prompt("Moyen de paiement si l'acompte est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpA!==null && mpA.trim()){ fa.paiementClient=mpA.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée."); } return; }
-  if(action.indexOf("fac-solde-")===0){ var d2=findDevis(action.slice(10)); if(d2){ var fs=creerSolde(d2); if(fs){ var mpS=prompt("Moyen de paiement si le solde est déjà réglé ?\nLaisse vide si non payé.", ""); if(mpS!==null && mpS.trim()){ fs.paiementClient=mpS.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); } return; }
-  if(action.indexOf("fac-totale-")===0){ var d3=findDevis(action.slice(11)); if(d3){ var ft=creerTotale(d3); if(ft){ var mpT=prompt("Moyen de paiement si la facture est déjà réglée ?\nLaisse vide si non payée.", ""); if(mpT!==null && mpT.trim()){ ft.paiementClient=mpT.trim(); } } saveCache(); ui.tab="factures"; render(); toast("Facture créée."); } return; }
+  if(action.indexOf("fac-acompte-")===0){
+    var d1=findDevis(action.slice(12));
+    if(d1){
+      var fa=creerAcompte(d1);
+      if(fa){
+        askPaymentMethodModal("Moyen de paiement", "Si l'acompte est déjà réglé, choisis le moyen de paiement. Laisse « À choisir » si non payé.", fa.paiementClient||"", function(mpA){
+          if(mpA){ fa.paiementClient=mpA; }
+          saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée.");
+        });
+      }else{ saveCache(); ui.tab="factures"; render(); toast("Facture d'acompte créée."); }
+    }
+    return;
+  }
+  if(action.indexOf("fac-solde-")===0){
+    var d2=findDevis(action.slice(10));
+    if(d2){
+      var fs=creerSolde(d2);
+      if(fs){
+        askPaymentMethodModal("Moyen de paiement", "Si le solde est déjà réglé, choisis le moyen de paiement. Laisse « À choisir » si non payé.", fs.paiementClient||"", function(mpS){
+          if(mpS){ fs.paiementClient=mpS; }
+          saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée.");
+        });
+      }else{ saveCache(); ui.tab="factures"; render(); toast("Facture de solde créée."); }
+    }
+    return;
+  }
+  if(action.indexOf("fac-totale-")===0){
+    var d3=findDevis(action.slice(11));
+    if(d3){
+      var ft=creerTotale(d3);
+      if(ft){
+        askPaymentMethodModal("Moyen de paiement", "Si la facture est déjà réglée, choisis le moyen de paiement. Laisse « À choisir » si non payée.", ft.paiementClient||"", function(mpT){
+          if(mpT){ ft.paiementClient=mpT; }
+          saveCache(); ui.tab="factures"; render(); toast("Facture créée.");
+        });
+      }else{ saveCache(); ui.tab="factures"; render(); toast("Facture créée."); }
+    }
+    return;
+  }
 
   // factures
   if(action.indexOf("fac-preview-")===0){ var f=state.factures.find(function(x){return x.id===action.slice(12);}); ui.preview={kind:"facture",doc:f}; renderModal(); return; }
@@ -4009,9 +4272,10 @@ function handleAction(action){
   if(action.indexOf("fac-paymethod-")===0){
     var fm=state.factures.find(function(x){return x.id===action.slice(14);});
     if(fm){
-      var current=fm.paiementClient||"";
-      var mp=prompt("Moyen de paiement de la cliente ?\nExemples : CB, Espèces, Virement, Wero, PayPal, Chèque", current);
-      if(mp!==null){ fm.paiementClient=mp.trim(); saveCache(); render(); toast("Moyen de paiement enregistré."); }
+      askPaymentMethodModal("Moyen de paiement", "Choisis le moyen de paiement de la cliente.", fm.paiementClient||"", function(mp){
+        fm.paiementClient=mp||"";
+        saveCache(); render(); toast("Moyen de paiement enregistré.");
+      });
     }
     return;
   }
@@ -4019,8 +4283,7 @@ function handleAction(action){
     var fp=state.factures.find(function(x){return x.id===action.slice(9);});
     if(fp){
       fp.statut="payee"; fp.datePaiement=fp.datePaiement||todayISO();
-      if(!fp.paiementClient){ var pm=prompt("Moyen de paiement : Espèces, CB, Wero, Virement, Site internet, Chèque", ""); if(pm!==null) fp.paiementClient=normalizePaymentMethod(pm); }
-      if(!fp.paiementClient){ var mp=prompt("Moyen de paiement de la cliente ? (CB, Espèces, Virement, Wero…)", ""); if(mp!==null) fp.paiementClient=mp.trim(); }
+      /* paiement choisi via modal */
       if(fp.type==="acompte" && fp.devisId){
         var dd=findDevis(fp.devisId);
         var hasSolde=facturesDuDevis(fp.devisId).some(function(f){return f.type==="solde";});
