@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
+<!-- Version V2.0.34 devis triés : à traiter, acceptés, refusés, archivés -->
 <!-- Version V2.0.32 production PDF validés : devis, factures, synthèses -->
 <!-- Version V2.0.32 saisie stabilisée - basé sur V2.0.32 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
@@ -286,7 +287,7 @@ function factureCalc(lignes, partService, f){
 }
 
 var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l:"Envoyé",c:"#6a5a2a",b:"#f3ead0"},
-  accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"} };
+  accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"}, archive:{l:"Archivé",c:"var(--ink-s)",b:"#eeeeee"} };
 var ST_FAC={ a_envoyer:{l:"À envoyer",c:"var(--ink-s)",b:"#efe7df"}, envoyee:{l:"Envoyée",c:"#6a5a2a",b:"#f3ead0"}, payee:{l:"Payée",c:"var(--green)",b:"var(--green-s)"} };
 var TYPE_FAC={ acompte:"Facture d\'acompte", solde:"Facture de solde", totale:"Facture" };
 var MAIL_WORKER_URL="https://atelier-fleurs-mail.latelierfleursetsens.workers.dev/";
@@ -976,12 +977,41 @@ function jauge(lab,v,seuil,pct,color){
 /* ===================== Devis : liste ===================== */
 function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
 function viewDevis(){
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Mes devis</h2><button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
+  var filtre = ui.devisFiltre || "actifs";
+  var actifs = state.devis.filter(function(d){ return d.statut !== "accepte" && d.statut !== "refuse" && d.statut !== "archive"; });
+  var acceptes = state.devis.filter(function(d){ return d.statut === "accepte"; });
+  var refuses = state.devis.filter(function(d){ return d.statut === "refuse"; });
+  var archives = state.devis.filter(function(d){ return d.statut === "archive"; });
+  var liste = actifs;
+  if(filtre === "acceptes") liste = acceptes;
+  if(filtre === "refuses") liste = refuses;
+  if(filtre === "archives") liste = archives;
+
+  var html = '<div class="flexb" style="margin-bottom:14px;">'+
+    '<div><h2 style="margin:0;">Mes devis</h2><p class="muted" style="margin:4px 0 0;">Vue simplifiée : seuls les devis à traiter restent visibles au premier coup d’œil.</p></div>'+
+    '<button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
+
+  html += '<div class="row-actions" style="margin-bottom:14px;">'+
+    '<button class="btn small '+(filtre==="actifs"?'primary':'ghost')+'" data-action="devis-filtre-actifs">À traiter ('+actifs.length+')</button>'+
+    '<button class="btn small '+(filtre==="acceptes"?'primary':'ghost')+'" data-action="devis-filtre-acceptes">Acceptés ('+acceptes.length+')</button>'+
+    '<button class="btn small '+(filtre==="refuses"?'primary':'ghost')+'" data-action="devis-filtre-refuses">Refusés ('+refuses.length+')</button>'+
+    '<button class="btn small '+(filtre==="archives"?'primary':'ghost')+'" data-action="devis-filtre-archives">Archivés ('+archives.length+')</button>'+
+  '</div>';
+
   if(state.devis.length===0){
     html+='<div class="card"><p class="muted" style="margin:0;">Aucun devis. Quand un client vous appelle, touchez « Nouveau devis » et laissez-vous guider.</p></div>';
     return html;
   }
-  state.devis.forEach(function(d){
+  if(liste.length===0){
+    var msg = "Aucun devis à traiter pour le moment.";
+    if(filtre==="acceptes") msg = "Aucun devis accepté pour le moment.";
+    if(filtre==="refuses") msg = "Aucun devis refusé pour le moment.";
+    if(filtre==="archives") msg = "Aucun devis archivé pour le moment.";
+    html+='<div class="card"><p class="muted" style="margin:0;">'+msg+'</p></div>';
+    return html;
+  }
+
+  liste.forEach(function(d){
     var t=totals(d.lignes,state.settings.partService); var fs=facturesDuDevis(d.id);
     var ac=fs.find(function(f){return f.type==="acompte";});
     var aA=!!ac, aS=fs.some(function(f){return f.type==="solde";}), aT=fs.some(function(f){return f.type==="totale";});
@@ -996,19 +1026,20 @@ function viewDevis(){
         '<button class="btn small ghost" data-action="devis-preview-'+d.id+'">Aperçu / PDF</button>'+
         '<button class="btn small gold" data-action="devis-email-'+d.id+'">Envoyer par email</button>'+
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
-        (d.statut!=="accepte"&&d.statut!=="refuse"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
-        (d.statut!=="refuse"&&d.statut!=="accepte"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
+        (d.statut!=="accepte"&&d.statut!=="refuse"&&d.statut!=="archive"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
+        (d.statut!=="refuse"&&d.statut!=="accepte"&&d.statut!=="archive"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
         (d.statut==="accepte"&&!aA&&!aT?'<button class="btn small gold" data-action="fac-acompte-'+d.id+'">Facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Facture complète (100 %)</button>':'')+
         (d.statut==="accepte"&&aA&&!aS&&acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'')+
         (d.statut==="accepte"&&aA&&!aS&&!acomptePaye?'<span class="muted" style="align-self:center;font-size:12px;">Solde disponible après paiement de l\'acompte.</span>':'')+
+        ((d.statut==="accepte"||d.statut==="refuse")?'<button class="btn small ghost" data-action="devis-archive-'+d.id+'">Archiver</button>':'')+
+        (d.statut==="archive"?'<button class="btn small ghost" data-action="devis-unarchive-'+d.id+'">Désarchiver</button>':'')+
         '<button class="btn small danger" data-action="devis-del-'+d.id+'">'+(delPending?'Confirmer suppression':'Supprimer')+'</button>'+
-      '</div>'+
+      '</div>'+ 
       (fs.length?'<div class="muted" style="margin-top:10px;">Factures liées : '+fs.map(function(f){return esc(f.numero)+" ("+TYPE_FAC[f.type].toLowerCase()+")";}).join(" · ")+'</div>':'')+
     '</div>';
   });
   return html;
 }
-
 /* ===================== Devis : assistant ===================== */
 function newWizard(){ ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"", date:todayISO() }; }
 function wzTotals(){ return totals(ui.wizard.lignes,state.settings.partService); }
@@ -4203,6 +4234,9 @@ function handleAction(action){
   if(action.indexOf("facture-preview-")===0){ var fp=state.factures.find(function(f){return f.id===action.slice(16);}); if(fp){ ui.preview={kind:"facture",doc:fp}; renderModal(); } return; }
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
+  if(action.indexOf("devis-filtre-")===0){ ui.devisFiltre=action.slice(13); ui.confirmDelete=null; render(); return; }
+  if(action.indexOf("devis-archive-")===0){ var da=findDevis(action.slice(14)); if(da){ da.statutAvantArchive=da.statut; da.statut="archive"; ui.devisFiltre="archives"; saveCache(); render(); toast("Devis archivé."); } return; }
+  if(action.indexOf("devis-unarchive-")===0){ var du=findDevis(action.slice(16)); if(du){ du.statut=du.statutAvantArchive||"envoye"; delete du.statutAvantArchive; ui.devisFiltre=(du.statut==="accepte"?"acceptes":(du.statut==="refuse"?"refuses":"actifs")); saveCache(); render(); toast("Devis désarchivé."); } return; }
   if(action.indexOf("devis-del-")===0){ var did=action.slice(10), key="devis:"+did;
     if(facturesDuDevis(did).length){ toast("Impossible : supprime d'abord les factures liées à ce devis."); return; }
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement ce devis."); return; }
@@ -4212,6 +4246,7 @@ function handleAction(action){
       var res=validerDevisEtCreerSuivi(d);
       saveCache();
       ui.tab="devis";
+      ui.devisFiltre="acceptes";
       ui.commandeOpen=null;
       render();
       toast("Devis accepté : choisis maintenant facture d\'acompte ou facture complète.");
