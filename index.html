@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version PROD V2.0.36 : tableau de bord cohérent + mariages à préparer uniquement après acompte payé -->
+<!-- Version PROD V2.0.37 : déclaration mensuelle URSSAF biens/services + CA mensuel détaillé -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
 
@@ -723,19 +723,42 @@ function renderModal(){
 }
 
 /* ===================== Tableau de bord ===================== */
+function siteSaleSplit(s){
+  var montant=Number(s&&s.montant)||0;
+  var mb=Number(s&&s.montantBiens)||0, ms=Number(s&&s.montantServices)||0;
+  if(mb||ms) return {biens:r2(mb), services:r2(ms), total:r2(mb+ms)};
+  var act=(s&&s.activite||"").toLowerCase();
+  if(act.indexOf("atelier")>=0) return {biens:0, services:r2(montant), total:r2(montant)};
+  if(act.indexOf("produit")>=0 || act.indexOf("box")>=0) return {biens:r2(montant), services:0, total:r2(montant)};
+  if(act.indexOf("mariage")>=0){
+    var p=(Number(state.settings.partService)||0)/100;
+    return {biens:r2(montant*(1-p)), services:r2(montant*p), total:r2(montant)};
+  }
+  return {biens:r2(montant), services:0, total:r2(montant)};
+}
+
 function caAnnee(annee){
   var biens=new Array(12).fill(0), services=new Array(12).fill(0);
   state.factures.forEach(function(f){
     if(f.statut==="payee"&&f.datePaiement&&f.datePaiement.slice(0,4)===String(annee)){
-      var m=parseInt(f.datePaiement.slice(5,7),10)-1; biens[m]+=f.montantBiens||0; services[m]+=f.montantServices||0;
+      var m=parseInt(f.datePaiement.slice(5,7),10)-1; biens[m]+=Number(f.montantBiens)||0; services[m]+=Number(f.montantServices)||0;
     }
   });
   state.encaissements.forEach(function(e){
     if(e.date&&e.date.slice(0,4)===String(annee)){
-      var m2=parseInt(e.date.slice(5,7),10)-1; biens[m2]+=e.montantBiens||0; services[m2]+=e.montantServices||0;
+      var m2=parseInt(e.date.slice(5,7),10)-1; biens[m2]+=Number(e.montantBiens)||0; services[m2]+=Number(e.montantServices)||0;
+    }
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(s.date&&s.date.slice(0,4)===String(annee)){
+      var m3=parseInt(s.date.slice(5,7),10)-1, sp=siteSaleSplit(s); biens[m3]+=sp.biens||0; services[m3]+=sp.services||0;
     }
   });
   return {biens:biens.map(r2),services:services.map(r2)};
+}
+function caMoisSplit(annee, moisIndex){
+  var ca=caAnnee(annee), b=ca.biens[moisIndex]||0, s=ca.services[moisIndex]||0;
+  return {biens:r2(b), services:r2(s), total:r2(b+s)};
 }
 function anneesDispo(){
   var s={}; state.factures.forEach(function(f){ if(f.datePaiement) s[f.datePaiement.slice(0,4)]=1; });
@@ -879,6 +902,9 @@ function viewDashboard(){
 
   var yopts=anneesDispo().map(function(a){return '<option value="'+a+'"'+(a===an?" selected":"")+'>'+a+'</option>';}).join("");
   var prep=countPrep();
+  var nowDash=new Date();
+  var currentMonthSplit=caMoisSplit(nowDash.getFullYear(), nowDash.getMonth());
+  var monthLabel=MOISL[nowDash.getMonth()]+' '+nowDash.getFullYear();
   var prepBanner = '';
   if(prep.items>0){
     prepBanner='<div class="card" style="border-color:var(--gold-s);background:#fbf3e6;margin-bottom:14px;">'+
@@ -892,10 +918,16 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.36</b><div class="muted" style="font-size:12px;margin-top:4px;">Correctif confirmé : “Mariages à préparer” affiche uniquement les dossiers avec facture d’acompte marquée payée.</div></div>'+
-
-
-
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.37</b><div class="muted" style="font-size:12px;margin-top:4px;">Déclaration mensuelle ajoutée : CA du mois séparé en vente de biens et prestations de services.</div></div>'+
+  '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
+    '<div class="grid-stats" style="margin-bottom:0;">'+
+      stat("CA total à déclarer", euro(currentMonthSplit.total), true)+
+      stat("Vente de biens", euro(currentMonthSplit.biens), false, "var(--blush-s)")+
+      stat("Prestations de services", euro(currentMonthSplit.services), false, "var(--green-s)")+
+    '</div>'+
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Calculé sur les encaissements réellement payés du mois : factures payées, encaissements manuels et ventes site internet.</p>'+
+  '</div>'+
 
   '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
@@ -903,12 +935,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.36.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.37.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — PROD V2.0.36</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — PROD V2.0.37</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -946,22 +978,40 @@ function viewDashboard(){
 }
 function monthSales(year, mi){
   var pref=String(year)+"-"+("0"+(mi+1)).slice(-2), items=[];
-  state.encaissements.forEach(function(e){ if(e.date && e.date.slice(0,7)===pref) items.push({date:e.date, label:e.libelle||"(vente)", client:e.client||"", montant:e.montant, type:"Encaissement"}); });
-  state.factures.forEach(function(f){ if(f.statut==="payee" && f.datePaiement && f.datePaiement.slice(0,7)===pref) items.push({date:f.datePaiement, label:f.numero+" ("+TYPE_FAC[f.type].toLowerCase()+")", client:(f.client&&f.client.nom)||"", montant:f.montant, type:"Facture"}); });
+  state.encaissements.forEach(function(e){
+    if(e.date && e.date.slice(0,7)===pref){
+      var mb=Number(e.montantBiens)||0, ms=Number(e.montantServices)||0;
+      items.push({date:e.date, label:e.libelle||"(vente)", client:e.client||"", montant:r2(mb+ms), biens:r2(mb), services:r2(ms), type:"Encaissement"});
+    }
+  });
+  state.factures.forEach(function(f){
+    if(f.statut==="payee" && f.datePaiement && f.datePaiement.slice(0,7)===pref){
+      var fb=Number(f.montantBiens)||0, fs=Number(f.montantServices)||0;
+      items.push({date:f.datePaiement, label:f.numero+" ("+TYPE_FAC[f.type].toLowerCase()+")", client:(f.client&&f.client.nom)||"", montant:r2(fb+fs), biens:r2(fb), services:r2(fs), type:"Facture"});
+    }
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(s.date && s.date.slice(0,7)===pref){
+      var sp=siteSaleSplit(s);
+      items.push({date:s.date, label:(s.commande?("Squarespace "+s.commande+" · "):"")+(s.produit||"Vente site"), client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, type:"Vente site"});
+    }
+  });
   items.sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
   return items;
 }
 function monthDetailCard(an){
   if(!ui.monthDetail || ui.monthDetail.year!==an) return "";
   var mi=ui.monthDetail.month, items=monthSales(an, mi);
-  var tot=items.reduce(function(s,x){return s+(x.montant||0);},0);
+  var totB=r2(items.reduce(function(s,x){return s+(x.biens||0);},0));
+  var totS=r2(items.reduce(function(s,x){return s+(x.services||0);},0));
+  var tot=r2(totB+totS);
   var rows = items.length ? items.map(function(it){
     return '<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><div>'+esc(it.label)+(it.client?' <span class="muted">· '+esc(it.client)+'</span>':'')+'</div>'+
-      '<div class="muted" style="font-size:12px;">'+frDate(it.date)+' · '+it.type+'</div></div><div style="font-weight:600;white-space:nowrap;">'+euro(it.montant)+'</div></div>';
+      '<div class="muted" style="font-size:12px;">'+frDate(it.date)+' · '+it.type+' · '+euro(it.biens)+' biens · '+euro(it.services)+' services</div></div><div style="font-weight:600;white-space:nowrap;">'+euro(it.montant)+'</div></div>';
   }).join("") : '<p class="muted" style="margin:0;">Aucune vente encaissée ce mois-ci.</p>';
   return '<div class="card"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">Ventes de '+MOISL[mi]+' '+an+'</h3>'+
     '<button class="btn small ghost" data-action="dash-month-close">Fermer</button></div>'+
-    rows+(items.length?'<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:2px solid var(--bordeaux);margin-top:8px;padding-top:6px;"><span>Total encaissé</span><span>'+euro(tot)+'</span></div>':'')+'</div>';
+    rows+(items.length?'<div style="border-top:2px solid var(--bordeaux);margin-top:8px;padding-top:6px;"><div class="totrow" style="font-weight:700;color:var(--bordeaux);"><span>Total encaissé</span><span>'+euro(tot)+'</span></div><div class="muted" style="text-align:right;font-size:12px;">'+euro(totB)+' biens · '+euro(totS)+' services</div></div>':'')+'</div>';
 }
 function stat(lab,val,big,bg,action){
   return '<div class="stat"'+(bg?' style="background:'+bg+';"':"")+(action?' data-action="'+action+'" style="'+(bg?'background:'+bg+';':'')+'cursor:pointer;" title="Cliquer pour voir le détail"':"")+'><div class="lab">'+esc(lab)+'</div><div class="val" style="font-size:'+(big?26:20)+'px;">'+val+'</div>'+(action?'<div class="muted" style="font-size:11px;margin-top:4px;">Voir le détail →</div>':'')+'</div>';
@@ -1873,6 +1923,8 @@ function encaissementsTresorerie(){
         libelle:f.numero||"Facture",
         client:(f.client&&f.client.nom)||"",
         montant:Number(f.montant)||0,
+        montantBiens:Number(f.montantBiens)||0,
+        montantServices:Number(f.montantServices)||0,
         paiement:normalizePaymentMethod(f.paiementClient||""),
         activite:activiteFacture(f),
         facture:f
@@ -1887,6 +1939,8 @@ function encaissementsTresorerie(){
       libelle:e.libelle||"Encaissement manuel",
       client:e.client||"",
       montant:Number(e.montant)||((Number(e.montantBiens)||0)+(Number(e.montantServices)||0)),
+      montantBiens:Number(e.montantBiens)||0,
+      montantServices:Number(e.montantServices)||0,
       paiement:normalizePaymentMethod(e.paiement||""),
       activite:activiteEncaissement(e),
       facture:null
@@ -1899,7 +1953,9 @@ function encaissementsTresorerie(){
       date:s.date||todayISO(),
       libelle:(s.commande?("Squarespace "+s.commande):"Vente site")+" · "+(s.produit||""),
       client:s.client||"",
-      montant:Number(s.montant)||0,
+      montant:siteSaleSplit(s).total,
+      montantBiens:siteSaleSplit(s).biens,
+      montantServices:siteSaleSplit(s).services,
       paiement:"Site internet",
       activite:activiteVenteSite(s),
       facture:null,
@@ -1945,8 +2001,12 @@ function viewTresorerie(){
   var list=encaissementsTresorerie();
   var listYear=list.filter(function(e){return (e.date||"").slice(0,4)===year;});
   var listMonth=list.filter(function(e){return (e.date||"").slice(0,7)===year+"-"+month;});
-  var caM=r2(listMonth.reduce(function(s,e){return s+e.montant;},0));
-  var caA=r2(listYear.reduce(function(s,e){return s+e.montant;},0));
+  var caMB=r2(listMonth.reduce(function(s,e){return s+(Number(e.montantBiens)||0);},0));
+  var caMS=r2(listMonth.reduce(function(s,e){return s+(Number(e.montantServices)||0);},0));
+  var caM=r2(caMB+caMS);
+  var caAB=r2(listYear.reduce(function(s,e){return s+(Number(e.montantBiens)||0);},0));
+  var caAS=r2(listYear.reduce(function(s,e){return s+(Number(e.montantServices)||0);},0));
+  var caA=r2(caAB+caAS);
   var achatsM=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), Number(month)) : 0;
   var achatsA=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), null) : 0;
   var byPay=groupTresorerieBy(function(e){return e.paiement;}, listYear);
@@ -1954,10 +2014,17 @@ function viewTresorerie(){
   var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+
     '<div class="grid-stats">'+
       stat("CA encaissé du mois",euro(caM),true)+
+      stat("Biens du mois",euro(caMB),false,"var(--blush-s)")+
+      stat("Services du mois",euro(caMS),false,"var(--green-s)")+
       stat("CA encaissé de l’année",euro(caA),true)+
       stat("Achats du mois",euro(achatsM),false)+
       stat("Marge brute estimée",euro(r2(caM-achatsM)),false)+
     '</div>'+
+    '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;"><h3 style="margin:0 0 8px;">🧾 Déclaration du mois</h3>'+
+      '<div class="totrow"><span>Vente de biens</span><b>'+euro(caMB)+'</b></div>'+
+      '<div class="totrow"><span>Prestations de services</span><b>'+euro(caMS)+'</b></div>'+
+      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:5px;"><span>Total CA</span><span>'+euro(caM)+'</span></div>'+
+      '<p class="muted" style="font-size:12px;margin:8px 0 0;">Ce sont les montants à reporter dans ta déclaration mensuelle URSSAF.</p></div>'+
     '<div class="card"><h3 style="margin:0 0 10px;">Répartition par moyen de paiement '+year+'</h3>';
   CLIENT_PAYMENT_METHODS.concat(["Non renseigné"]).forEach(function(p){
     if(byPay[p]) html+=tresoBar(p, r2(byPay[p]), caA);
@@ -1971,7 +2038,7 @@ function viewTresorerie(){
   else list.slice(0,100).forEach(function(e){
     html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+
       '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+
-      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+'</div></div>'+
+      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+' · '+euro(e.montantBiens||0)+' biens · '+euro(e.montantServices||0)+' services</div></div>'+
       '<div style="font-weight:800;color:var(--bordeaux);">'+euro(e.montant)+'</div></div>';
   });
   html+='</div>';
@@ -3122,18 +3189,35 @@ function viewDoc(p){
 
 /* ===================== Export CSV ===================== */
 function exportCSV(annee){
-  var rows=state.factures.filter(function(f){ return f.statut==="payee"&&f.datePaiement&&(annee==="all"||f.datePaiement.slice(0,4)===String(annee)); })
-    .sort(function(a,b){ return a.datePaiement.localeCompare(b.datePaiement); });
+  var rows=[];
+  state.factures.forEach(function(f){
+    if(f.statut==="payee"&&f.datePaiement&&(annee==="all"||f.datePaiement.slice(0,4)===String(annee))){
+      rows.push({date:f.datePaiement, source:"Facture", ref:f.numero||"", type:TYPE_FAC[f.type]||"Facture", client:(f.client&&f.client.nom)||"", montant:Number(f.montant)||0, biens:Number(f.montantBiens)||0, services:Number(f.montantServices)||0, paiement:f.paiementClient||""});
+    }
+  });
+  state.encaissements.forEach(function(e){
+    if(e.date&&(annee==="all"||e.date.slice(0,4)===String(annee))){
+      var b=Number(e.montantBiens)||0, s=Number(e.montantServices)||0;
+      rows.push({date:e.date, source:"Encaissement manuel", ref:"", type:e.libelle||"Encaissement", client:e.client||"", montant:r2(b+s), biens:r2(b), services:r2(s), paiement:e.paiement||""});
+    }
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(s.date&&(annee==="all"||s.date.slice(0,4)===String(annee))){
+      var sp=siteSaleSplit(s);
+      rows.push({date:s.date, source:"Vente site internet", ref:s.commande||"", type:s.produit||s.activite||"Vente site", client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, paiement:"Site internet"});
+    }
+  });
+  rows.sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
   if(rows.length===0){ toast("Aucune vente encaissée pour cette période."); return; }
   var fmt=function(n){ return (Number(n)||0).toFixed(2).replace(".",","); };
   var q=function(s){ return '"'+String(s==null?"":s).replace(/"/g,'""')+'"'; };
-  var L=[["Date encaissement","N° facture","Type","Client","Total (€)","dont Vente de biens (€)","dont Prestation de services (€)"].map(q).join(";")];
-  rows.forEach(function(f){ L.push([frDate(f.datePaiement),f.numero,TYPE_FAC[f.type],f.client&&f.client.nom,fmt(f.montant),fmt(f.montantBiens),fmt(f.montantServices)].map(q).join(";")); });
-  var tb=r2(rows.reduce(function(a,f){return a+(f.montantBiens||0);},0)), ts=r2(rows.reduce(function(a,f){return a+(f.montantServices||0);},0));
-  L.push(""); L.push(["","","","TOTAL",fmt(tb+ts),fmt(tb),fmt(ts)].map(q).join(";"));
+  var L=[["Date encaissement","Source","Référence","Type / Libellé","Client","Total (€)","Vente de biens (€)","Prestations de services (€)","Paiement"].map(q).join(";")];
+  rows.forEach(function(r){ L.push([frDate(r.date),r.source,r.ref,r.type,r.client,fmt(r.montant),fmt(r.biens),fmt(r.services),r.paiement].map(q).join(";")); });
+  var tb=r2(rows.reduce(function(a,r){return a+(Number(r.biens)||0);},0)), ts=r2(rows.reduce(function(a,r){return a+(Number(r.services)||0);},0));
+  L.push(""); L.push(["","","","","TOTAL",fmt(tb+ts),fmt(tb),fmt(ts),""].map(q).join(";"));
   var csv="\uFEFF"+L.join("\r\n");
-  downloadJSON(csv, "carnet-ventes-"+(annee==="all"?"toutes-annees":annee)+".csv"); // même mécanisme de téléchargement
-  toast("Export prêt.");
+  downloadJSON(csv, "declaration-ca-"+(annee==="all"?"toutes-annees":annee)+".csv");
+  toast("Export déclaration prêt.");
 }
 
 /* ===================== Logo ===================== */
@@ -3338,7 +3422,7 @@ function mariageDevisAccepte(m){
 }
 function mariageAcomptePaye(m){
   if(!m || !m.devisLie) return false;
-  // Règle métier PROD V2.0.36 : un mariage passe dans “À préparer” uniquement si
+  // Règle métier PROD V2.0.37 : un mariage passe dans “À préparer” uniquement si
   // la facture d’acompte liée au devis est réellement marquée payée.
   return (state.factures||[]).some(function(f){
     return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
