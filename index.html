@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version PROD V2.0.37 : déclaration mensuelle URSSAF biens/services + CA mensuel détaillé -->
+<!-- Version PROD V2.0.38 : trésorerie mensuelle détaillée + estimation URSSAF par mois -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
 
@@ -229,7 +229,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1 };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -918,7 +918,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.37</b><div class="muted" style="font-size:12px;margin-top:4px;">Déclaration mensuelle ajoutée : CA du mois séparé en vente de biens et prestations de services.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.38</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie améliorée : choix du mois, détail des ventes, CA biens/services et estimation URSSAF mensuelle.</div></div>'+
   '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
     '<div class="grid-stats" style="margin-bottom:0;">'+
@@ -935,12 +935,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.37.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.38.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — PROD V2.0.37</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — PROD V2.0.38</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -1996,52 +1996,113 @@ function tresoBar(label,val,total){
   var pct=total>0?Math.round((val/total)*100):0;
   return '<div style="margin:8px 0;"><div class="flexb"><span>'+esc(label)+'</span><b>'+euro(val)+' · '+pct+'%</b></div><div class="jauge"><div class="track"><div class="fill" style="width:'+pct+'%;background:var(--bordeaux);"></div></div></div></div>';
 }
+function tresoAvailableYears(list){
+  var years={};
+  (list||encaissementsTresorerie()).forEach(function(e){ if(e.date) years[String(e.date).slice(0,4)]=1; });
+  (state.achats||[]).forEach(function(a){ if(a.date) years[String(a.date).slice(0,4)]=1; });
+  years[String(new Date().getFullYear())]=1;
+  return Object.keys(years).sort();
+}
+function tresoSelectedPeriod(){
+  var now=new Date();
+  if(!ui.tresoYear) ui.tresoYear=now.getFullYear();
+  if(!ui.tresoMonth) ui.tresoMonth=now.getMonth()+1;
+  var y=Number(ui.tresoYear)||now.getFullYear();
+  var m=Number(ui.tresoMonth)||now.getMonth()+1;
+  if(m<1||m>12) m=now.getMonth()+1;
+  return {year:y, month:m, prefix:String(y)+"-"+String(m).padStart(2,"0")};
+}
+function tresoUrssafEstimate(biens, services){
+  var s=state.settings||{};
+  var b=r2((Number(biens)||0)*(Number(s.tauxCotisBiens)||0)/100);
+  var sv=r2((Number(services)||0)*(Number(s.tauxCotisServices)||0)/100);
+  return {biens:b, services:sv, total:r2(b+sv)};
+}
+function tresoPeriodLabel(period){ return MOISL[(Number(period.month)||1)-1]+" "+period.year; }
+function tresoMonthOptions(sel){
+  return MOISL.map(function(m,i){ var v=i+1; return '<option value="'+v+'"'+(v===Number(sel)?' selected':'')+'>'+m+'</option>'; }).join("");
+}
+function tresoYearOptions(years, sel){
+  return (years||[]).map(function(y){ return '<option value="'+esc(y)+'"'+(String(y)===String(sel)?' selected':'')+'>'+esc(y)+'</option>'; }).join("");
+}
 function viewTresorerie(){
-  var now=new Date(), year=String(now.getFullYear()), month=String(now.getMonth()+1).padStart(2,"0");
+  var period=tresoSelectedPeriod();
   var list=encaissementsTresorerie();
-  var listYear=list.filter(function(e){return (e.date||"").slice(0,4)===year;});
-  var listMonth=list.filter(function(e){return (e.date||"").slice(0,7)===year+"-"+month;});
+  var years=tresoAvailableYears(list);
+  var listYear=list.filter(function(e){return (e.date||"").slice(0,4)===String(period.year);});
+  var listMonth=list.filter(function(e){return (e.date||"").slice(0,7)===period.prefix;});
+
   var caMB=r2(listMonth.reduce(function(s,e){return s+(Number(e.montantBiens)||0);},0));
   var caMS=r2(listMonth.reduce(function(s,e){return s+(Number(e.montantServices)||0);},0));
   var caM=r2(caMB+caMS);
   var caAB=r2(listYear.reduce(function(s,e){return s+(Number(e.montantBiens)||0);},0));
   var caAS=r2(listYear.reduce(function(s,e){return s+(Number(e.montantServices)||0);},0));
   var caA=r2(caAB+caAS);
-  var achatsM=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), Number(month)) : 0;
-  var achatsA=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), null) : 0;
+  var achatsM=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(period.year), Number(period.month)) : 0;
+  var achatsA=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(period.year), null) : 0;
+  var urssaf=tresoUrssafEstimate(caMB, caMS);
   var byPay=groupTresorerieBy(function(e){return e.paiement;}, listYear);
   var byAct=groupTresorerieBy(function(e){return e.activite;}, listYear);
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+
+  var label=tresoPeriodLabel(period);
+  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+ 
+    '<div class="row-actions" style="margin:0;align-items:flex-end;">'+
+      '<label class="field" style="margin:0;min-width:150px;"><span>Mois</span><select data-action="treso-month">'+tresoMonthOptions(period.month)+'</select></label>'+ 
+      '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
+      '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
+    '</div></div>'+ 
+    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.38</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
     '<div class="grid-stats">'+
-      stat("CA encaissé du mois",euro(caM),true)+
-      stat("Biens du mois",euro(caMB),false,"var(--blush-s)")+
-      stat("Services du mois",euro(caMS),false,"var(--green-s)")+
-      stat("CA encaissé de l’année",euro(caA),true)+
-      stat("Achats du mois",euro(achatsM),false)+
-      stat("Marge brute estimée",euro(r2(caM-achatsM)),false)+
-    '</div>'+
-    '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;"><h3 style="margin:0 0 8px;">🧾 Déclaration du mois</h3>'+
-      '<div class="totrow"><span>Vente de biens</span><b>'+euro(caMB)+'</b></div>'+
-      '<div class="totrow"><span>Prestations de services</span><b>'+euro(caMS)+'</b></div>'+
-      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:5px;"><span>Total CA</span><span>'+euro(caM)+'</span></div>'+
-      '<p class="muted" style="font-size:12px;margin:8px 0 0;">Ce sont les montants à reporter dans ta déclaration mensuelle URSSAF.</p></div>'+
-    '<div class="card"><h3 style="margin:0 0 10px;">Répartition par moyen de paiement '+year+'</h3>';
-  CLIENT_PAYMENT_METHODS.concat(["Non renseigné"]).forEach(function(p){
+      stat('CA encaissé '+label,euro(caM),true)+
+      stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
+      stat('Prestations de services',euro(caMS),false,'var(--green-s)')+
+      stat('Estimation URSSAF',euro(urssaf.total),false,'#fffaf5')+
+      stat('Achats '+label,euro(achatsM),false)+
+      stat('Marge brute estimée',euro(r2(caM-achatsM)),false)+
+    '</div>'+ 
+    '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">🧾 Déclaration URSSAF — '+esc(label)+'</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">mensuel</span></div>'+ 
+      '<div class="totrow"><span>Vente de biens</span><b>'+euro(caMB)+'</b></div>'+ 
+      '<div class="totrow"><span>Prestations de services</span><b>'+euro(caMS)+'</b></div>'+ 
+      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:5px;"><span>Total CA à déclarer</span><span>'+euro(caM)+'</span></div>'+ 
+      '<div style="margin-top:12px;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px;">'+
+        '<div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">Estimation des cotisations URSSAF</div>'+ 
+        '<div class="totrow"><span>Biens ('+(state.settings.tauxCotisBiens||0)+' %)</span><span>'+euro(urssaf.biens)+'</span></div>'+ 
+        '<div class="totrow"><span>Services ('+(state.settings.tauxCotisServices||0)+' %)</span><span>'+euro(urssaf.services)+'</span></div>'+ 
+        '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:5px;"><span>Total estimé à payer</span><span>'+euro(urssaf.total)+'</span></div>'+ 
+      '</div>'+ 
+      '<p class="muted" style="font-size:12px;margin:8px 0 0;">Montant indicatif calculé avec les taux renseignés dans Paramètres. À vérifier lors de la déclaration réelle.</p></div>'+ 
+    '<div class="card"><div class="flexb"><h3 style="margin:0 0 10px;">Détail des ventes encaissées — '+esc(label)+'</h3><span class="muted">'+listMonth.length+' ligne(s)</span></div>';
+  if(!listMonth.length) html+='<p class="muted">Aucune vente encaissée sur ce mois.</p>';
+  else listMonth.forEach(function(e){
+    html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+ 
+      '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+ 
+      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+'</div>'+ 
+      '<div class="muted" style="font-size:12px;">'+euro(e.montantBiens||0)+' biens · '+euro(e.montantServices||0)+' services</div></div>'+ 
+      '<div style="font-weight:800;color:var(--bordeaux);white-space:nowrap;">'+euro(e.montant)+'</div></div>';
+  });
+  if(listMonth.length){
+    html+='<div style="border-top:2px solid var(--bordeaux);margin-top:10px;padding-top:8px;">'+
+      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);"><span>Total encaissé</span><span>'+euro(caM)+'</span></div>'+ 
+      '<div class="muted" style="text-align:right;font-size:12px;">'+euro(caMB)+' biens · '+euro(caMS)+' services · URSSAF estimée '+euro(urssaf.total)+'</div>'+ 
+    '</div>';
+  }
+  html+='</div>'+ 
+    '<div class="card"><h3 style="margin:0 0 10px;">Répartition par moyen de paiement '+period.year+'</h3>';
+  CLIENT_PAYMENT_METHODS.concat(['Non renseigné']).forEach(function(p){
     if(byPay[p]) html+=tresoBar(p, r2(byPay[p]), caA);
   });
-  html+='</div><div class="card"><h3 style="margin:0 0 10px;">Répartition par activité '+year+'</h3>';
-  ["Mariages","Ateliers","Commandes"].forEach(function(a){
+  if(!Object.keys(byPay).length) html+='<p class="muted">Aucun encaissement sur cette année.</p>';
+  html+='</div><div class="card"><h3 style="margin:0 0 10px;">Répartition par activité '+period.year+'</h3>';
+  ['Mariages','Ateliers','Commandes'].forEach(function(a){
     if(byAct[a]) html+=tresoBar(a, r2(byAct[a]), caA);
   });
-  html+='</div><div class="card"><div class="flexb"><h3 style="margin:0 0 10px;">Historique des encaissements et ventes site</h3><span class="muted">'+list.length+' ligne(s)</span></div>';
-  if(!list.length) html+='<p class="muted">Aucun encaissement pour le moment.</p>';
-  else list.slice(0,100).forEach(function(e){
-    html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+
-      '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+
-      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+' · '+euro(e.montantBiens||0)+' biens · '+euro(e.montantServices||0)+' services</div></div>'+
-      '<div style="font-weight:800;color:var(--bordeaux);">'+euro(e.montant)+'</div></div>';
-  });
-  html+='</div>';
+  if(!Object.keys(byAct).length) html+='<p class="muted">Aucune activité encaissée sur cette année.</p>';
+  html+='</div>'+ 
+    '<div class="card"><h3 style="margin:0 0 8px;">Synthèse annuelle '+period.year+'</h3>'+ 
+      '<div class="totrow"><span>CA encaissé annuel</span><b>'+euro(caA)+'</b></div>'+ 
+      '<div class="totrow"><span>dont biens</span><span>'+euro(caAB)+'</span></div>'+ 
+      '<div class="totrow"><span>dont services</span><span>'+euro(caAS)+'</span></div>'+ 
+      '<div class="totrow"><span>Achats annuels</span><span>'+euro(achatsA)+'</span></div>'+ 
+    '</div>';
   return html;
 }
 function todaySmartData(){
@@ -3422,7 +3483,7 @@ function mariageDevisAccepte(m){
 }
 function mariageAcomptePaye(m){
   if(!m || !m.devisLie) return false;
-  // Règle métier PROD V2.0.37 : un mariage passe dans “À préparer” uniquement si
+  // Règle métier PROD V2.0.38 : un mariage passe dans “À préparer” uniquement si
   // la facture d’acompte liée au devis est réellement marquée payée.
   return (state.factures||[]).some(function(f){
     return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
@@ -4185,6 +4246,8 @@ function handleAction(action){
   }
 
   
+  if(action==="treso-current-month"){ var tn=new Date(); ui.tresoYear=tn.getFullYear(); ui.tresoMonth=tn.getMonth()+1; render(); return; }
+
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
   
@@ -4640,6 +4703,8 @@ document.addEventListener("change", function(e){
   var t=e.target;
   if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="dash-year"){ ui.anneeDash=Number(t.value); ui.monthDetail=null; render(); return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="treso-year"){ ui.tresoYear=Number(t.value); render(); return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="treso-month"){ ui.tresoMonth=Number(t.value); render(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linetype")){ var id=t.getAttribute("data-id"); var l=ui.wizard&&ui.wizard.lignes.find(function(x){return x.id===id;}); if(l){ l.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-faclinetype")){ var fid=t.getAttribute("data-id"); var fl=ui.factureDraft&&ui.factureDraft.lignes.find(function(x){return x.id===fid;}); if(fl){ fl.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-cmdlinetype")){ var cid=t.getAttribute("data-id"); var cl=ui.commandeDraft&&ui.commandeDraft.lignes.find(function(x){return x.id===cid;}); if(cl){ cl.type=t.value; render(); } return; }
