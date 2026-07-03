@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version PROD V2.0.38 : trésorerie mensuelle détaillée + estimation URSSAF par mois -->
+<!-- Version PROD V2.0.40 : correctif menus déroulants moyens de paiement sur saisie facture/encaissement -->
+<!-- Version PROD V2.0.39 : version harmonisée + trésorerie mensuelle sélection mois/année vérifiée -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
 
@@ -519,7 +520,7 @@ function subNav(items, current, prefix){
 }
 
 function moduleHeader(title, subtitle){
-  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">V2.0</span></div>';
+  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">PROD V2.0.40</span></div>';
 }
 
 function viewClientsModule(){
@@ -918,7 +919,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.38</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie améliorée : choix du mois, détail des ventes, CA biens/services et estimation URSSAF mensuelle.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.40</b><div class="muted" style="font-size:12px;margin-top:4px;">Correctif moyen de paiement : les menus déroulants fonctionnent aussi en saisie de facture et en encaissement manuel.</div></div>'+
   '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
     '<div class="grid-stats" style="margin-bottom:0;">'+
@@ -935,12 +936,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.38.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.40.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — PROD V2.0.38</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — PROD V2.0.40</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -1327,18 +1328,7 @@ function createManualFacture(){
 var ACHAT_CATEGORIES=["Fleurs","Emballages","Matériel","Fournitures","Communication","Déplacements","Formation","Divers"];
 var ACHAT_PAIEMENTS=["CB","Espèces","Virement","PayPal","Autre"];
 
-var CLIENT_PAYMENT_METHODS=["CB","Espèces","Virement","Wero","PayPal","Chèque","Autre"];
-var CLIENT_PAYMENT_METHODS=["Espèces","CB","Wero","Virement","Site internet","Chèque"];
-function paymentOptions(selected){
-  selected=selected||"";
-  return '<option value="">Non renseigné</option>'+CLIENT_PAYMENT_METHODS.map(function(p){
-    return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+esc(p)+'</option>';
-  }).join("");
-}
-
-function paymentOptions(){
-  return ["", "Espèces", "CB", "Virement", "Wero", "PayPal", "Chèque", "Stripe", "Squarespace", "Site internet", "Autre"];
-}
+var CLIENT_PAYMENT_METHODS=["", "Espèces", "CB", "Virement", "Wero", "PayPal", "Chèque", "Stripe", "Squarespace", "Site internet", "Autre"];
 function normalizePaymentMethod(v){
   v=String(v||"").trim();
   var n=v.toLowerCase();
@@ -1349,13 +1339,20 @@ function normalizePaymentMethod(v){
   if(n==="site"||n==="site internet") return "Site internet";
   return v.charAt(0).toUpperCase()+v.slice(1);
 }
+function paymentOptions(selected){
+  selected=normalizePaymentMethod(selected||"");
+  return CLIENT_PAYMENT_METHODS.map(function(p){
+    var label=p?esc(p):"Non renseigné";
+    return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+label+'</option>';
+  }).join("");
+}
 function paymentSelectHtml(id, value){
   value=normalizePaymentMethod(value||"");
-  var opts=paymentOptions();
   var h='<select id="'+id+'">';
-  opts.forEach(function(o){
-    h+='<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+(o?esc(o):'À choisir')+'</option>';
-  });
+  h+=CLIENT_PAYMENT_METHODS.map(function(o){
+    var label=o?esc(o):"À choisir";
+    return '<option value="'+esc(o)+'"'+(o===value?' selected':'')+'>'+label+'</option>';
+  }).join("");
   h+='</select>';
   return h;
 }
@@ -2050,7 +2047,7 @@ function viewTresorerie(){
       '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
-    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.38</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
+    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.40</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
       stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
@@ -3483,7 +3480,7 @@ function mariageDevisAccepte(m){
 }
 function mariageAcomptePaye(m){
   if(!m || !m.devisLie) return false;
-  // Règle métier PROD V2.0.38 : un mariage passe dans “À préparer” uniquement si
+  // Règle métier PROD V2.0.39 : un mariage passe dans “À préparer” uniquement si
   // la facture d’acompte liée au devis est réellement marquée payée.
   return (state.factures||[]).some(function(f){
     return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
