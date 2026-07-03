@@ -5,11 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version PROD V2.0.35 : mariages à préparer uniquement après acompte payé -->
-<!-- Version V2.0.34 devis triés : à traiter, acceptés, refusés, archivés -->
-<!-- Version V2.0.32 production PDF validés : devis, factures, synthèses -->
-<!-- Version V2.0.32 saisie stabilisée - basé sur V2.0.32 : ventes site et encaissements déplacés dans Clients -->
-<!-- Version V1.3.1 : libellé CRM renommé en Clients -->
+<!-- Version PROD V2.0.36 : tableau de bord cohérent + mariages à préparer uniquement après acompte payé -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
 
@@ -896,7 +892,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.35</b><div class="muted" style="font-size:12px;margin-top:4px;">Correctif : “Mariages à préparer” affiche uniquement les dossiers avec facture d’acompte marquée payée.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.36</b><div class="muted" style="font-size:12px;margin-top:4px;">Correctif confirmé : “Mariages à préparer” affiche uniquement les dossiers avec facture d’acompte marquée payée.</div></div>'+
 
 
 
@@ -907,12 +903,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.35.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.36.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible V2.0.32</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — PROD V2.0.36</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -3342,8 +3338,10 @@ function mariageDevisAccepte(m){
 }
 function mariageAcomptePaye(m){
   if(!m || !m.devisLie) return false;
-  return facturesDuDevis(m.devisLie).some(function(f){
-    return f.type==="acompte" && f.statut==="payee";
+  // Règle métier PROD V2.0.36 : un mariage passe dans “À préparer” uniquement si
+  // la facture d’acompte liée au devis est réellement marquée payée.
+  return (state.factures||[]).some(function(f){
+    return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
   });
 }
 function prepData(){
