@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version V2.0.34 production PDF validés : devis, factures, synthèses -->
+<!-- Version PROD V2.0.35 : mariages à préparer uniquement après acompte payé -->
+<!-- Version V2.0.34 devis triés : à traiter, acceptés, refusés, archivés -->
+<!-- Version V2.0.32 production PDF validés : devis, factures, synthèses -->
 <!-- Version V2.0.32 saisie stabilisée - basé sur V2.0.32 : ventes site et encaissements déplacés dans Clients -->
 <!-- Version V1.3.1 : libellé CRM renommé en Clients -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
@@ -205,7 +207,6 @@ document.addEventListener("click", function(e){
 </header>
 
 <nav class="tabs" id="tabs"></nav>
-<div style="background:#5A2230;color:#fff;text-align:center;padding:6px;font-weight:700;">Version PROD V2.0.34</div>
 <main id="view"></main>
 </div>
 
@@ -287,7 +288,7 @@ function factureCalc(lignes, partService, f){
 }
 
 var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l:"Envoyé",c:"#6a5a2a",b:"#f3ead0"},
-  accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"} };
+  accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"}, archive:{l:"Archivé",c:"var(--ink-s)",b:"#eeeeee"} };
 var ST_FAC={ a_envoyer:{l:"À envoyer",c:"var(--ink-s)",b:"#efe7df"}, envoyee:{l:"Envoyée",c:"#6a5a2a",b:"#f3ead0"}, payee:{l:"Payée",c:"var(--green)",b:"var(--green-s)"} };
 var TYPE_FAC={ acompte:"Facture d\'acompte", solde:"Facture de solde", totale:"Facture" };
 var MAIL_WORKER_URL="https://atelier-fleurs-mail.latelierfleursetsens.workers.dev/";
@@ -895,7 +896,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : V2.0.32 — paiement iPhone corrigé</b><div class="muted" style="font-size:12px;margin-top:4px;">Menu paiement fonctionnel sur iPhone/Chrome + ateliers avec devis/factures.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : PROD V2.0.35</b><div class="muted" style="font-size:12px;margin-top:4px;">Correctif : “Mariages à préparer” affiche uniquement les dossiers avec facture d’acompte marquée payée.</div></div>'+
 
 
 
@@ -906,7 +907,7 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version V2.0.32 — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version PROD V2.0.35.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
@@ -977,12 +978,41 @@ function jauge(lab,v,seuil,pct,color){
 /* ===================== Devis : liste ===================== */
 function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
 function viewDevis(){
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Mes devis</h2><button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
+  var filtre = ui.devisFiltre || "actifs";
+  var actifs = state.devis.filter(function(d){ return d.statut !== "accepte" && d.statut !== "refuse" && d.statut !== "archive"; });
+  var acceptes = state.devis.filter(function(d){ return d.statut === "accepte"; });
+  var refuses = state.devis.filter(function(d){ return d.statut === "refuse"; });
+  var archives = state.devis.filter(function(d){ return d.statut === "archive"; });
+  var liste = actifs;
+  if(filtre === "acceptes") liste = acceptes;
+  if(filtre === "refuses") liste = refuses;
+  if(filtre === "archives") liste = archives;
+
+  var html = '<div class="flexb" style="margin-bottom:14px;">'+
+    '<div><h2 style="margin:0;">Mes devis</h2><p class="muted" style="margin:4px 0 0;">Vue simplifiée : seuls les devis à traiter restent visibles au premier coup d’œil.</p></div>'+
+    '<button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
+
+  html += '<div class="row-actions" style="margin-bottom:14px;">'+
+    '<button class="btn small '+(filtre==="actifs"?'primary':'ghost')+'" data-action="devis-filtre-actifs">À traiter ('+actifs.length+')</button>'+
+    '<button class="btn small '+(filtre==="acceptes"?'primary':'ghost')+'" data-action="devis-filtre-acceptes">Acceptés ('+acceptes.length+')</button>'+
+    '<button class="btn small '+(filtre==="refuses"?'primary':'ghost')+'" data-action="devis-filtre-refuses">Refusés ('+refuses.length+')</button>'+
+    '<button class="btn small '+(filtre==="archives"?'primary':'ghost')+'" data-action="devis-filtre-archives">Archivés ('+archives.length+')</button>'+
+  '</div>';
+
   if(state.devis.length===0){
     html+='<div class="card"><p class="muted" style="margin:0;">Aucun devis. Quand un client vous appelle, touchez « Nouveau devis » et laissez-vous guider.</p></div>';
     return html;
   }
-  state.devis.forEach(function(d){
+  if(liste.length===0){
+    var msg = "Aucun devis à traiter pour le moment.";
+    if(filtre==="acceptes") msg = "Aucun devis accepté pour le moment.";
+    if(filtre==="refuses") msg = "Aucun devis refusé pour le moment.";
+    if(filtre==="archives") msg = "Aucun devis archivé pour le moment.";
+    html+='<div class="card"><p class="muted" style="margin:0;">'+msg+'</p></div>';
+    return html;
+  }
+
+  liste.forEach(function(d){
     var t=totals(d.lignes,state.settings.partService); var fs=facturesDuDevis(d.id);
     var ac=fs.find(function(f){return f.type==="acompte";});
     var aA=!!ac, aS=fs.some(function(f){return f.type==="solde";}), aT=fs.some(function(f){return f.type==="totale";});
@@ -997,19 +1027,20 @@ function viewDevis(){
         '<button class="btn small ghost" data-action="devis-preview-'+d.id+'">Aperçu / PDF</button>'+
         '<button class="btn small gold" data-action="devis-email-'+d.id+'">Envoyer par email</button>'+
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
-        (d.statut!=="accepte"&&d.statut!=="refuse"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
-        (d.statut!=="refuse"&&d.statut!=="accepte"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
+        (d.statut!=="accepte"&&d.statut!=="refuse"&&d.statut!=="archive"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
+        (d.statut!=="refuse"&&d.statut!=="accepte"&&d.statut!=="archive"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
         (d.statut==="accepte"&&!aA&&!aT?'<button class="btn small gold" data-action="fac-acompte-'+d.id+'">Facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Facture complète (100 %)</button>':'')+
         (d.statut==="accepte"&&aA&&!aS&&acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'')+
         (d.statut==="accepte"&&aA&&!aS&&!acomptePaye?'<span class="muted" style="align-self:center;font-size:12px;">Solde disponible après paiement de l\'acompte.</span>':'')+
+        ((d.statut==="accepte"||d.statut==="refuse")?'<button class="btn small ghost" data-action="devis-archive-'+d.id+'">Archiver</button>':'')+
+        (d.statut==="archive"?'<button class="btn small ghost" data-action="devis-unarchive-'+d.id+'">Désarchiver</button>':'')+
         '<button class="btn small danger" data-action="devis-del-'+d.id+'">'+(delPending?'Confirmer suppression':'Supprimer')+'</button>'+
-      '</div>'+
+      '</div>'+ 
       (fs.length?'<div class="muted" style="margin-top:10px;">Factures liées : '+fs.map(function(f){return esc(f.numero)+" ("+TYPE_FAC[f.type].toLowerCase()+")";}).join(" · ")+'</div>':'')+
     '</div>';
   });
   return html;
 }
-
 /* ===================== Devis : assistant ===================== */
 function newWizard(){ ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"", date:todayISO() }; }
 function wzTotals(){ return totals(ui.wizard.lignes,state.settings.partService); }
@@ -3309,9 +3340,15 @@ function mariageDevisAccepte(m){
   var d=state.devis.find(function(x){return x.id===m.devisLie;});
   return !!(d && d.statut==="accepte");
 }
+function mariageAcomptePaye(m){
+  if(!m || !m.devisLie) return false;
+  return facturesDuDevis(m.devisLie).some(function(f){
+    return f.type==="acompte" && f.statut==="payee";
+  });
+}
 function prepData(){
-  // seuls les mariages actifs dont le devis lié est accepté apparaissent dans “À préparer”
-  var arr=state.mariages.filter(function(m){ return !mariageTermine(m)&&m.statut!=="perdu"&&mariageDevisAccepte(m); })
+  // seuls les mariages actifs dont la facture d’acompte est marquée payée apparaissent dans “À préparer”
+  var arr=state.mariages.filter(function(m){ return !mariageTermine(m)&&m.statut!=="perdu"&&mariageDevisAccepte(m)&&mariageAcomptePaye(m); })
     .map(function(m){ return { m:m, todo:(m.articles||[]).filter(function(a){return !a.fait;}) }; })
     .filter(function(x){ return x.todo.length>0; });
   arr.sort(function(a,b){ var da=mariageDateRef(a.m)||"9999", db=mariageDateRef(b.m)||"9999"; return da<db?-1:da>db?1:0; });
@@ -3329,11 +3366,11 @@ function countPrep(){
 function viewPreparer(){
   var weddings=prepData();
   var totItems = weddings.reduce(function(s,x){return s+x.todo.length;},0);
-  if(totItems===0) return '<div class="card" style="text-align:center;"><div style="font-size:30px;">🌿</div><p style="margin:6px 0 0;font-weight:600;color:var(--bordeaux);">Aucun mariage à préparer, tout est à jour !</p><p class="muted" style="margin:4px 0 0;">Les articles mariage apparaissent ici uniquement après acceptation du devis. Les commandes sont dans l’onglet Commandes → Suivi.</p></div>';
+  if(totItems===0) return '<div class="card" style="text-align:center;"><div style="font-size:30px;">🌿</div><p style="margin:6px 0 0;font-weight:600;color:var(--bordeaux);">Aucun mariage à préparer, tout est à jour !</p><p class="muted" style="margin:4px 0 0;">Les articles mariage apparaissent ici uniquement lorsque la facture d’acompte liée au devis est marquée payée. Les commandes sont dans l’onglet Commandes → Suivi.</p></div>';
   var entries=[];
   weddings.forEach(function(x){ entries.push({date:x.m.dateMariage||"9999", x:x}); });
   entries.sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
-  var html='<div class="muted" style="margin-bottom:10px;"><b style="color:var(--bordeaux);">'+totItems+'</b> article'+(totItems>1?'s':'')+' mariage à préparer · '+weddings.length+' mariage'+(weddings.length>1?'s':'')+'.</div>';
+  var html='<div class="summary"><b style="color:var(--bordeaux);">'+totItems+'</b> article'+(totItems>1?'s':'')+' mariage à préparer · '+weddings.length+' mariage'+(weddings.length>1?'s':'')+'.<div class="muted" style="font-size:12px;margin-top:4px;">Affichage limité aux mariages dont la facture d’acompte est marquée payée.</div></div>';
   entries.forEach(function(en){
     var m=en.x.m, cd=mariageCountdown(m); var soon=cd.txt.indexOf("J-")===0 && parseInt(cd.txt.slice(2),10)<=14;
     html+='<div class="card"><div class="flexb" style="margin-bottom:6px;">'+
@@ -4204,6 +4241,9 @@ function handleAction(action){
   if(action.indexOf("facture-preview-")===0){ var fp=state.factures.find(function(f){return f.id===action.slice(16);}); if(fp){ ui.preview={kind:"facture",doc:fp}; renderModal(); } return; }
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
+  if(action.indexOf("devis-filtre-")===0){ ui.devisFiltre=action.slice(13); ui.confirmDelete=null; render(); return; }
+  if(action.indexOf("devis-archive-")===0){ var da=findDevis(action.slice(14)); if(da){ da.statutAvantArchive=da.statut; da.statut="archive"; ui.devisFiltre="archives"; saveCache(); render(); toast("Devis archivé."); } return; }
+  if(action.indexOf("devis-unarchive-")===0){ var du=findDevis(action.slice(16)); if(du){ du.statut=du.statutAvantArchive||"envoye"; delete du.statutAvantArchive; ui.devisFiltre=(du.statut==="accepte"?"acceptes":(du.statut==="refuse"?"refuses":"actifs")); saveCache(); render(); toast("Devis désarchivé."); } return; }
   if(action.indexOf("devis-del-")===0){ var did=action.slice(10), key="devis:"+did;
     if(facturesDuDevis(did).length){ toast("Impossible : supprime d'abord les factures liées à ce devis."); return; }
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement ce devis."); return; }
@@ -4213,6 +4253,7 @@ function handleAction(action){
       var res=validerDevisEtCreerSuivi(d);
       saveCache();
       ui.tab="devis";
+      ui.devisFiltre="acceptes";
       ui.commandeOpen=null;
       render();
       toast("Devis accepté : choisis maintenant facture d\'acompte ou facture complète.");
