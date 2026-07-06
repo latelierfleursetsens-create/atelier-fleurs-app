@@ -4,14 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>L'Atelier Fleurs &amp; Sens — Gestion</title>
-<!-- Version TEST V2.0.31d : menu paiement visible iPhone/Chrome -->
-<!-- Version TEST V2.0.31d : texte restauration local/test corrigé -->
-<!-- Version TEST V2.0.31d : statut haut corrigé test isolé -->
-<!-- Version TEST V2.0.31db isolée : aucune synchro prod, bandeau accueil obligatoire -->
-<!-- Version TEST V2.0.31db production PDF validés : devis, factures, synthèses -->
-<!-- Version TEST V2.0.31db saisie stabilisée - basé sur TEST V2.0.31d : ventes site et encaissements déplacés dans Clients -->
-<!-- Version V1.3.1 : libellé CRM renommé en Clients -->
+<title>L'Atelier Fleurs &amp; Sens — Gestion — TEST V2.1.0</title>
+<!-- Version TEST V2.1.0 : prestations complémentaires ateliers + devis/factures + ventilation URSSAF -->
+<!-- Version PROD V2.0.40 : correctif menus déroulants moyens de paiement sur saisie facture/encaissement -->
+<!-- Version PROD V2.0.39 : version harmonisée + trésorerie mensuelle sélection mois/année vérifiée -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
 
 
@@ -65,27 +61,6 @@ document.addEventListener("click", function(e){
   .topbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--green);color:#fff;font-size:13px;}
   .topbar .name{color:var(--gold-s);}
   .topbar .dirty{color:#ffd9c2;font-weight:700;}
-
-  .test-banner{
-    background:#fff3cd;
-    color:#6b4b00;
-    border-bottom:2px solid #e8d28a;
-    padding:10px 14px;
-    text-align:center;
-    font-weight:900;
-    font-size:14px;
-    letter-spacing:.02em;
-  }
-  .test-home-alert{
-    background:#fff3cd;
-    border:2px solid #e8d28a;
-    color:#6b4b00;
-    border-radius:14px;
-    padding:14px;
-    margin-bottom:14px;
-    font-weight:800;
-  }
-
 /* En-tête */
   header.app{background:#fff;color:var(--ink);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:6px solid var(--green);border-bottom:6px solid var(--green);}
   header.app .brand{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -205,9 +180,8 @@ document.addEventListener("click", function(e){
 </div>
 
 <div id="appwrap" style="display:none;">
-<div class="test-banner">⚠️ VERSION TEST V2.0.31db — NE PAS UTILISER POUR LES VRAIES CLIENTES — DONNÉES LOCALES ISOLÉES</div>
 <div class="topbar">
-  <span id="cloudStatus">🧪 Test isolé ✓</span>
+  <span id="cloudStatus">☁️ Connexion…</span>
   <span style="flex:1"></span>
   <button class="btn small ghost" data-action="cloud-backup" style="color:#fff;border-color:rgba(255,255,255,.4);">Sauvegarde fichier</button>
   <button class="btn small soft" data-action="do-logout">Se déconnecter</button>
@@ -257,7 +231,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1 };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -282,7 +256,11 @@ function totals(lignes, partService){
   var p=(Number(partService)||0)/100, biens=0, services=0, total=0;
   (lignes||[]).forEach(function(l){
     var lt=num(l.qte)*num(l.prix); total+=lt;
-    if(l.type==="service"){ services+=lt*p; biens+=lt*(1-p); } else { biens+=lt; }
+    var urssaf=l.urssafType||l.categorieUrssaf||"";
+    if(urssaf==="service"){ services+=lt; }
+    else if(urssaf==="bien"){ biens+=lt; }
+    else if(l.type==="service"){ services+=lt*p; biens+=lt*(1-p); }
+    else { biens+=lt; }
   });
   return { biens:r2(biens), services:r2(services), total:r2(total) };
 }
@@ -312,7 +290,7 @@ function factureCalc(lignes, partService, f){
 }
 
 var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l:"Envoyé",c:"#6a5a2a",b:"#f3ead0"},
-  accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"} };
+  accepte:{l:"Accepté",c:"var(--green)",b:"var(--green-s)"}, refuse:{l:"Refusé",c:"#9b3b3b",b:"#f3dede"}, archive:{l:"Archivé",c:"var(--ink-s)",b:"#eeeeee"} };
 var ST_FAC={ a_envoyer:{l:"À envoyer",c:"var(--ink-s)",b:"#efe7df"}, envoyee:{l:"Envoyée",c:"#6a5a2a",b:"#f3ead0"}, payee:{l:"Payée",c:"var(--green)",b:"var(--green-s)"} };
 var TYPE_FAC={ acompte:"Facture d\'acompte", solde:"Facture de solde", totale:"Facture" };
 var MAIL_WORKER_URL="https://atelier-fleurs-mail.latelierfleursetsens.workers.dev/";
@@ -339,9 +317,9 @@ function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
   applyData(d);
   state.mariages.forEach(function(m){ if(localMedias[m.id] && (!m.medias||!m.medias.length)) m.medias=localMedias[m.id]; });
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
-function loadCache(){ try{ var raw=localStorage.getItem("afs_cache_test_v2031"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
+function loadCache(){ try{ var raw=localStorage.getItem("afs_cache"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
 
 function isTextEditing(){
   var a=document.activeElement;
@@ -368,7 +346,7 @@ function saveTodoFromFields(){
 }
 function saveTodoLocalOnly(){
   saveTodoFromFields();
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
 function saveTodoCloudDelayed(){
   clearTimeout(ui.todoSaveTimer);
@@ -380,31 +358,28 @@ function saveTodoCloudDelayed(){
 }
 
 function saveCache(){
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
   if(ui && ui.todoEditing) return;
   saveCloud();
 }
-async function saveCloud(){
-  try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
-  cloudStatus("🧪 Test isolé ✓");
+function saveCloud(){
+  if(!docRef) return;
+  if(ui && ui.todoEditing) return;
+  cloudStatus("☁️ Enregistrement…");
+  clearTimeout(cloudTimer);
+  cloudTimer=setTimeout(function(){
+    docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
+      .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
+  }, 800);
 }
-async function startSync(user){
-  uidStr = user && user.uid ? user.uid : "test-v2031";
-  docRef = null;
-  try{
-    var raw=localStorage.getItem("afs_cache_test_v2031");
-    if(raw){
-      var parsed=JSON.parse(raw);
-      if(parsed && parsed.data) applyRemote(parsed.data);
-    }
-  }catch(e){ console.warn("Cache test V2.0.31 illisible", e); }
-  cloudStatus("🧪 Test isolé ✓");
-  var login=document.getElementById("login");
-  var appwrap=document.getElementById("appwrap");
-  if(login) login.style.display="none";
-  if(appwrap) appwrap.style.display="block";
-  render();
-  cloudStatus("🧪 Test isolé ✓");
+function startSync(uidStr){
+  docRef=db.collection("bases").doc(uidStr);
+  docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
+    if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
+    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
+    cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
+  }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
 }
 function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) el.textContent=t; }
 function downloadJSON(text,name){
@@ -439,7 +414,7 @@ async function googleDriveBackup(manual){
     state.settings.googleDriveLast=todayISO();
     state.settings.googleDriveLastAt=new Date().toISOString();
     if(out.filename) state.settings.googleDriveLastFile=out.filename;
-    try{ localStorage.setItem("afs_cache_test_v2031", JSON.stringify({data:serialize()})); }catch(e){}
+    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
     saveCloud();
     if(manual) toast((out.replaced?"Sauvegarde du jour remplacée dans Google Drive.":"Sauvegarde créée dans Google Drive.")+(out.filename?" Fichier : "+out.filename:""));
     render();
@@ -550,7 +525,7 @@ function subNav(items, current, prefix){
 }
 
 function moduleHeader(title, subtitle){
-  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">V2.0</span></div>';
+  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">TEST V2.1.0</span></div>';
 }
 
 function viewClientsModule(){
@@ -736,8 +711,16 @@ function renderModal(){
     return;
   }
 
-  if(ui.pendingPaymentsModal){ var pm=document.createElement("div"); pm.innerHTML=viewPendingPaymentsModal(); document.body.appendChild(pm.firstElementChild); }
-  if(ui.preview){ var d=document.createElement("div"); d.innerHTML=viewDoc(ui.preview); document.body.appendChild(d.firstElementChild); }
+  if(ui.pendingPaymentsModal){
+    var pm=document.createElement("div");
+    pm.innerHTML=viewPendingPaymentsModal();
+    document.body.appendChild(pm.firstElementChild);
+  }
+  if(ui.preview){
+    var d=document.createElement("div");
+    d.innerHTML=viewDoc(ui.preview);
+    document.body.appendChild(d.firstElementChild);
+  }
   if(ui.lightbox){
     var l=document.createElement("div"); l.id="lightbox"; l.className="modal"; l.setAttribute("data-action","lightbox-close");
     l.innerHTML='<div style="max-width:900px;margin:0 auto;text-align:center;"><img src="'+ui.lightbox+'" style="max-width:100%;max-height:88vh;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.4);"><div style="margin-top:10px;"><button class="btn ghost" data-action="lightbox-close">Fermer</button></div></div>';
@@ -746,19 +729,42 @@ function renderModal(){
 }
 
 /* ===================== Tableau de bord ===================== */
+function siteSaleSplit(s){
+  var montant=Number(s&&s.montant)||0;
+  var mb=Number(s&&s.montantBiens)||0, ms=Number(s&&s.montantServices)||0;
+  if(mb||ms) return {biens:r2(mb), services:r2(ms), total:r2(mb+ms)};
+  var act=(s&&s.activite||"").toLowerCase();
+  if(act.indexOf("atelier")>=0) return {biens:0, services:r2(montant), total:r2(montant)};
+  if(act.indexOf("produit")>=0 || act.indexOf("box")>=0) return {biens:r2(montant), services:0, total:r2(montant)};
+  if(act.indexOf("mariage")>=0){
+    var p=(Number(state.settings.partService)||0)/100;
+    return {biens:r2(montant*(1-p)), services:r2(montant*p), total:r2(montant)};
+  }
+  return {biens:r2(montant), services:0, total:r2(montant)};
+}
+
 function caAnnee(annee){
   var biens=new Array(12).fill(0), services=new Array(12).fill(0);
   state.factures.forEach(function(f){
     if(f.statut==="payee"&&f.datePaiement&&f.datePaiement.slice(0,4)===String(annee)){
-      var m=parseInt(f.datePaiement.slice(5,7),10)-1; biens[m]+=f.montantBiens||0; services[m]+=f.montantServices||0;
+      var m=parseInt(f.datePaiement.slice(5,7),10)-1; biens[m]+=Number(f.montantBiens)||0; services[m]+=Number(f.montantServices)||0;
     }
   });
   state.encaissements.forEach(function(e){
     if(e.date&&e.date.slice(0,4)===String(annee)){
-      var m2=parseInt(e.date.slice(5,7),10)-1; biens[m2]+=e.montantBiens||0; services[m2]+=e.montantServices||0;
+      var m2=parseInt(e.date.slice(5,7),10)-1; biens[m2]+=Number(e.montantBiens)||0; services[m2]+=Number(e.montantServices)||0;
+    }
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(s.date&&s.date.slice(0,4)===String(annee)){
+      var m3=parseInt(s.date.slice(5,7),10)-1, sp=siteSaleSplit(s); biens[m3]+=sp.biens||0; services[m3]+=sp.services||0;
     }
   });
   return {biens:biens.map(r2),services:services.map(r2)};
+}
+function caMoisSplit(annee, moisIndex){
+  var ca=caAnnee(annee), b=ca.biens[moisIndex]||0, s=ca.services[moisIndex]||0;
+  return {biens:r2(b), services:r2(s), total:r2(b+s)};
 }
 function anneesDispo(){
   var s={}; state.factures.forEach(function(f){ if(f.datePaiement) s[f.datePaiement.slice(0,4)]=1; });
@@ -902,6 +908,9 @@ function viewDashboard(){
 
   var yopts=anneesDispo().map(function(a){return '<option value="'+a+'"'+(a===an?" selected":"")+'>'+a+'</option>';}).join("");
   var prep=countPrep();
+  var nowDash=new Date();
+  var currentMonthSplit=caMoisSplit(nowDash.getFullYear(), nowDash.getMonth());
+  var monthLabel=MOISL[nowDash.getMonth()]+' '+nowDash.getFullYear();
   var prepBanner = '';
   if(prep.items>0){
     prepBanner='<div class="card" style="border-color:var(--gold-s);background:#fbf3e6;margin-bottom:14px;">'+
@@ -915,11 +924,16 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="test-home-alert">⚠️ VERSION TEST V2.0.31db — environnement isolé<br><span style="font-weight:600;font-size:12px;">Cette version sert uniquement aux essais. Elle sauvegarde dans ce navigateur et ne synchronise pas avec la production.</span><br><button class="btn ghost" data-action="test-v2031-clear" style="margin-top:8px;">Réinitialiser les données test</button></div>'+
-
-
-
-
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V2.1.0</b><div class="muted" style="font-size:12px;margin-top:4px;">Ajout des prestations complémentaires dans les ateliers : frais de déplacement, pack premium, personnalisation ou ligne libre avec quantité, prix unitaire et catégorie URSSAF.</div></div>'+
+  '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
+    '<div class="grid-stats" style="margin-bottom:0;">'+
+      stat("CA total à déclarer", euro(currentMonthSplit.total), true)+
+      stat("Vente de biens", euro(currentMonthSplit.biens), false, "var(--blush-s)")+
+      stat("Prestations de services", euro(currentMonthSplit.services), false, "var(--green-s)")+
+    '</div>'+
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Calculé sur les encaissements réellement payés du mois : factures payées, encaissements manuels et ventes site internet.</p>'+
+  '</div>'+
 
   '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
@@ -927,12 +941,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list version TEST V2.0.31d — saisie sans rafraîchissement.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version TEST V2.1.0.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible TEST V2.0.31d</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — TEST V2.1.0</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -970,22 +984,40 @@ function viewDashboard(){
 }
 function monthSales(year, mi){
   var pref=String(year)+"-"+("0"+(mi+1)).slice(-2), items=[];
-  state.encaissements.forEach(function(e){ if(e.date && e.date.slice(0,7)===pref) items.push({date:e.date, label:e.libelle||"(vente)", client:e.client||"", montant:e.montant, type:"Encaissement"}); });
-  state.factures.forEach(function(f){ if(f.statut==="payee" && f.datePaiement && f.datePaiement.slice(0,7)===pref) items.push({date:f.datePaiement, label:f.numero+" ("+TYPE_FAC[f.type].toLowerCase()+")", client:(f.client&&f.client.nom)||"", montant:f.montant, type:"Facture"}); });
+  state.encaissements.forEach(function(e){
+    if(e.date && e.date.slice(0,7)===pref){
+      var mb=Number(e.montantBiens)||0, ms=Number(e.montantServices)||0;
+      items.push({date:e.date, label:e.libelle||"(vente)", client:e.client||"", montant:r2(mb+ms), biens:r2(mb), services:r2(ms), type:"Encaissement"});
+    }
+  });
+  state.factures.forEach(function(f){
+    if(f.statut==="payee" && f.datePaiement && f.datePaiement.slice(0,7)===pref){
+      var fb=Number(f.montantBiens)||0, fs=Number(f.montantServices)||0;
+      items.push({date:f.datePaiement, label:f.numero+" ("+TYPE_FAC[f.type].toLowerCase()+")", client:(f.client&&f.client.nom)||"", montant:r2(fb+fs), biens:r2(fb), services:r2(fs), type:"Facture"});
+    }
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(s.date && s.date.slice(0,7)===pref){
+      var sp=siteSaleSplit(s);
+      items.push({date:s.date, label:(s.commande?("Squarespace "+s.commande+" · "):"")+(s.produit||"Vente site"), client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, type:"Vente site"});
+    }
+  });
   items.sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
   return items;
 }
 function monthDetailCard(an){
   if(!ui.monthDetail || ui.monthDetail.year!==an) return "";
   var mi=ui.monthDetail.month, items=monthSales(an, mi);
-  var tot=items.reduce(function(s,x){return s+(x.montant||0);},0);
+  var totB=r2(items.reduce(function(s,x){return s+(x.biens||0);},0));
+  var totS=r2(items.reduce(function(s,x){return s+(x.services||0);},0));
+  var tot=r2(totB+totS);
   var rows = items.length ? items.map(function(it){
     return '<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><div>'+esc(it.label)+(it.client?' <span class="muted">· '+esc(it.client)+'</span>':'')+'</div>'+
-      '<div class="muted" style="font-size:12px;">'+frDate(it.date)+' · '+it.type+'</div></div><div style="font-weight:600;white-space:nowrap;">'+euro(it.montant)+'</div></div>';
+      '<div class="muted" style="font-size:12px;">'+frDate(it.date)+' · '+it.type+' · '+euro(it.biens)+' biens · '+euro(it.services)+' services</div></div><div style="font-weight:600;white-space:nowrap;">'+euro(it.montant)+'</div></div>';
   }).join("") : '<p class="muted" style="margin:0;">Aucune vente encaissée ce mois-ci.</p>';
   return '<div class="card"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">Ventes de '+MOISL[mi]+' '+an+'</h3>'+
     '<button class="btn small ghost" data-action="dash-month-close">Fermer</button></div>'+
-    rows+(items.length?'<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:2px solid var(--bordeaux);margin-top:8px;padding-top:6px;"><span>Total encaissé</span><span>'+euro(tot)+'</span></div>':'')+'</div>';
+    rows+(items.length?'<div style="border-top:2px solid var(--bordeaux);margin-top:8px;padding-top:6px;"><div class="totrow" style="font-weight:700;color:var(--bordeaux);"><span>Total encaissé</span><span>'+euro(tot)+'</span></div><div class="muted" style="text-align:right;font-size:12px;">'+euro(totB)+' biens · '+euro(totS)+' services</div></div>':'')+'</div>';
 }
 function stat(lab,val,big,bg,action){
   return '<div class="stat"'+(bg?' style="background:'+bg+';"':"")+(action?' data-action="'+action+'" style="'+(bg?'background:'+bg+';':'')+'cursor:pointer;" title="Cliquer pour voir le détail"':"")+'><div class="lab">'+esc(lab)+'</div><div class="val" style="font-size:'+(big?26:20)+'px;">'+val+'</div>'+(action?'<div class="muted" style="font-size:11px;margin-top:4px;">Voir le détail →</div>':'')+'</div>';
@@ -998,12 +1030,41 @@ function jauge(lab,v,seuil,pct,color){
 /* ===================== Devis : liste ===================== */
 function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
 function viewDevis(){
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Mes devis</h2><button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
+  var filtre = ui.devisFiltre || "actifs";
+  var actifs = state.devis.filter(function(d){ return d.statut !== "accepte" && d.statut !== "refuse" && d.statut !== "archive"; });
+  var acceptes = state.devis.filter(function(d){ return d.statut === "accepte"; });
+  var refuses = state.devis.filter(function(d){ return d.statut === "refuse"; });
+  var archives = state.devis.filter(function(d){ return d.statut === "archive"; });
+  var liste = actifs;
+  if(filtre === "acceptes") liste = acceptes;
+  if(filtre === "refuses") liste = refuses;
+  if(filtre === "archives") liste = archives;
+
+  var html = '<div class="flexb" style="margin-bottom:14px;">'+
+    '<div><h2 style="margin:0;">Mes devis</h2><p class="muted" style="margin:4px 0 0;">Vue simplifiée : seuls les devis à traiter restent visibles au premier coup d’œil.</p></div>'+
+    '<button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
+
+  html += '<div class="row-actions" style="margin-bottom:14px;">'+
+    '<button class="btn small '+(filtre==="actifs"?'primary':'ghost')+'" data-action="devis-filtre-actifs">À traiter ('+actifs.length+')</button>'+
+    '<button class="btn small '+(filtre==="acceptes"?'primary':'ghost')+'" data-action="devis-filtre-acceptes">Acceptés ('+acceptes.length+')</button>'+
+    '<button class="btn small '+(filtre==="refuses"?'primary':'ghost')+'" data-action="devis-filtre-refuses">Refusés ('+refuses.length+')</button>'+
+    '<button class="btn small '+(filtre==="archives"?'primary':'ghost')+'" data-action="devis-filtre-archives">Archivés ('+archives.length+')</button>'+
+  '</div>';
+
   if(state.devis.length===0){
     html+='<div class="card"><p class="muted" style="margin:0;">Aucun devis. Quand un client vous appelle, touchez « Nouveau devis » et laissez-vous guider.</p></div>';
     return html;
   }
-  state.devis.forEach(function(d){
+  if(liste.length===0){
+    var msg = "Aucun devis à traiter pour le moment.";
+    if(filtre==="acceptes") msg = "Aucun devis accepté pour le moment.";
+    if(filtre==="refuses") msg = "Aucun devis refusé pour le moment.";
+    if(filtre==="archives") msg = "Aucun devis archivé pour le moment.";
+    html+='<div class="card"><p class="muted" style="margin:0;">'+msg+'</p></div>';
+    return html;
+  }
+
+  liste.forEach(function(d){
     var t=totals(d.lignes,state.settings.partService); var fs=facturesDuDevis(d.id);
     var ac=fs.find(function(f){return f.type==="acompte";});
     var aA=!!ac, aS=fs.some(function(f){return f.type==="solde";}), aT=fs.some(function(f){return f.type==="totale";});
@@ -1018,19 +1079,20 @@ function viewDevis(){
         '<button class="btn small ghost" data-action="devis-preview-'+d.id+'">Aperçu / PDF</button>'+
         '<button class="btn small gold" data-action="devis-email-'+d.id+'">Envoyer par email</button>'+
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
-        (d.statut!=="accepte"&&d.statut!=="refuse"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
-        (d.statut!=="refuse"&&d.statut!=="accepte"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
+        (d.statut!=="accepte"&&d.statut!=="refuse"&&d.statut!=="archive"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
+        (d.statut!=="refuse"&&d.statut!=="accepte"&&d.statut!=="archive"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
         (d.statut==="accepte"&&!aA&&!aT?'<button class="btn small gold" data-action="fac-acompte-'+d.id+'">Facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Facture complète (100 %)</button>':'')+
         (d.statut==="accepte"&&aA&&!aS&&acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'')+
         (d.statut==="accepte"&&aA&&!aS&&!acomptePaye?'<span class="muted" style="align-self:center;font-size:12px;">Solde disponible après paiement de l\'acompte.</span>':'')+
+        ((d.statut==="accepte"||d.statut==="refuse")?'<button class="btn small ghost" data-action="devis-archive-'+d.id+'">Archiver</button>':'')+
+        (d.statut==="archive"?'<button class="btn small ghost" data-action="devis-unarchive-'+d.id+'">Désarchiver</button>':'')+
         '<button class="btn small danger" data-action="devis-del-'+d.id+'">'+(delPending?'Confirmer suppression':'Supprimer')+'</button>'+
-      '</div>'+
+      '</div>'+ 
       (fs.length?'<div class="muted" style="margin-top:10px;">Factures liées : '+fs.map(function(f){return esc(f.numero)+" ("+TYPE_FAC[f.type].toLowerCase()+")";}).join(" · ")+'</div>':'')+
     '</div>';
   });
   return html;
 }
-
 /* ===================== Devis : assistant ===================== */
 function newWizard(){ ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"", date:todayISO() }; }
 function wzTotals(){ return totals(ui.wizard.lignes,state.settings.partService); }
@@ -1271,18 +1333,7 @@ function createManualFacture(){
 var ACHAT_CATEGORIES=["Fleurs","Emballages","Matériel","Fournitures","Communication","Déplacements","Formation","Divers"];
 var ACHAT_PAIEMENTS=["CB","Espèces","Virement","PayPal","Autre"];
 
-var CLIENT_PAYMENT_METHODS=["CB","Espèces","Virement","Wero","PayPal","Chèque","Autre"];
-var CLIENT_PAYMENT_METHODS=["Espèces","CB","Wero","Virement","Site internet","Chèque"];
-function paymentOptions(selected){
-  selected=selected||"";
-  return '<option value="">Non renseigné</option>'+CLIENT_PAYMENT_METHODS.map(function(p){
-    return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+esc(p)+'</option>';
-  }).join("");
-}
-
-function paymentOptions(){
-  return ["", "Espèces", "CB", "Virement", "Wero", "PayPal", "Chèque", "Stripe", "Squarespace", "Site internet", "Autre"];
-}
+var CLIENT_PAYMENT_METHODS=["", "Espèces", "CB", "Virement", "Wero", "PayPal", "Chèque", "Stripe", "Squarespace", "Site internet", "Autre"];
 function normalizePaymentMethod(v){
   v=String(v||"").trim();
   var n=v.toLowerCase();
@@ -1293,13 +1344,20 @@ function normalizePaymentMethod(v){
   if(n==="site"||n==="site internet") return "Site internet";
   return v.charAt(0).toUpperCase()+v.slice(1);
 }
+function paymentOptions(selected){
+  selected=normalizePaymentMethod(selected||"");
+  return CLIENT_PAYMENT_METHODS.map(function(p){
+    var label=p?esc(p):"Non renseigné";
+    return '<option value="'+esc(p)+'"'+(p===selected?' selected':'')+'>'+label+'</option>';
+  }).join("");
+}
 function paymentSelectHtml(id, value){
   value=normalizePaymentMethod(value||"");
-  var opts=paymentOptions();
   var h='<select id="'+id+'">';
-  opts.forEach(function(o){
-    h+='<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+(o?esc(o):'À choisir')+'</option>';
-  });
+  h+=CLIENT_PAYMENT_METHODS.map(function(o){
+    var label=o?esc(o):"À choisir";
+    return '<option value="'+esc(o)+'"'+(o===value?' selected':'')+'>'+label+'</option>';
+  }).join("");
   h+='</select>';
   return h;
 }
@@ -1867,6 +1925,8 @@ function encaissementsTresorerie(){
         libelle:f.numero||"Facture",
         client:(f.client&&f.client.nom)||"",
         montant:Number(f.montant)||0,
+        montantBiens:Number(f.montantBiens)||0,
+        montantServices:Number(f.montantServices)||0,
         paiement:normalizePaymentMethod(f.paiementClient||""),
         activite:activiteFacture(f),
         facture:f
@@ -1881,6 +1941,8 @@ function encaissementsTresorerie(){
       libelle:e.libelle||"Encaissement manuel",
       client:e.client||"",
       montant:Number(e.montant)||((Number(e.montantBiens)||0)+(Number(e.montantServices)||0)),
+      montantBiens:Number(e.montantBiens)||0,
+      montantServices:Number(e.montantServices)||0,
       paiement:normalizePaymentMethod(e.paiement||""),
       activite:activiteEncaissement(e),
       facture:null
@@ -1893,7 +1955,9 @@ function encaissementsTresorerie(){
       date:s.date||todayISO(),
       libelle:(s.commande?("Squarespace "+s.commande):"Vente site")+" · "+(s.produit||""),
       client:s.client||"",
-      montant:Number(s.montant)||0,
+      montant:siteSaleSplit(s).total,
+      montantBiens:siteSaleSplit(s).biens,
+      montantServices:siteSaleSplit(s).services,
       paiement:"Site internet",
       activite:activiteVenteSite(s),
       facture:null,
@@ -1934,41 +1998,113 @@ function tresoBar(label,val,total){
   var pct=total>0?Math.round((val/total)*100):0;
   return '<div style="margin:8px 0;"><div class="flexb"><span>'+esc(label)+'</span><b>'+euro(val)+' · '+pct+'%</b></div><div class="jauge"><div class="track"><div class="fill" style="width:'+pct+'%;background:var(--bordeaux);"></div></div></div></div>';
 }
+function tresoAvailableYears(list){
+  var years={};
+  (list||encaissementsTresorerie()).forEach(function(e){ if(e.date) years[String(e.date).slice(0,4)]=1; });
+  (state.achats||[]).forEach(function(a){ if(a.date) years[String(a.date).slice(0,4)]=1; });
+  years[String(new Date().getFullYear())]=1;
+  return Object.keys(years).sort();
+}
+function tresoSelectedPeriod(){
+  var now=new Date();
+  if(!ui.tresoYear) ui.tresoYear=now.getFullYear();
+  if(!ui.tresoMonth) ui.tresoMonth=now.getMonth()+1;
+  var y=Number(ui.tresoYear)||now.getFullYear();
+  var m=Number(ui.tresoMonth)||now.getMonth()+1;
+  if(m<1||m>12) m=now.getMonth()+1;
+  return {year:y, month:m, prefix:String(y)+"-"+String(m).padStart(2,"0")};
+}
+function tresoUrssafEstimate(biens, services){
+  var s=state.settings||{};
+  var b=r2((Number(biens)||0)*(Number(s.tauxCotisBiens)||0)/100);
+  var sv=r2((Number(services)||0)*(Number(s.tauxCotisServices)||0)/100);
+  return {biens:b, services:sv, total:r2(b+sv)};
+}
+function tresoPeriodLabel(period){ return MOISL[(Number(period.month)||1)-1]+" "+period.year; }
+function tresoMonthOptions(sel){
+  return MOISL.map(function(m,i){ var v=i+1; return '<option value="'+v+'"'+(v===Number(sel)?' selected':'')+'>'+m+'</option>'; }).join("");
+}
+function tresoYearOptions(years, sel){
+  return (years||[]).map(function(y){ return '<option value="'+esc(y)+'"'+(String(y)===String(sel)?' selected':'')+'>'+esc(y)+'</option>'; }).join("");
+}
 function viewTresorerie(){
-  var now=new Date(), year=String(now.getFullYear()), month=String(now.getMonth()+1).padStart(2,"0");
+  var period=tresoSelectedPeriod();
   var list=encaissementsTresorerie();
-  var listYear=list.filter(function(e){return (e.date||"").slice(0,4)===year;});
-  var listMonth=list.filter(function(e){return (e.date||"").slice(0,7)===year+"-"+month;});
-  var caM=r2(listMonth.reduce(function(s,e){return s+e.montant;},0));
-  var caA=r2(listYear.reduce(function(s,e){return s+e.montant;},0));
-  var achatsM=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), Number(month)) : 0;
-  var achatsA=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(year), null) : 0;
+  var years=tresoAvailableYears(list);
+  var listYear=list.filter(function(e){return (e.date||"").slice(0,4)===String(period.year);});
+  var listMonth=list.filter(function(e){return (e.date||"").slice(0,7)===period.prefix;});
+
+  var caMB=r2(listMonth.reduce(function(s,e){return s+(Number(e.montantBiens)||0);},0));
+  var caMS=r2(listMonth.reduce(function(s,e){return s+(Number(e.montantServices)||0);},0));
+  var caM=r2(caMB+caMS);
+  var caAB=r2(listYear.reduce(function(s,e){return s+(Number(e.montantBiens)||0);},0));
+  var caAS=r2(listYear.reduce(function(s,e){return s+(Number(e.montantServices)||0);},0));
+  var caA=r2(caAB+caAS);
+  var achatsM=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(period.year), Number(period.month)) : 0;
+  var achatsA=(typeof totalAchatsPeriode==="function") ? totalAchatsPeriode(Number(period.year), null) : 0;
+  var urssaf=tresoUrssafEstimate(caMB, caMS);
   var byPay=groupTresorerieBy(function(e){return e.paiement;}, listYear);
   var byAct=groupTresorerieBy(function(e){return e.activite;}, listYear);
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+
+  var label=tresoPeriodLabel(period);
+  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+ 
+    '<div class="row-actions" style="margin:0;align-items:flex-end;">'+
+      '<label class="field" style="margin:0;min-width:150px;"><span>Mois</span><select data-action="treso-month">'+tresoMonthOptions(period.month)+'</select></label>'+ 
+      '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
+      '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
+    '</div></div>'+ 
+    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V2.1.0</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
     '<div class="grid-stats">'+
-      stat("CA encaissé du mois",euro(caM),true)+
-      stat("CA encaissé de l’année",euro(caA),true)+
-      stat("Achats du mois",euro(achatsM),false)+
-      stat("Marge brute estimée",euro(r2(caM-achatsM)),false)+
-    '</div>'+
-    '<div class="card"><h3 style="margin:0 0 10px;">Répartition par moyen de paiement '+year+'</h3>';
-  CLIENT_PAYMENT_METHODS.concat(["Non renseigné"]).forEach(function(p){
+      stat('CA encaissé '+label,euro(caM),true)+
+      stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
+      stat('Prestations de services',euro(caMS),false,'var(--green-s)')+
+      stat('Estimation URSSAF',euro(urssaf.total),false,'#fffaf5')+
+      stat('Achats '+label,euro(achatsM),false)+
+      stat('Marge brute estimée',euro(r2(caM-achatsM)),false)+
+    '</div>'+ 
+    '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">🧾 Déclaration URSSAF — '+esc(label)+'</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">mensuel</span></div>'+ 
+      '<div class="totrow"><span>Vente de biens</span><b>'+euro(caMB)+'</b></div>'+ 
+      '<div class="totrow"><span>Prestations de services</span><b>'+euro(caMS)+'</b></div>'+ 
+      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:5px;"><span>Total CA à déclarer</span><span>'+euro(caM)+'</span></div>'+ 
+      '<div style="margin-top:12px;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px;">'+
+        '<div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">Estimation des cotisations URSSAF</div>'+ 
+        '<div class="totrow"><span>Biens ('+(state.settings.tauxCotisBiens||0)+' %)</span><span>'+euro(urssaf.biens)+'</span></div>'+ 
+        '<div class="totrow"><span>Services ('+(state.settings.tauxCotisServices||0)+' %)</span><span>'+euro(urssaf.services)+'</span></div>'+ 
+        '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:5px;"><span>Total estimé à payer</span><span>'+euro(urssaf.total)+'</span></div>'+ 
+      '</div>'+ 
+      '<p class="muted" style="font-size:12px;margin:8px 0 0;">Montant indicatif calculé avec les taux renseignés dans Paramètres. À vérifier lors de la déclaration réelle.</p></div>'+ 
+    '<div class="card"><div class="flexb"><h3 style="margin:0 0 10px;">Détail des ventes encaissées — '+esc(label)+'</h3><span class="muted">'+listMonth.length+' ligne(s)</span></div>';
+  if(!listMonth.length) html+='<p class="muted">Aucune vente encaissée sur ce mois.</p>';
+  else listMonth.forEach(function(e){
+    html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+ 
+      '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+ 
+      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+'</div>'+ 
+      '<div class="muted" style="font-size:12px;">'+euro(e.montantBiens||0)+' biens · '+euro(e.montantServices||0)+' services</div></div>'+ 
+      '<div style="font-weight:800;color:var(--bordeaux);white-space:nowrap;">'+euro(e.montant)+'</div></div>';
+  });
+  if(listMonth.length){
+    html+='<div style="border-top:2px solid var(--bordeaux);margin-top:10px;padding-top:8px;">'+
+      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);"><span>Total encaissé</span><span>'+euro(caM)+'</span></div>'+ 
+      '<div class="muted" style="text-align:right;font-size:12px;">'+euro(caMB)+' biens · '+euro(caMS)+' services · URSSAF estimée '+euro(urssaf.total)+'</div>'+ 
+    '</div>';
+  }
+  html+='</div>'+ 
+    '<div class="card"><h3 style="margin:0 0 10px;">Répartition par moyen de paiement '+period.year+'</h3>';
+  CLIENT_PAYMENT_METHODS.concat(['Non renseigné']).forEach(function(p){
     if(byPay[p]) html+=tresoBar(p, r2(byPay[p]), caA);
   });
-  html+='</div><div class="card"><h3 style="margin:0 0 10px;">Répartition par activité '+year+'</h3>';
-  ["Mariages","Ateliers","Commandes"].forEach(function(a){
+  if(!Object.keys(byPay).length) html+='<p class="muted">Aucun encaissement sur cette année.</p>';
+  html+='</div><div class="card"><h3 style="margin:0 0 10px;">Répartition par activité '+period.year+'</h3>';
+  ['Mariages','Ateliers','Commandes'].forEach(function(a){
     if(byAct[a]) html+=tresoBar(a, r2(byAct[a]), caA);
   });
-  html+='</div><div class="card"><div class="flexb"><h3 style="margin:0 0 10px;">Historique des encaissements et ventes site</h3><span class="muted">'+list.length+' ligne(s)</span></div>';
-  if(!list.length) html+='<p class="muted">Aucun encaissement pour le moment.</p>';
-  else list.slice(0,100).forEach(function(e){
-    html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+
-      '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+
-      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+'</div></div>'+
-      '<div style="font-weight:800;color:var(--bordeaux);">'+euro(e.montant)+'</div></div>';
-  });
-  html+='</div>';
+  if(!Object.keys(byAct).length) html+='<p class="muted">Aucune activité encaissée sur cette année.</p>';
+  html+='</div>'+ 
+    '<div class="card"><h3 style="margin:0 0 8px;">Synthèse annuelle '+period.year+'</h3>'+ 
+      '<div class="totrow"><span>CA encaissé annuel</span><b>'+euro(caA)+'</b></div>'+ 
+      '<div class="totrow"><span>dont biens</span><span>'+euro(caAB)+'</span></div>'+ 
+      '<div class="totrow"><span>dont services</span><span>'+euro(caAS)+'</span></div>'+ 
+      '<div class="totrow"><span>Achats annuels</span><span>'+euro(achatsA)+'</span></div>'+ 
+    '</div>';
   return html;
 }
 function todaySmartData(){
@@ -2139,6 +2275,117 @@ function atelierClientForDoc(a){
   }
   return client;
 }
+var ATELIER_PRESTATION_PRESETS=[
+  {label:"Frais de déplacement", type:"service"},
+  {label:"Pack premium", type:"bien"},
+  {label:"Personnalisation", type:"service"},
+  {label:"Fournitures supplémentaires", type:"bien"},
+  {label:"Autre / champ libre", type:"service"}
+];
+function atelierPrestationTypeOptions(selected){
+  selected=selected||"service";
+  return '<option value="service"'+(selected==="service"?' selected':'')+'>Prestation de services</option>'+ 
+    '<option value="bien"'+(selected==="bien"?' selected':'')+'>Vente de biens</option>';
+}
+function atelierPrestations(a){
+  return ((a&&a.prestationsComplementaires)||[]).map(function(l){
+    var q=num(l.qte!=null?l.qte:(l.quantite!=null?l.quantite:1));
+    if(!q) q=1;
+    return {
+      id:l.id||uid(),
+      designation:String(l.designation||l.libelle||"").trim(),
+      type:l.type==="bien"?"bien":"service",
+      urssafType:l.urssafType||l.categorieUrssaf||(l.type==="bien"?"bien":"service"),
+      qte:q,
+      prix:num(l.prix!=null?l.prix:l.prixUnitaire)
+    };
+  }).filter(function(l){ return l.designation || l.prix>0; });
+}
+function atelierPrestationsTotal(a){
+  return r2(atelierPrestations(a).reduce(function(s,l){return s+(num(l.qte)*num(l.prix));},0));
+}
+function atelierBaseDocMontant(a){
+  var mode=atelierMode(a);
+  if(mode==="structure") return Number(a.montantPrestation)||0;
+  if(mode==="prive") return Number(a.montantForfait)||0;
+  var parts=(a&&a.participants)||[];
+  return parts.reduce(function(s,p){return s+(Number(p.montant)||0);},0);
+}
+function atelierDocLignes(a){
+  var lignes=[];
+  var base=atelierBaseDocMontant(a);
+  if(base>0){
+    lignes.push({id:uid(), designation:atelierDocDesignation(a), type:"service", qte:1, prix:r2(base)});
+  }
+  atelierPrestations(a).forEach(function(l){
+    lignes.push({id:uid(), designation:l.designation||"Prestation complémentaire", type:l.type, urssafType:l.type, qte:l.qte||1, prix:r2(l.prix)});
+  });
+  return lignes;
+}
+function atelierDocMontant(a){
+  return totals(atelierDocLignes(a),state.settings.partService).total;
+}
+function atelierExtraLinesFromDOM(){
+  var rows=document.querySelectorAll('[data-atextra-row]'), out=[];
+  rows.forEach(function(row){
+    var id=row.getAttribute('data-atextra-row')||uid();
+    var designation=(row.querySelector('[data-atextra-field="designation"]')||{}).value||"";
+    var qte=num((row.querySelector('[data-atextra-field="qte"]')||{}).value);
+    var prix=num((row.querySelector('[data-atextra-field="prix"]')||{}).value);
+    var type=(row.querySelector('[data-atextra-type]')||{}).value||"service";
+    if(!qte) qte=1;
+    if(designation.trim() || prix>0){ out.push({id:id,designation:designation.trim(),type:type==="bien"?"bien":"service",urssafType:type==="bien"?"bien":"service",qte:qte,prix:prix}); }
+  });
+  return out;
+}
+function captureAtelierPrestations(a){
+  if(!a) return;
+  var box=document.getElementById('atExtraBox');
+  if(!box) return;
+  a.prestationsComplementaires=atelierExtraLinesFromDOM();
+}
+function refreshAtelierExtraTotalsFromDOM(){
+  var box=document.getElementById('atExtraTotal');
+  var rows=document.querySelectorAll('[data-atextra-row]');
+  var total=0;
+  rows.forEach(function(row){
+    var qte=num((row.querySelector('[data-atextra-field="qte"]')||{}).value);
+    var prix=num((row.querySelector('[data-atextra-field="prix"]')||{}).value);
+    if(!qte) qte=1;
+    var ligneTotal=r2(qte*prix);
+    total+=ligneTotal;
+    var cell=row.querySelector('[data-atextra-line-total]');
+    if(cell) cell.innerHTML=euro(ligneTotal);
+  });
+  if(box) box.innerHTML='Total compléments : '+euro(total);
+}
+function viewAtelierPrestationsComplementaires(a){
+  a=a||{};
+  var lignes=atelierPrestations(a);
+  var total=atelierPrestationsTotal(a);
+  var html='<div class="card" id="atExtraBox" style="background:var(--cream);"><div class="flexb"><div><h3 style="margin:0;">Prestations complémentaires à ajouter au devis</h3>'+ 
+    '<p class="muted" style="margin:4px 0 0;">Ajoute ici les frais de déplacement, packs premium, personnalisations ou toute ligne libre. Elles seront intégrées au devis atelier avec quantité, prix unitaire et catégorie URSSAF.</p></div>'+ 
+    '<span class="chip" id="atExtraTotal">Total compléments : '+euro(total)+'</span></div>';
+  html+='<div class="row-actions" style="margin-top:12px;">'+ATELIER_PRESTATION_PRESETS.map(function(p,i){return '<button class="btn small soft" data-action="at-extra-add-'+i+'">+ '+esc(p.label)+'</button>';}).join('')+'</div>';
+  if(!lignes.length){
+    html+='<p class="muted" style="margin:12px 0 0;">Aucune prestation complémentaire pour le moment.</p>';
+  }else{
+    html+='<div class="scroll" style="margin-top:12px;"><table><thead><tr style="text-align:left;color:var(--ink-s);font-size:12px;"><th style="padding:6px;">Libellé</th><th style="padding:6px;">Catégorie URSSAF</th><th style="padding:6px;width:82px;">Qté</th><th style="padding:6px;width:115px;">Prix unit.</th><th style="padding:6px;width:110px;text-align:right;">Total</th><th style="padding:6px;width:40px;"></th></tr></thead><tbody>';
+    lignes.forEach(function(l){
+      html+='<tr data-atextra-row="'+esc(l.id)+'" style="border-top:1px solid var(--line);">'+
+        '<td style="padding:6px;"><input data-atextra-field="designation" value="'+esc(l.designation||'')+'" placeholder="Ex : Frais de déplacement"></td>'+ 
+        '<td style="padding:6px;"><select data-atextra-type>'+atelierPrestationTypeOptions(l.type)+'</select></td>'+ 
+        '<td style="padding:6px;"><input data-atextra-field="qte" type="number" min="0" step="1" value="'+esc(l.qte||1)+'"></td>'+ 
+        '<td style="padding:6px;"><input data-atextra-field="prix" type="number" min="0" step="0.01" value="'+esc(l.prix||0)+'"></td>'+ 
+        '<td data-atextra-line-total style="padding:6px;text-align:right;font-weight:700;white-space:nowrap;">'+euro(num(l.qte)*num(l.prix))+'</td>'+ 
+        '<td style="padding:6px;text-align:center;"><button data-action="at-extra-del-'+esc(l.id)+'" style="border:none;background:none;color:#9b3b3b;cursor:pointer;font-size:18px;">×</button></td>'+ 
+      '</tr>';
+    });
+    html+='</tbody></table></div>';
+  }
+  html+='<p class="muted" style="margin:10px 0 0;font-size:12px;">Astuce : choisis “Vente de biens” pour les fournitures ou packs matériels, et “Prestation de services” pour déplacement, animation ou personnalisation.</p></div>';
+  return html;
+}
 function atelierDocDesignation(a){
   var mode=atelierMode(a);
   var parts=[];
@@ -2151,18 +2398,13 @@ function atelierDocDesignation(a){
   if(nb) parts.push(nb+" participant(s)");
   return parts.filter(Boolean).join(" - ");
 }
-function atelierDocMontant(a){
-  var mode=atelierMode(a);
-  if(mode==="structure") return Number(a.montantPrestation)||0;
-  if(mode==="prive") return Number(a.montantForfait)||0;
-  return atelierTotals(a).total;
-}
 function atelierCreateDevis(a){
   if(!a) return null;
   var existing=atelierLinkedDevis(a);
   if(existing) return existing;
-  var montant=atelierDocMontant(a);
-  if(montant<=0){ toast("Indique le montant de la prestation avant de créer le devis."); return null; }
+  var lignes=atelierDocLignes(a);
+  var montant=totals(lignes,state.settings.partService).total;
+  if(montant<=0){ toast("Indique le montant de la prestation ou ajoute une ligne complémentaire avant de créer le devis."); return null; }
   var client=atelierClientForDoc(a);
   var date=todayISO();
   var d={
@@ -2171,7 +2413,7 @@ function atelierCreateDevis(a){
     date:date,
     validite:addDays(date,state.settings.validiteDevis),
     client:client,
-    lignes:[{id:uid(),designation:atelierDocDesignation(a),type:"service",qte:1,prix:montant}],
+    lignes:lignes,
     notes:"Devis généré depuis la fiche atelier"+(a.date?" du "+frDate(a.date):"")+".",
     statut:"brouillon",
     origine:"atelier",
@@ -2183,6 +2425,26 @@ function atelierCreateDevis(a){
   };
   state.devis=state.devis||[];
   state.devis.unshift(d);
+  a.devisId=d.id;
+  a.devisNumero=d.numero;
+  return d;
+}
+function atelierSyncLinkedDevis(a){
+  if(!a) return null;
+  var d=atelierLinkedDevis(a);
+  if(!d){ toast("Aucun devis lié à cet atelier."); return null; }
+  var lignes=atelierDocLignes(a);
+  var montant=totals(lignes,state.settings.partService).total;
+  if(montant<=0){ toast("Indique le montant de la prestation ou ajoute une ligne complémentaire avant de mettre à jour le devis."); return null; }
+  d.client=atelierClientForDoc(a);
+  d.lignes=lignes;
+  d.notes=d.notes||("Devis généré depuis la fiche atelier"+(a.date?" du "+frDate(a.date):"")+".");
+  d.origine="atelier";
+  d.atelierId=a.id;
+  d.atelierMode=atelierMode(a);
+  d.atelierType=a.type||"";
+  d.atelierTheme=a.theme||"";
+  d.atelierDate=a.date||"";
   a.devisId=d.id;
   a.devisNumero=d.numero;
   return d;
@@ -2230,6 +2492,7 @@ function viewAtelierDocuments(a){
     html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><b style="color:var(--bordeaux);">Devis '+esc(d.numero)+'</b>'+
       '<div class="muted" style="font-size:12px;">Client : '+esc((d.client&&d.client.nom)||"")+' · Total : '+euro(totals(d.lignes||[],state.settings.partService).total)+' · Statut : '+esc((ST_DEVIS[d.statut]||ST_DEVIS.brouillon).l)+'</div></div>'+
       '<div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
+        '<button class="btn small ghost" data-action="at-doc-devis-sync">Mettre à jour le devis</button>'+
         '<button class="btn small soft" data-action="at-doc-devis-preview">Aperçu / PDF</button>'+
         '<button class="btn small primary" data-action="at-doc-devis-email">Envoyer devis</button>'+
       '</div></div>';
@@ -2298,6 +2561,7 @@ function newAtelier(){
   var a={id:uid(),modeAtelier:"thematique",date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",
     organisatrice:"",structureNom:"",contactEmail:"",contactTel:"",
     nbPersonnes:0,nbParticipantsPrevu:0,montantForfait:0,montantPrestation:0,
+    prestationsComplementaires:[],
     materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
   state.ateliers=state.ateliers||[];
   state.ateliers.unshift(a);
@@ -2314,6 +2578,7 @@ function atelierTotals(a){
   var total=participantTotal;
   if(mode==="structure") total=Number(a.montantPrestation)||0;
   if(mode==="prive") total=Number(a.montantForfait)||0;
+  if(mode!=="thematique") total+=atelierPrestationsTotal(a);
 
   var sitePaye=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.payeSiteMontant)||Number(p.montant)||0);},0);
   var siteSolde=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.soldeSite)||0);},0);
@@ -2384,6 +2649,7 @@ function captureAtelier(a){
   a.nbParticipantsPrevu=num(val("atNbParticipantsPrevu"));
   a.montantForfait=num(val("atMontantForfait"));
   a.montantPrestation=num(val("atMontantPrestation"));
+  captureAtelierPrestations(a);
   a.materiel=val("atMateriel")||"";
   a.description=val("atDescription")||"";
 }
@@ -2432,7 +2698,10 @@ function viewAtelierDetail(a){
       '</div>';
   }
 
-  if(mode!=="thematique"){ html+=viewAtelierDocuments(a); }
+  if(mode!=="thematique"){
+    html+=viewAtelierPrestationsComplementaires(a);
+    html+=viewAtelierDocuments(a);
+  }
 
   html+='<label class="field"><span>Matériel nécessaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
     '<label class="field"><span>Description / mémo</span><textarea id="atDescription" placeholder="Infos organisation, demandes particulières, déroulé de l’atelier…">'+esc(a.description||"")+'</textarea></label>'+
@@ -3031,12 +3300,12 @@ function viewParams(){
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Ces informations apparaissent sur vos devis et factures.</p>'+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
-    '<p class="muted" style="margin-top:0;">Télécharge ou restaure une sauvegarde JSON uniquement dans cette version TEST isolée.</p>'+
+    '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
     '<button class="btn danger" data-action="restore-pick">Restaurer une sauvegarde JSON</button></div>'+
-    '<p class="muted" style="font-size:11px;margin:10px 0 0;">⚠️ VERSION TEST : la restauration remplace uniquement les données locales de ce navigateur. Elle ne modifie pas la production Firebase.</p></div>'+
-  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive — désactivée en test isolé</h3>'+
-    '<p class="muted" style="margin-top:0;">En version TEST isolée, les données restent dans ce navigateur. N’utilise pas la sauvegarde automatique Google Drive pour les essais.</p>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">⚠️ La restauration remplace les données actuellement synchronisées dans Firebase. Avant restauration, garde toujours une sauvegarde récente.</p></div>'+
+  '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive</h3>'+
+    '<p class="muted" style="margin-top:0;">Colle ici l’URL de ton script Google Apps Script. L’application pourra créer une sauvegarde JSON dans ton Google Drive.</p>'+
     '<label class="field"><span>URL du script Google Drive</span><input id="pGoogleDriveUrl" value="'+esc(s.googleDriveUrl||"")+'" placeholder="https://script.google.com/macros/s/.../exec"></label>'+
     '<label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;"><input type="checkbox" id="pGoogleDriveAuto" '+(s.googleDriveAuto?'checked':'')+' style="width:18px;height:18px;"> Activer une sauvegarde automatique quotidienne dans Google Drive (une seule par jour)</label>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="gdrive-save">Enregistrer l’URL Google Drive</button><button class="btn primary" data-action="gdrive-backup">Tester / créer une sauvegarde Google Drive</button><button class="btn danger" data-action="gdrive-restore-latest">Restaurer la dernière sauvegarde Google Drive</button></div>'+
@@ -3116,18 +3385,35 @@ function viewDoc(p){
 
 /* ===================== Export CSV ===================== */
 function exportCSV(annee){
-  var rows=state.factures.filter(function(f){ return f.statut==="payee"&&f.datePaiement&&(annee==="all"||f.datePaiement.slice(0,4)===String(annee)); })
-    .sort(function(a,b){ return a.datePaiement.localeCompare(b.datePaiement); });
+  var rows=[];
+  state.factures.forEach(function(f){
+    if(f.statut==="payee"&&f.datePaiement&&(annee==="all"||f.datePaiement.slice(0,4)===String(annee))){
+      rows.push({date:f.datePaiement, source:"Facture", ref:f.numero||"", type:TYPE_FAC[f.type]||"Facture", client:(f.client&&f.client.nom)||"", montant:Number(f.montant)||0, biens:Number(f.montantBiens)||0, services:Number(f.montantServices)||0, paiement:f.paiementClient||""});
+    }
+  });
+  state.encaissements.forEach(function(e){
+    if(e.date&&(annee==="all"||e.date.slice(0,4)===String(annee))){
+      var b=Number(e.montantBiens)||0, s=Number(e.montantServices)||0;
+      rows.push({date:e.date, source:"Encaissement manuel", ref:"", type:e.libelle||"Encaissement", client:e.client||"", montant:r2(b+s), biens:r2(b), services:r2(s), paiement:e.paiement||""});
+    }
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(s.date&&(annee==="all"||s.date.slice(0,4)===String(annee))){
+      var sp=siteSaleSplit(s);
+      rows.push({date:s.date, source:"Vente site internet", ref:s.commande||"", type:s.produit||s.activite||"Vente site", client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, paiement:"Site internet"});
+    }
+  });
+  rows.sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
   if(rows.length===0){ toast("Aucune vente encaissée pour cette période."); return; }
   var fmt=function(n){ return (Number(n)||0).toFixed(2).replace(".",","); };
   var q=function(s){ return '"'+String(s==null?"":s).replace(/"/g,'""')+'"'; };
-  var L=[["Date encaissement","N° facture","Type","Client","Total (€)","dont Vente de biens (€)","dont Prestation de services (€)"].map(q).join(";")];
-  rows.forEach(function(f){ L.push([frDate(f.datePaiement),f.numero,TYPE_FAC[f.type],f.client&&f.client.nom,fmt(f.montant),fmt(f.montantBiens),fmt(f.montantServices)].map(q).join(";")); });
-  var tb=r2(rows.reduce(function(a,f){return a+(f.montantBiens||0);},0)), ts=r2(rows.reduce(function(a,f){return a+(f.montantServices||0);},0));
-  L.push(""); L.push(["","","","TOTAL",fmt(tb+ts),fmt(tb),fmt(ts)].map(q).join(";"));
+  var L=[["Date encaissement","Source","Référence","Type / Libellé","Client","Total (€)","Vente de biens (€)","Prestations de services (€)","Paiement"].map(q).join(";")];
+  rows.forEach(function(r){ L.push([frDate(r.date),r.source,r.ref,r.type,r.client,fmt(r.montant),fmt(r.biens),fmt(r.services),r.paiement].map(q).join(";")); });
+  var tb=r2(rows.reduce(function(a,r){return a+(Number(r.biens)||0);},0)), ts=r2(rows.reduce(function(a,r){return a+(Number(r.services)||0);},0));
+  L.push(""); L.push(["","","","","TOTAL",fmt(tb+ts),fmt(tb),fmt(ts),""].map(q).join(";"));
   var csv="\uFEFF"+L.join("\r\n");
-  downloadJSON(csv, "carnet-ventes-"+(annee==="all"?"toutes-annees":annee)+".csv"); // même mécanisme de téléchargement
-  toast("Export prêt.");
+  downloadJSON(csv, "declaration-ca-"+(annee==="all"?"toutes-annees":annee)+".csv");
+  toast("Export déclaration prêt.");
 }
 
 /* ===================== Logo ===================== */
@@ -3330,9 +3616,17 @@ function mariageDevisAccepte(m){
   var d=state.devis.find(function(x){return x.id===m.devisLie;});
   return !!(d && d.statut==="accepte");
 }
+function mariageAcomptePaye(m){
+  if(!m || !m.devisLie) return false;
+  // Règle métier PROD V2.0.39 : un mariage passe dans “À préparer” uniquement si
+  // la facture d’acompte liée au devis est réellement marquée payée.
+  return (state.factures||[]).some(function(f){
+    return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
+  });
+}
 function prepData(){
-  // seuls les mariages actifs dont le devis lié est accepté apparaissent dans “À préparer”
-  var arr=state.mariages.filter(function(m){ return !mariageTermine(m)&&m.statut!=="perdu"&&mariageDevisAccepte(m); })
+  // seuls les mariages actifs dont la facture d’acompte est marquée payée apparaissent dans “À préparer”
+  var arr=state.mariages.filter(function(m){ return !mariageTermine(m)&&m.statut!=="perdu"&&mariageDevisAccepte(m)&&mariageAcomptePaye(m); })
     .map(function(m){ return { m:m, todo:(m.articles||[]).filter(function(a){return !a.fait;}) }; })
     .filter(function(x){ return x.todo.length>0; });
   arr.sort(function(a,b){ var da=mariageDateRef(a.m)||"9999", db=mariageDateRef(b.m)||"9999"; return da<db?-1:da>db?1:0; });
@@ -3350,11 +3644,11 @@ function countPrep(){
 function viewPreparer(){
   var weddings=prepData();
   var totItems = weddings.reduce(function(s,x){return s+x.todo.length;},0);
-  if(totItems===0) return '<div class="card" style="text-align:center;"><div style="font-size:30px;">🌿</div><p style="margin:6px 0 0;font-weight:600;color:var(--bordeaux);">Aucun mariage à préparer, tout est à jour !</p><p class="muted" style="margin:4px 0 0;">Les articles mariage apparaissent ici uniquement après acceptation du devis. Les commandes sont dans l’onglet Commandes → Suivi.</p></div>';
+  if(totItems===0) return '<div class="card" style="text-align:center;"><div style="font-size:30px;">🌿</div><p style="margin:6px 0 0;font-weight:600;color:var(--bordeaux);">Aucun mariage à préparer, tout est à jour !</p><p class="muted" style="margin:4px 0 0;">Les articles mariage apparaissent ici uniquement lorsque la facture d’acompte liée au devis est marquée payée. Les commandes sont dans l’onglet Commandes → Suivi.</p></div>';
   var entries=[];
   weddings.forEach(function(x){ entries.push({date:x.m.dateMariage||"9999", x:x}); });
   entries.sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
-  var html='<div class="muted" style="margin-bottom:10px;"><b style="color:var(--bordeaux);">'+totItems+'</b> article'+(totItems>1?'s':'')+' mariage à préparer · '+weddings.length+' mariage'+(weddings.length>1?'s':'')+'.</div>';
+  var html='<div class="summary"><b style="color:var(--bordeaux);">'+totItems+'</b> article'+(totItems>1?'s':'')+' mariage à préparer · '+weddings.length+' mariage'+(weddings.length>1?'s':'')+'.<div class="muted" style="font-size:12px;margin-top:4px;">Affichage limité aux mariages dont la facture d’acompte est marquée payée.</div></div>';
   entries.forEach(function(en){
     var m=en.x.m, cd=mariageCountdown(m); var soon=cd.txt.indexOf("J-")===0 && parseInt(cd.txt.slice(2),10)<=14;
     html+='<div class="card"><div class="flexb" style="margin-bottom:6px;">'+
@@ -3986,15 +4280,6 @@ async function envoyerDocumentEmail(kind, doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
 
-  
-  if(action==="test-v2031-clear"){
-    if(confirm("Vider uniquement les données locales de cette version TEST ?")){
-      localStorage.removeItem("afs_cache_test_v2031");
-      location.reload();
-    }
-    return;
-  }
-
   if(action==="payment-prompt-ok"){
     var sel=document.getElementById("paymentPromptSelect");
     var val=sel?sel.value:"";
@@ -4096,6 +4381,8 @@ function handleAction(action){
   }
 
   
+  if(action==="treso-current-month"){ var tn=new Date(); ui.tresoYear=tn.getFullYear(); ui.tresoMonth=tn.getMonth()+1; render(); return; }
+
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
   
@@ -4134,6 +4421,11 @@ function handleAction(action){
     else toast("Aucun devis lié à cet atelier.");
     return;
   }
+  if(action==="at-doc-devis-sync"){
+    var aus=getAtelier(ui.atelierOpen);
+    if(aus){ captureAtelier(aus); var uds=atelierSyncLinkedDevis(aus); if(uds){ saveCache(); render(); toast("Devis "+uds.numero+" mis à jour avec les lignes actuelles."); } }
+    return;
+  }
   if(action==="at-doc-fac-acompte" || action==="at-doc-fac-totale" || action==="at-doc-fac-solde"){
     var af=getAtelier(ui.atelierOpen);
     if(af){
@@ -4166,6 +4458,8 @@ function handleAction(action){
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
   if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
   if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
+  if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var preset=ATELIER_PRESTATION_PRESETS[pi]||ATELIER_PRESTATION_PRESETS[4]; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:preset.type,urssafType:preset.type,qte:1,prix:0}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
+  if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
   if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
   if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; aa.participants.push({id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}); ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée."); } return; }
   if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); saveCache(); render(); toast("Participante supprimée."); } return; }
@@ -4234,6 +4528,9 @@ function handleAction(action){
   if(action.indexOf("facture-preview-")===0){ var fp=state.factures.find(function(f){return f.id===action.slice(16);}); if(fp){ ui.preview={kind:"facture",doc:fp}; renderModal(); } return; }
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
+  if(action.indexOf("devis-filtre-")===0){ ui.devisFiltre=action.slice(13); ui.confirmDelete=null; render(); return; }
+  if(action.indexOf("devis-archive-")===0){ var da=findDevis(action.slice(14)); if(da){ da.statutAvantArchive=da.statut; da.statut="archive"; ui.devisFiltre="archives"; saveCache(); render(); toast("Devis archivé."); } return; }
+  if(action.indexOf("devis-unarchive-")===0){ var du=findDevis(action.slice(16)); if(du){ du.statut=du.statutAvantArchive||"envoye"; delete du.statutAvantArchive; ui.devisFiltre=(du.statut==="accepte"?"acceptes":(du.statut==="refuse"?"refuses":"actifs")); saveCache(); render(); toast("Devis désarchivé."); } return; }
   if(action.indexOf("devis-del-")===0){ var did=action.slice(10), key="devis:"+did;
     if(facturesDuDevis(did).length){ toast("Impossible : supprime d'abord les factures liées à ce devis."); return; }
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement ce devis."); return; }
@@ -4243,6 +4540,7 @@ function handleAction(action){
       var res=validerDevisEtCreerSuivi(d);
       saveCache();
       ui.tab="devis";
+      ui.devisFiltre="acceptes";
       ui.commandeOpen=null;
       render();
       toast("Devis accepté : choisis maintenant facture d\'acompte ou facture complète.");
@@ -4541,16 +4839,21 @@ document.addEventListener("input", function(e){
     var oc=getCommande(ui.commandeOpen); var l7=oc&&(oc.lignes||[]).find(function(x){return x.id===id7;}); if(l7){ l7[field7]=t.value; refreshCommandeTotals(); }
   } else if(t.hasAttribute&&t.hasAttribute("data-cmdopen-desig")){
     var id8=t.getAttribute("data-id"); var oc2=getCommande(ui.commandeOpen); var l8=oc2&&(oc2.lignes||[]).find(function(x){return x.id===id8;}); if(l8){ l8.designation=t.value; }
+  } else if(t.hasAttribute&&t.hasAttribute("data-atextra-field")){
+    refreshAtelierExtraTotalsFromDOM();
   }
 });
 document.addEventListener("change", function(e){
   var t=e.target;
   if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="dash-year"){ ui.anneeDash=Number(t.value); ui.monthDetail=null; render(); return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="treso-year"){ ui.tresoYear=Number(t.value); render(); return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="treso-month"){ ui.tresoMonth=Number(t.value); render(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linetype")){ var id=t.getAttribute("data-id"); var l=ui.wizard&&ui.wizard.lignes.find(function(x){return x.id===id;}); if(l){ l.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-faclinetype")){ var fid=t.getAttribute("data-id"); var fl=ui.factureDraft&&ui.factureDraft.lignes.find(function(x){return x.id===fid;}); if(fl){ fl.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-cmdlinetype")){ var cid=t.getAttribute("data-id"); var cl=ui.commandeDraft&&ui.commandeDraft.lignes.find(function(x){return x.id===cid;}); if(cl){ cl.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-cmdopen-type")){ var oid=t.getAttribute("data-id"); var oc=getCommande(ui.commandeOpen); var ol=oc&&(oc.lignes||[]).find(function(x){return x.id===oid;}); if(ol){ ol.type=t.value; render(); } return; }
+  if(t.hasAttribute&&t.hasAttribute("data-atextra-type")){ refreshAtelierExtraTotalsFromDOM(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="cmd-clientsel"){ if(ui.commandeDraft) ui.commandeDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="fac-clientsel"){ if(ui.factureDraft) ui.factureDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="site-clientsel"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.clientId=t.value; captureSiteSaleDraft(); } return; }
