@@ -4,8 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>L'Atelier Fleurs &amp; Sens — Gestion — TEST V2.1.0</title>
-<!-- Version TEST V2.1.0 : prestations complémentaires ateliers + devis/factures + ventilation URSSAF -->
+<title>L'Atelier Fleurs &amp; Sens — Gestion — TEST V2.1.1</title>
+<!-- Version TEST V2.1.1 : masquage des mentions bien/service sur devis et factures client -->
+<!-- Version TEST V2.1.1 : prestations complémentaires ateliers + devis/factures + ventilation URSSAF -->
 <!-- Version PROD V2.0.40 : correctif menus déroulants moyens de paiement sur saisie facture/encaissement -->
 <!-- Version PROD V2.0.39 : version harmonisée + trésorerie mensuelle sélection mois/année vérifiée -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js">
@@ -525,7 +526,7 @@ function subNav(items, current, prefix){
 }
 
 function moduleHeader(title, subtitle){
-  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">TEST V2.1.0</span></div>';
+  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">TEST V2.1.1</span></div>';
 }
 
 function viewClientsModule(){
@@ -924,7 +925,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V2.1.0</b><div class="muted" style="font-size:12px;margin-top:4px;">Ajout des prestations complémentaires dans les ateliers : frais de déplacement, pack premium, personnalisation ou ligne libre avec quantité, prix unitaire et catégorie URSSAF.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V2.1.1</b><div class="muted" style="font-size:12px;margin-top:4px;">Prestations complémentaires dans les ateliers + correction : les mentions internes bien/service ne sont plus affichées sur les devis et factures client.</div></div>'+
   '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
     '<div class="grid-stats" style="margin-bottom:0;">'+
@@ -941,12 +942,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version TEST V2.1.0.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version TEST V2.1.1.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — TEST V2.1.0</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — TEST V2.1.1</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -2052,7 +2053,7 @@ function viewTresorerie(){
       '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
-    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V2.1.0</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
+    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V2.1.1</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
       stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
@@ -3355,7 +3356,7 @@ function viewDoc(p){
     (doc.client&&doc.client.email?'<div style="font-size:12px;">'+esc(doc.client.email)+'</div>':'')+
     (doc.client&&doc.client.tel?'<div style="font-size:12px;">'+esc(doc.client.tel)+'</div>':'')+(doc.client&&doc.client.canal?'<div style="font-size:12px;">Canal : '+esc(doc.client.canal)+'</div>':'')+'</div>';
   var acEncart = (kind==="facture"&&doc.type==="acompte")?'<div style="margin-top:20px;padding:12px;border:1px solid var(--line);border-radius:8px;">Acompte de '+doc.pourcentage+' % sur le devis '+esc(doc.devisNumero)+' d\'un montant total de <b>'+euro(doc.devisTotal)+'</b>.</div>':'';
-  var rows=doc.lignes.map(function(l){ return '<tr style="border-bottom:1px solid var(--line);"><td style="padding:6px;overflow-wrap:break-word;word-break:normal;">'+esc(l.designation)+' <span class="muted" style="font-size:11px;">('+(l.type==="service"?"service":"bien")+')</span></td><td style="text-align:center;padding:6px;">'+esc(l.qte)+'</td><td style="text-align:right;padding:6px;">'+euro(l.prix)+'</td><td style="text-align:right;padding:6px;">'+euro(num(l.qte)*num(l.prix))+'</td></tr>'; }).join("");
+  var rows=doc.lignes.map(function(l){ return '<tr style="border-bottom:1px solid var(--line);"><td style="padding:6px;overflow-wrap:break-word;word-break:normal;">'+esc(l.designation)+'</td><td style="text-align:center;padding:6px;">'+esc(l.qte)+'</td><td style="text-align:right;padding:6px;">'+euro(l.prix)+'</td><td style="text-align:right;padding:6px;">'+euro(num(l.qte)*num(l.prix))+'</td></tr>'; }).join("");
   function tr(l,v,strong,soft){ return '<div class="totrow" style="font-size:'+(strong?14:12)+'px;font-weight:'+(strong?700:400)+';color:'+(strong?"var(--bordeaux)":soft?"var(--ink-s)":"var(--ink)")+';'+(strong?"border-top:2px solid var(--bordeaux);":"")+'"><span>'+esc(l)+'</span><span>'+v+'</span></div>'; }
   var tot='<div style="display:flex;justify-content:flex-end;margin-top:8px;"><div style="min-width:280px;">'+
     tr("Total",euro(doc.totalInitial||t.total))+tr(s.mentionTVA,"—",false,true)+
