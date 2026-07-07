@@ -1,3 +1,12 @@
+# Journal des modifications
+
+## V3.0.4 PROD — Correctif encaissements ateliers
+
+- Correction du calcul **À encaisser prochainement**.
+- Lorsqu’un atelier privé ou structure possède déjà une facture d’acompte, une facture de solde ou une facture totale liée à son devis, le montant global de l’atelier n’est plus ajouté en double dans “À facturer”.
+- Les factures créées depuis un devis atelier héritent désormais automatiquement des informations atelier.
+- Les anciennes factures déjà créées sont reconnues via le lien avec le devis atelier.
+
 # Journal des modifications — L’Atelier Fleurs & Sens
 
 ## V3.0.3 TEST — Journal des modifications

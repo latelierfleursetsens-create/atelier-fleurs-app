@@ -1,7 +1,7 @@
-/* V3.0.3 PROD MODULAIRE — architecture V3 validée et mise en production. */
+/* V3.0.4 PROD MODULAIRE — correctif encaissements ateliers : évite le double comptage atelier + factures. */
 "use strict";
 
-var APP_VERSION = "PROD V3.0.3 MODULAIRE";
+var APP_VERSION = "PROD V3.0.4 MODULAIRE";
 var APP_VERSION_NOTE = "Architecture modulaire passée en production : journal des modifications, correctif ajout client et prestations complémentaires ateliers validés.";
 var APP_CHANGELOG = [
   "V3.0.3 PROD — Architecture modulaire validée et mise en production.",
@@ -2064,8 +2064,12 @@ function atelierLinkedDevis(a){
 function atelierFacturesLiees(a){
   if(!a) return [];
   var d=atelierLinkedDevis(a);
+  var factureIds=a.factureIds||[];
   return (state.factures||[]).filter(function(f){
-    return (f.origine==="atelier" && f.atelierId===a.id) || (d && f.devisId===d.id && f.origine==="atelier");
+    return (f.origine==="atelier" && f.atelierId===a.id) ||
+      (d && f.devisId===d.id) ||
+      (f.atelierId && f.atelierId===a.id) ||
+      (factureIds.indexOf(f.id)>=0);
   });
 }
 function atelierClientForDoc(a){
@@ -2403,7 +2407,7 @@ function atelierTotals(a){
 
   var sitePaye=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.payeSiteMontant)||Number(p.montant)||0);},0);
   var siteSolde=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.soldeSite)||0);},0);
-  var factures=(state.factures||[]).filter(function(f){return f.origine==="atelier"&&f.atelierId===a.id;});
+  var factures=atelierFacturesLiees(a);
   var facture=factures.reduce(function(s,f){return s+(Number(f.montant)||0);},0);
   var paye=r2(sitePaye+factures.filter(function(f){return f.statut==="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
   var attente=r2(siteSolde+factures.filter(function(f){return f.statut!=="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
@@ -2930,11 +2934,24 @@ function lierFactureACommande(devisId, facture){
     }
   }
 }
+function factureHeriteInfosDevis(d,f){
+  if(!d || !f) return f;
+  if(d.origine==="atelier" || d.atelierId){
+    f.origine="atelier";
+    f.atelierId=d.atelierId||f.atelierId||"";
+    f.atelierMode=d.atelierMode||f.atelierMode||"";
+    f.atelierType=d.atelierType||f.atelierType||"";
+    f.atelierTheme=d.atelierTheme||f.atelierTheme||"";
+    f.atelierDate=d.atelierDate||f.atelierDate||"";
+  }
+  return f;
+}
 function creerAcompte(d){
   var t=totals(d.lignes,state.settings.partService), p=state.settings.acompteParDefaut, date=todayISO();
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -2944,6 +2961,7 @@ function creerSolde(d){
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -2952,6 +2970,7 @@ function creerTotale(d){
   var t=totals(d.lignes,state.settings.partService), date=todayISO();
   var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;

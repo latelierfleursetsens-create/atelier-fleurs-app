@@ -1,6 +1,6 @@
-# L’Atelier Fleurs & Sens — V3.0.3 PROD modulaire
+# L’Atelier Fleurs & Sens — V3.0.4 PROD modulaire
 
-Cette version correspond à la V3.0.3 TEST validée, préparée pour une mise en production.
+Cette version correspond à la V3.0.4 PROD modulaire avec correctif sur le calcul “À encaisser prochainement” des ateliers.
 
 ## Objectif de cette V3
 
@@ -12,6 +12,12 @@ Sortir du fichier HTML unique et passer progressivement vers une application org
 - `js/app.js` : logique actuelle de l’application, extraite du fichier historique.
 - `js/*.js` : fichiers préparés pour la phase 2, où chaque module sera séparé par métier.
 - `docs/CHANGELOG.md` : journal des versions et des corrections.
+
+## Nouveauté V3.0.4
+
+- Correctif du calcul **À encaisser prochainement** : un atelier déjà couvert par une facture d’acompte, une facture de solde ou une facture totale liée à son devis n’est plus ajouté une seconde fois en “À facturer”.
+- Les factures créées depuis un devis atelier héritent désormais automatiquement des informations atelier.
+- Les anciennes factures déjà créées et liées au devis atelier sont reconnues, même si elles avaient été enregistrées comme factures de devis classiques.
 
 ## Nouveauté V3.0.3
 
@@ -31,7 +37,7 @@ Pour ne pas casser l’application, toute la logique reste encore majoritairemen
 ## Vérifications après mise en ligne
 
 1. Ouvrir `index.html` ou le lien GitHub Pages.
-2. Vérifier l’affichage `PROD V3.0.3 MODULAIRE`.
+2. Vérifier l’affichage `PROD V3.0.4 MODULAIRE`.
 3. Vérifier que le bloc Journal des modifications est visible sur le tableau de bord.
 4. Se connecter.
 5. Tester le bouton `Ajouter le client` dans Fiches clientes.
