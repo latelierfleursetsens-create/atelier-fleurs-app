@@ -310,7 +310,7 @@ function subNav(items, current, prefix){
 }
 
 function moduleHeader(title, subtitle){
-  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">TEST V3.0.1 MODULAIRE</span></div>';
+  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">TEST V3.0.2 MODULAIRE</span></div>';
 }
 
 function viewClientsModule(){
@@ -709,7 +709,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V3.0.1 MODULAIRE</b><div class="muted" style="font-size:12px;margin-top:4px;">Prestations complémentaires dans les ateliers + correction : les mentions internes bien/service ne sont plus affichées sur les devis et factures client.</div></div>'+
+  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V3.0.2 MODULAIRE</b><div class="muted" style="font-size:12px;margin-top:4px;">Prestations complémentaires dans les ateliers + correction : ajout client renforcé + mentions internes bien/service masquées sur les devis et factures client.</div></div>'+
   '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
     '<div class="grid-stats" style="margin-bottom:0;">'+
@@ -726,12 +726,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version TEST V3.0.1 MODULAIRE.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version TEST V3.0.2 MODULAIRE.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — TEST V3.0.1 MODULAIRE</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — TEST V3.0.2 MODULAIRE</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -1837,7 +1837,7 @@ function viewTresorerie(){
       '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
-    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V3.0.1 MODULAIRE</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
+    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V3.0.2 MODULAIRE</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
       stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
@@ -2982,6 +2982,33 @@ function clientCA(nom){
   var c=(state.clients||[]).find(function(x){return clientNameMatches(nom,x.nom);}) || {nom:nom};
   return clientStats(c).total;
 }
+function addClientFromForm(){
+  state.clients = Array.isArray(state.clients) ? state.clients : [];
+  var cn=val("cliNom").trim();
+  if(!cn){ toast("Indique un nom de client."); return; }
+  var existing=state.clients.find(function(c){ return normName(c.nom)===normName(cn); });
+  if(existing){
+    ui.clientOpen=existing.id;
+    toast("Cette fiche existe déjà : ouverture de la fiche.");
+    render();
+    window.scrollTo(0,0);
+    return;
+  }
+  state.clients.push({
+    id:uid(),
+    nom:cn,
+    adresse:val("cliAdr"),
+    email:val("cliEmail"),
+    tel:val("cliTel"),
+    canal:val("cliCanal"),
+    anniversaire:val("cliAnniv"),
+    notes:val("cliNotes"),
+    createdAt:todayISO()
+  });
+  saveCache();
+  render();
+  toast("Client ajouté.");
+}
 function viewClients(){
   if(ui.clientOpen) return viewClientDetail(state.clients.find(function(c){return c.id===ui.clientOpen;}));
   var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Clients</h2><span class="muted">Suivi client</span></div>'+
@@ -2993,7 +3020,7 @@ function viewClients(){
     '<div class="inline"><div><label class="field"><span>Canal de communication préféré</span><select id="cliCanal">'+commOptions("")+'</select></label></div>'+
     '<div><label class="field"><span>Anniversaire</span><input id="cliAnniv" type="date"></label></div></div>'+
     '<label class="field"><span>Notes privées</span><textarea id="cliNotes" placeholder="Préférences, infos importantes…"></textarea></label>'+
-    '<button type="button" class="btn primary" data-action="cli-add">+ Ajouter le client</button></div>';
+    '<button id="cliAddBtn" type="button" class="btn primary" data-action="cli-add">+ Ajouter le client</button></div>';
   if(state.clients.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Pas encore de client. Ils s’ajoutent ici, automatiquement lors d’un devis, ou à l’import de ton historique.</p></div>'; return html; }
 
   var top=topClientsCRM(5);
@@ -4483,15 +4510,7 @@ function handleAction(action){
 
   // clients
   if(action==="cli-add"){
-    state.clients = Array.isArray(state.clients) ? state.clients : [];
-    var cn=val("cliNom").trim();
-    if(!cn){ toast("Indique un nom de client."); return; }
-    var existing=state.clients.find(function(c){ return normName(c.nom)===normName(cn); });
-    if(existing){ ui.clientOpen=existing.id; toast("Cette fiche existe déjà : ouverture de la fiche."); render(); window.scrollTo(0,0); return; }
-    state.clients.push({id:uid(),nom:cn,adresse:val("cliAdr"),email:val("cliEmail"),tel:val("cliTel"),canal:val("cliCanal"),anniversaire:val("cliAnniv"),notes:val("cliNotes")});
-    saveCache();
-    render();
-    toast("Client ajouté.");
+    addClientFromForm();
     return;
   }
   if(action.indexOf("cli-open-")===0){ ui.clientOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
@@ -4605,6 +4624,17 @@ function onRestoreFile(file){
 }
 
 /* ===================== Écouteurs ===================== */
+// Correctif V3.0.2 : listener direct et prioritaire pour le bouton "Ajouter le client".
+// Cela évite les cas où le clic était absorbé après le passage en architecture modulaire.
+document.addEventListener("click", function(e){
+  var closest = e.target && e.target.closest ? e.target.closest("#cliAddBtn,[data-action='cli-add']") : null;
+  if(!closest) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+  addClientFromForm();
+}, true);
+
 document.addEventListener("click", function(e){
   var el=e.target.closest("[data-action]"); if(!el) return;
   // les <select> et <input> (cases à cocher) avec data-action sont gérés via l'événement "change"
