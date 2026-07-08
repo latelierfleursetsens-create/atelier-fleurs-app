@@ -1,7 +1,7 @@
 /* V3.4.1 TEST MODULAIRE — suivi mariages : étapes automatiques + validation manuelle pour anciens dossiers. */
 "use strict";
 
-var APP_VERSION = "TEST V3.4.1 MODULAIRE";
+var APP_VERSION = "TEST V3.4.2 MODULAIRE";
 var APP_VERSION_NOTE = "Version test : suivi des mariages amélioré avec étapes semi-automatiques et validation manuelle pour les anciens dossiers.";
 var APP_CHANGELOG = [
   "V3.4.1 TEST — Suivi mariages : les étapes automatiques peuvent être cochées manuellement pour les anciens dossiers sans devis/facture liés.",
@@ -4020,15 +4020,25 @@ function viewMariageTimeline(m){
 }
 function viewDashboardMariageProgress(){
   var today=todayISO();
-  var list=(state.mariages||[]).filter(function(m){return !mariageTermine(m)&&m.statut!=="perdu";}).map(function(m){return {m:m,st:mariageWorkflowStats(m),date:mariageDateRef(m)||"9999-99-99"};});
-  list.sort(function(a,b){ return a.st.pct-b.st.pct || (a.date||"").localeCompare(b.date||""); });
+  var list=(state.mariages||[]).filter(function(m){return !mariageTermine(m)&&m.statut!=="perdu";}).map(function(m){
+    var liv=m.dateLivraison||"";
+    var ref=liv || m.dateMariage || "";
+    return {m:m,st:mariageWorkflowStats(m),date:ref||"9999-99-99",livraison:liv||"9999-99-99"};
+  });
+  // Les mariages en cours sont affichés par date de livraison, du plus proche au plus éloigné.
+  // Les dossiers sans date de livraison passent en bas, puis sont triés par date de mariage si disponible.
+  list.sort(function(a,b){
+    return (a.livraison||"9999-99-99").localeCompare(b.livraison||"9999-99-99") ||
+           (a.date||"9999-99-99").localeCompare(b.date||"9999-99-99") ||
+           a.st.pct-b.st.pct;
+  });
   list=list.slice(0,5);
-  var html='<div class="card" style="margin-bottom:14px;"><div class="flexb"><div><h3 style="margin:0;">💍 Mariages en cours</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Progression des dossiers mariage selon la checklist métier.</p></div><button class="btn small ghost" data-action="nav-mariages">Tous les mariages</button></div>';
+  var html='<div class="card" style="margin-bottom:14px;"><div class="flexb"><div><h3 style="margin:0;">💍 Mariages en cours</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Classés par date de livraison, du plus proche au plus éloigné.</p></div><button class="btn small ghost" data-action="nav-mariages">Tous les mariages</button></div>';
   if(!list.length) return html+'<p class="muted" style="margin:10px 0 0;">Aucun mariage actif à suivre pour le moment.</p></div>';
   list.forEach(function(x){
     var m=x.m, color=mariageWorkflowColor(x.st.pct), missing=mariageWorkflowMissing(m)[0]||"Tout est à jour";
     html+='<div style="border-top:1px solid var(--line);padding:10px 0;">'+
-      '<div class="flexb" style="gap:8px;"><div style="flex:1;min-width:0;"><b style="color:var(--bordeaux);">'+esc(m.nom||"Cliente")+'</b><div class="muted" style="font-size:12px;">'+(mariageDateRef(m)?frDate(mariageDateRef(m)):"date à définir")+' · prochaine étape : '+esc(missing)+'</div></div>'+ 
+      '<div class="flexb" style="gap:8px;"><div style="flex:1;min-width:0;"><b style="color:var(--bordeaux);">'+esc(m.nom||"Cliente")+'</b><div class="muted" style="font-size:12px;">'+(m.dateLivraison?'Livraison : '+frDate(m.dateLivraison):(m.dateMariage?'Mariage : '+frDate(m.dateMariage):'date à définir'))+' · prochaine étape : '+esc(missing)+'</div></div>'+ 
       '<button class="btn small ghost" data-action="notif-open-mariage-'+esc(m.id)+'">Ouvrir</button></div>'+ 
       '<div class="jauge" style="margin:8px 0 0;"><div class="track"><div class="fill" style="width:'+x.st.pct+'%;background:'+color+';"></div></div><div class="muted" style="font-size:11px;margin-top:3px;text-align:right;">'+x.st.done+'/'+x.st.total+' étapes · '+x.st.pct+' %</div></div>'+ 
     '</div>';

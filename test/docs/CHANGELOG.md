@@ -1,3 +1,9 @@
+# Journal des modifications
+
+## TEST V3.4.2 MODULAIRE
+- Tri du bloc “Mariages en cours” par date de livraison, du plus proche au plus éloigné.
+- Les dossiers sans date de livraison sont placés en bas de liste.
+
 # CHANGELOG
 
 ## V3.4.1 TEST — Suivi mariages semi-automatique

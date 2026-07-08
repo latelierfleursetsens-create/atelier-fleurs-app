@@ -1,4 +1,4 @@
-# L’Atelier Fleurs & Sens — V3.4.1 TEST
+# L’Atelier Fleurs & Sens — V3.4.2 TEST
 
 Version de test modulaire dédiée au suivi des mariages.
 
@@ -25,10 +25,15 @@ Version de test modulaire dédiée au suivi des mariages.
 9. Vérifier que les étapes automatiques se cochent selon le devis/factures/photos/livraison.
 
 
-## V3.4.1 TEST — Correctif anciens mariages
+## V3.4.2 TEST — Correctif anciens mariages
 
 - Les étapes automatiques du suivi mariage restent automatiques si le logiciel trouve le devis, la facture, la livraison ou les médias liés.
 - Si le dossier a été créé avant l’ERP ou géré hors logiciel, les étapes peuvent désormais être cochées manuellement.
 - Ajout d’un statut visible : Automatique, Manuel, À valider ou auto, À faire.
 - Ajout d’une prochaine étape recommandée dans la fiche mariage.
 - Aucun changement sur les ateliers.
+
+
+## V3.4.2 TEST
+- Le bloc “Mariages en cours” du tableau de bord est désormais classé par date de livraison, du plus proche au plus éloigné.
+- Les mariages sans date de livraison restent en bas de liste.
