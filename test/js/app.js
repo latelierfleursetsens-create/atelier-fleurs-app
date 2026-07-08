@@ -1,9 +1,10 @@
-/* V3.3.1 TEST MODULAIRE — prestations complémentaires disponibles aussi dans les fiches mariage. */
+/* V3.4.0 TEST MODULAIRE — centre de suivi des mariages + checklist métier + chronologie. */
 "use strict";
 
-var APP_VERSION = "TEST V3.3.1 MODULAIRE";
-var APP_VERSION_NOTE = "Version test : ajout des prestations complémentaires dans les fiches mariage + correction affichage version.";
+var APP_VERSION = "TEST V3.4.0 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : ajout du centre de suivi des mariages, de la checklist métier et de la chronologie automatique.";
 var APP_CHANGELOG = [
+  "V3.4.0 TEST — Centre de suivi des mariages : checklist métier, progression sur le tableau de bord et chronologie automatique.",
   "V3.3.1 TEST — Prestations complémentaires proposées aussi dans les fiches mariage + affichage version corrigé.",
   "V3.3.0 TEST — Module Paramètres enrichi : déplacements, modèles de mails, coordonnées, URSSAF et prestations centralisées.",
   "V3.2.1 PROD — Todo list déplacée juste entre Bonjour Elodie et le centre de notifications.",
@@ -936,6 +937,7 @@ function viewDashboard(){
   viewDashboardHero(enAttente)+
   viewTodoDashboard()+
   viewNotificationsDashboard()+
+  viewDashboardMariageProgress()+
   viewDashboardKpis(enAttente)+
   viewDashboardNextSevenDays()+
   viewDashboardUrssaf(currentMonthSplit, monthLabel)+
@@ -3475,7 +3477,7 @@ function viewParams(){
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
-  '<div class="summary"><b>V3.3.1 TEST</b> — Les prestations complémentaires sont maintenant centralisées pour les ateliers et les mariages.</div>'+
+  '<div class="summary"><b>V3.4.0 TEST</b> — Centre de suivi des mariages, checklist métier et chronologie automatique.</div>'+
   viewAboutAppSettings()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
@@ -3799,6 +3801,7 @@ function viewMariagePrestationsComplementaires(m){
 }
 function mariageCardHTML(m){
   var cd=mariageCountdown(m), st=STATUT_MAR[m.statut]||STATUT_MAR.contact;
+  var prog=mariageWorkflowStats(m);
   var faits=(m.articles||[]).filter(function(a){return a.fait;}).length, totA=(m.articles||[]).length;
   var ref=mariageDateRef(m);
   return '<div class="card"><div class="flexb"><div>'+
@@ -3807,6 +3810,7 @@ function mariageCardHTML(m){
     '<div style="text-align:right;"><span class="pill" style="background:'+st.b+';color:'+st.c+';">'+(mariageTermine(m)?"Terminée":st.l)+'</span>'+
     '<div style="font-weight:700;color:'+cd.c+';margin-top:4px;">'+(ref?cd.txt:"date livraison à définir")+'</div></div></div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center;">'+
+      '<span class="chip">Suivi : '+prog.done+'/'+prog.total+' · '+prog.pct+' %</span>'+
       '<span class="chip">Articles : '+faits+'/'+totA+' faits</span>'+
       '<span class="chip">Devis '+(m.devisEnvoye?"✓ envoyé":"— non envoyé")+'</span>'+
       '<span class="chip">Facture '+(m.factureEnvoyee?"✓ envoyée":"— non envoyée")+'</span>'+
@@ -3871,6 +3875,129 @@ function mariageAcomptePaye(m){
     return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
   });
 }
+
+
+var MARIAGE_WORKFLOW_STEPS=[
+  {id:"inspirations",label:"Inspirations reçues",mode:"manual"},
+  {id:"moodboard",label:"Moodboard réalisé",mode:"manual"},
+  {id:"devis_envoye",label:"Devis envoyé",mode:"auto"},
+  {id:"devis_accepte",label:"Devis accepté",mode:"auto"},
+  {id:"acompte_encaisse",label:"Acompte encaissé",mode:"auto"},
+  {id:"fleurs_validees",label:"Choix des fleurs validé",mode:"manual"},
+  {id:"commande_fournisseur",label:"Commande fournisseur effectuée",mode:"manual"},
+  {id:"bouquet_realise",label:"Bouquet réalisé",mode:"manual"},
+  {id:"accessoires_realises",label:"Accessoires réalisés",mode:"manual"},
+  {id:"solde_encaisse",label:"Solde encaissé",mode:"auto"},
+  {id:"livraison_effectuee",label:"Livraison effectuée",mode:"auto"},
+  {id:"photos_ajoutees",label:"Photos ajoutées",mode:"auto"},
+  {id:"mariage_termine",label:"Mariage terminé",mode:"auto"}
+];
+function mariageSoldePaye(m){
+  if(!m || !m.devisLie) return false;
+  return (state.factures||[]).some(function(f){
+    return f.devisId===m.devisLie && (f.type==="solde"||f.type==="totale") && f.statut==="payee";
+  });
+}
+function mariageCommandeFournisseurAuto(m){
+  if(!m) return false;
+  return (state.achats||[]).some(function(a){
+    return a && (a.mariageId===m.id || String(a.projet||"").indexOf("mariage:"+m.id)>=0);
+  });
+}
+function mariageWorkflowManual(m,id){
+  return !!(m && m.suiviMariage && m.suiviMariage[id]);
+}
+function mariageWorkflowStepValue(m,step){
+  if(!m) return false;
+  switch(step.id){
+    case "devis_envoye": return !!(m.devisEnvoye || (m.devisLie && (findDevis(m.devisLie)||{}).statut && (findDevis(m.devisLie)||{}).statut!=="brouillon"));
+    case "devis_accepte": return mariageDevisAccepte(m);
+    case "acompte_encaisse": return mariageAcomptePaye(m);
+    case "solde_encaisse": return mariageSoldePaye(m);
+    case "livraison_effectuee": return !!(m.livre || m.dateLivree || m.statut==="realise");
+    case "photos_ajoutees": return !!(m.medias && m.medias.length);
+    case "mariage_termine": return mariageTermine(m);
+    case "commande_fournisseur": return mariageWorkflowManual(m,step.id) || mariageCommandeFournisseurAuto(m);
+    default: return mariageWorkflowManual(m,step.id);
+  }
+}
+function mariageWorkflowStats(m){
+  var total=MARIAGE_WORKFLOW_STEPS.length;
+  var done=MARIAGE_WORKFLOW_STEPS.filter(function(st){return mariageWorkflowStepValue(m,st);}).length;
+  return {done:done,total:total,pct:total?Math.round((done/total)*100):0};
+}
+function mariageWorkflowColor(pct){ return pct>=80?"var(--green)":(pct>=45?"var(--blush)":"var(--bordeaux)"); }
+function mariageWorkflowMissing(m){
+  return MARIAGE_WORKFLOW_STEPS.filter(function(st){return !mariageWorkflowStepValue(m,st);}).map(function(st){return st.label;});
+}
+function viewMariageWorkflow(m){
+  var st=mariageWorkflowStats(m), color=mariageWorkflowColor(st.pct), missing=mariageWorkflowMissing(m).slice(0,3);
+  var rows=MARIAGE_WORKFLOW_STEPS.map(function(step){
+    var checked=mariageWorkflowStepValue(m,step);
+    var auto=step.mode==="auto" || (step.id==="commande_fournisseur" && mariageCommandeFournisseurAuto(m));
+    return '<div class="checkrow" style="align-items:flex-start;">'+
+      '<input type="checkbox" '+(checked?'checked ':'')+(auto?'disabled ':'')+'data-action="mar-workflow-toggle-'+esc(step.id)+'">'+
+      '<div style="flex:1;'+(checked?'text-decoration:line-through;color:var(--ink-s);':'')+'"><b>'+esc(step.label)+'</b>'+
+        '<div class="muted" style="font-size:11px;margin-top:2px;">'+(auto?'Automatique selon devis, facture, livraison ou photos':'À cocher manuellement')+'</div></div>'+ 
+    '</div>';
+  }).join('');
+  return '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;">'+
+    '<div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0;">📋 Suivi du mariage</h3>'+ 
+    '<p class="muted" style="margin:4px 0 0;">Checklist métier du premier contact jusqu’à la livraison.</p></div>'+ 
+    '<span class="chip"><b>'+st.done+'/'+st.total+'</b> étapes · '+st.pct+' %</span></div>'+ 
+    '<div class="jauge" style="margin:12px 0;"><div class="track"><div class="fill" style="width:'+st.pct+'%;background:'+color+';"></div></div></div>'+ 
+    (missing.length?'<p class="muted" style="margin:0 0 10px;font-size:12px;">Prochaines étapes : '+esc(missing.join(' · '))+(mariageWorkflowMissing(m).length>3?'…':'')+'</p>':'<p class="muted" style="margin:0 0 10px;font-size:12px;">Toutes les étapes sont cochées 🎉</p>')+
+    rows+
+  '</div>';
+}
+function mariageTimelineItems(m){
+  var items=[];
+  function add(date,type,txt){ if(date||txt) items.push({date:date||todayISO(),type:type||"note",texte:txt||""}); }
+  if(m.createdAt) add(m.createdAt,"création","Fiche mariage créée");
+  if(m.dateMariage) add(m.dateMariage,"mariage","Date du mariage");
+  if(m.dateLivraison) add(m.dateLivraison,"livraison","Livraison prévue"+(m.modeLivraison?" · "+m.modeLivraison:""));
+  if(m.devisDate || m.devisEnvoye) add(m.devisDate||todayISO(),"devis","Devis envoyé");
+  if(m.devisLie){
+    var d=findDevis(m.devisLie);
+    if(d){ add(d.date,"devis","Devis lié : "+(d.numero||"devis")+" · "+((ST_DEVIS[d.statut]||{}).l||d.statut||"")); }
+    (state.factures||[]).filter(function(f){return f.devisId===m.devisLie;}).forEach(function(f){
+      add(f.datePaiement||f.date,"facture",(f.numero||"Facture")+" · "+(TYPE_FAC[f.type]||"Facture")+" · "+(f.statut==="payee"?"payée":"non payée")+" · "+euro(f.montant||0));
+    });
+  }
+  if(m.dateLivree) add(m.dateLivree,"livraison","Commande livrée / remise à la cliente");
+  (m.historique||[]).forEach(function(h){ add(h.date,"note",h.texte); });
+  items.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+  return items;
+}
+function viewMariageTimeline(m){
+  var items=mariageTimelineItems(m);
+  var rows=items.map(function(h){
+    var icon=h.type==="devis"?"📄":(h.type==="facture"?"💰":(h.type==="livraison"?"🚗":(h.type==="mariage"?"💍":"📝")));
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--line);"><span class="muted" style="font-size:12px;">'+icon+' '+frDate(h.date)+'</span><div>'+esc(h.texte)+'</div></div>';
+  }).join('');
+  return '<div class="card"><h3 style="margin:0 0 8px;">🕒 Chronologie</h3>'+ 
+    '<p class="muted" style="margin-top:0;font-size:12px;">Les actions liées au devis, aux factures, aux livraisons et tes notes sont regroupées ici.</p>'+ 
+    '<div class="inline" style="margin-bottom:8px;"><div style="flex:3;"><input id="marHistInput" placeholder="Ex : RDV le 12/06, a validé la palette terracotta"></div><div style="flex:0;"><button class="btn primary" data-action="mar-hist-add">+ Noter</button></div></div>'+ 
+    (rows||'<p class="muted" style="margin:0;">Aucun événement pour l\'instant.</p>')+'</div>';
+}
+function viewDashboardMariageProgress(){
+  var today=todayISO();
+  var list=(state.mariages||[]).filter(function(m){return !mariageTermine(m)&&m.statut!=="perdu";}).map(function(m){return {m:m,st:mariageWorkflowStats(m),date:mariageDateRef(m)||"9999-99-99"};});
+  list.sort(function(a,b){ return a.st.pct-b.st.pct || (a.date||"").localeCompare(b.date||""); });
+  list=list.slice(0,5);
+  var html='<div class="card" style="margin-bottom:14px;"><div class="flexb"><div><h3 style="margin:0;">💍 Mariages en cours</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Progression des dossiers mariage selon la checklist métier.</p></div><button class="btn small ghost" data-action="nav-mariages">Tous les mariages</button></div>';
+  if(!list.length) return html+'<p class="muted" style="margin:10px 0 0;">Aucun mariage actif à suivre pour le moment.</p></div>';
+  list.forEach(function(x){
+    var m=x.m, color=mariageWorkflowColor(x.st.pct), missing=mariageWorkflowMissing(m)[0]||"Tout est à jour";
+    html+='<div style="border-top:1px solid var(--line);padding:10px 0;">'+
+      '<div class="flexb" style="gap:8px;"><div style="flex:1;min-width:0;"><b style="color:var(--bordeaux);">'+esc(m.nom||"Cliente")+'</b><div class="muted" style="font-size:12px;">'+(mariageDateRef(m)?frDate(mariageDateRef(m)):"date à définir")+' · prochaine étape : '+esc(missing)+'</div></div>'+ 
+      '<button class="btn small ghost" data-action="notif-open-mariage-'+esc(m.id)+'">Ouvrir</button></div>'+ 
+      '<div class="jauge" style="margin:8px 0 0;"><div class="track"><div class="fill" style="width:'+x.st.pct+'%;background:'+color+';"></div></div><div class="muted" style="font-size:11px;margin-top:3px;text-align:right;">'+x.st.done+'/'+x.st.total+' étapes · '+x.st.pct+' %</div></div>'+ 
+    '</div>';
+  });
+  return html+'</div>';
+}
+
 function prepData(){
   // seuls les mariages actifs dont la facture d’acompte est marquée payée apparaissent dans “À préparer”
   var arr=state.mariages.filter(function(m){ return !mariageTermine(m)&&m.statut!=="perdu"&&mariageDevisAccepte(m)&&mariageAcomptePaye(m); })
@@ -3968,7 +4095,7 @@ function viewMariageDetail(m){
     (hist||'<p class="muted" style="margin:0;">Aucune note pour l\'instant.</p>')+'</div>';
   var delPending = ui.confirmDelete === "mariage:"+m.id;
   var del='<div class="row-actions" style="margin-top:6px;"><button class="btn danger" data-action="mar-del-'+m.id+'">'+(delPending?'Confirmer suppression':'Supprimer cette fiche')+'</button></div>';
-  return medCard+summary+infos+artsCard+viewMariagePrestationsComplementaires(m)+df+histCard+del;
+  return medCard+summary+viewMariageWorkflow(m)+infos+artsCard+viewMariagePrestationsComplementaires(m)+df+viewMariageTimeline(m)+del;
 }
 function compressImage2(file,cb){
   var r=new FileReader();
@@ -5150,6 +5277,7 @@ document.addEventListener("change", function(e){
   if(act==="mar-link"){ var ml=getMariage(ui.mariageOpen); if(ml){ captureMariageInputs(); ml.devisLie=t.value; saveCache(); render(); } return; }
   if(act==="mar-devis-toggle"){ var md=getMariage(ui.mariageOpen); if(md){ captureMariageInputs(); md.devisEnvoye=t.checked; if(t.checked&&!md.devisDate) md.devisDate=todayISO(); if(md.statut==="contact"&&t.checked) md.statut="devis_envoye"; saveCache(); render(); } return; }
   if(act==="mar-facture-toggle"){ var mf=getMariage(ui.mariageOpen); if(mf){ captureMariageInputs(); mf.factureEnvoyee=t.checked; if(t.checked&&!mf.factureDate) mf.factureDate=todayISO(); saveCache(); render(); } return; }
+  if(act&&act.indexOf("mar-workflow-toggle-")===0){ var mw=getMariage(ui.mariageOpen); if(mw){ captureMariageInputs(); var sid=act.slice(20); mw.suiviMariage=mw.suiviMariage||{}; mw.suiviMariage[sid]=!!t.checked; var step=(MARIAGE_WORKFLOW_STEPS||[]).find(function(x){return x.id===sid;}); mw.historique=mw.historique||[]; mw.historique.unshift({date:todayISO(),texte:(t.checked?"Étape cochée : ":"Étape décochée : ")+(step?step.label:sid)}); saveCache(); render(); } return; }
   if(act&&act.indexOf("mar-art-toggle-")===0){ var ma=getMariage(ui.mariageOpen); if(ma){ captureMariageInputs(); var aid=act.slice(15); var a=(ma.articles||[]).find(function(x){return x.id===aid;}); if(a){ a.fait=t.checked; saveCache(); render(); } } return; }
   if(act==="prep-toggle"){ var pm=getMariage(t.getAttribute("data-mid")); if(pm){ var pa=(pm.articles||[]).find(function(x){return x.id===t.getAttribute("data-aid");}); if(pa){ pa.fait=t.checked; saveCache(); render(); } } return; }
   if(act==="prep-cmd-toggle"||act==="cmd-toggle"||act==="cmd-detail-toggle"){ var pc=state.commandes.find(function(x){return x.id===t.getAttribute("data-id");}); if(pc){ pc.fait=t.checked; saveCache(); render(); } return; }
