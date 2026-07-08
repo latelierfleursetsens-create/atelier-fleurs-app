@@ -1,11 +1,13 @@
-/* V3.5.2 TEST MODULAIRE — Retour liste mariage en haut de fiche. */
+/* V3.5.3 TEST MODULAIRE — Wedding Manager sans jalons J-. */
 "use strict";
 
-var APP_VERSION = "TEST V3.5.2 MODULAIRE";
-var APP_VERSION_NOTE = "Version test : bouton Retour à la liste ajouté en haut des fiches mariage, en plus du Wedding Manager.";
+var APP_VERSION = "TEST V3.5.3 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : retrait du bloc Jalons J- dans le Wedding Manager mariage.";
 var APP_CHANGELOG = [
+  "V3.5.3 TEST — Wedding Manager : retrait du bloc Jalons J- jugé inutile.",
+  "V3.5.2 TEST — Bouton Retour à la liste ajouté en haut des fiches mariage.",
   "V3.5.1 TEST — Bouton Préparer mon rendez-vous : formulaire guidé pour les appels mariage et création automatique de la fiche.",
-  "V3.5.0 TEST — Wedding Manager : bandeau mariage, timeline, jalons J-, todo, documents et budget.",
+  "V3.5.0 TEST — Wedding Manager : bandeau mariage, timeline, todo, documents et budget.",
   "V3.4.1 TEST — Suivi mariages : les étapes automatiques peuvent être cochées manuellement pour les anciens dossiers sans devis/facture liés.",
   "V3.4.0 TEST — Centre de suivi des mariages : checklist métier, progression sur le tableau de bord et chronologie automatique.",
   "V3.3.1 TEST — Prestations complémentaires proposées aussi dans les fiches mariage + affichage version corrigé.",
@@ -4118,7 +4120,7 @@ function viewMariageBudgetManager(m){
   '</div>';
 }
 function viewMariageManager(m){
-  return viewMariageManagerHero(m)+viewMariageManagerTimeline(m)+viewMariageJalons(m)+viewMariageTodoManager(m)+viewMariageDocumentsManager(m)+viewMariageBudgetManager(m);
+  return viewMariageManagerHero(m)+viewMariageManagerTimeline(m)+viewMariageTodoManager(m)+viewMariageDocumentsManager(m)+viewMariageBudgetManager(m);
 }
 function mariageTimelineItems(m){
   var items=[];

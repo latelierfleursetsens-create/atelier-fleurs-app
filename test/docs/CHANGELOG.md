@@ -1,6 +1,10 @@
+## TEST V3.5.3 — Wedding Manager sans jalons J-
+- Retrait du bloc Jalons J- de la fiche mariage.
+- Conservation du bandeau, de la timeline, de la todo mariage, des documents et du budget.
+
 # Journal des modifications
 
-## TEST V3.5.2
+## TEST V3.5.3
 - Ajout d’un bouton **Retour à la liste des mariages** en haut des fiches mariage.
 - Le bouton reste dans une barre supérieure discrète pour éviter de devoir descendre dans toute la fiche ouverte.
 
