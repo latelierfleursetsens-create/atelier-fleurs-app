@@ -1,5 +1,17 @@
 # Journal des modifications
 
+## TEST V3.5.2
+- Ajout d’un bouton **Retour à la liste des mariages** en haut des fiches mariage.
+- Le bouton reste dans une barre supérieure discrète pour éviter de devoir descendre dans toute la fiche ouverte.
+
+
+## TEST V3.5.1 MODULAIRE
+- Ajout du bouton **Préparer mon rendez-vous** dans le module Mariages.
+- Ajout d’un assistant de rendez-vous téléphonique mariage.
+- Création automatique d’une fiche mariage complète depuis les réponses du rendez-vous.
+- Génération automatique des articles, de la synthèse, des notes et des tâches de suivi.
+
+
 ## TEST V3.4.2 MODULAIRE
 - Tri du bloc “Mariages en cours” par date de livraison, du plus proche au plus éloigné.
 - Les dossiers sans date de livraison sont placés en bas de liste.
