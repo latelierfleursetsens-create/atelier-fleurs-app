@@ -1,28 +1,35 @@
-# L'Atelier Fleurs & Sens — V3.2.1 PROD MODULAIRE
+# L'Atelier Fleurs & Sens — V3.6.1 PROD MODULAIRE
 
-Version de production basée sur la V3.2.1 TEST validée.
+Version de production basée sur la V3.6.1 test validée.
 
-## Nouveauté V3.2.1 PROD
+## Nouveauté V3.6.1 — CRM Mariage
 
-- Todo list placée entre le module Bonjour Elodie et le centre de notifications.
-- Nouveau tableau de bord plus clair et orienté actions.
-- Version affichée en haut sous forme discrète.
-- Suppression du gros bloc de journal des modifications sur le tableau de bord.
-- Journal déplacé dans **Paramètres > À propos de l’application**.
-- Ajout de cartes rapides : à encaisser, devis en attente, ateliers à venir, mariages à venir.
-- Ajout d’un bloc **Les 7 prochains jours**.
-- Conservation du centre de notifications prioritaire.
+La fiche mariage est réorganisée en onglets pour éviter une page trop longue :
 
-## À tester
+- Résumé
+- Fiche
+- Créations
+- Documents
+- Suivi
+- Budget
+- Historique
 
-1. Vérifier que le tableau de bord affiche bien `PROD V3.2.1 MODULAIRE`.
-2. Vérifier que le journal ne prend plus de place sur le tableau de bord.
-3. Cliquer sur `Notes de version`.
-4. Aller dans `Paramètres` et vérifier le bloc `À propos de l’application`.
-5. Tester les cartes rapides et les boutons `Ouvrir` du centre de notifications.
+Le bouton de retour à la liste reste disponible tout en haut.
+Le Wedding Manager reste visible en haut de la fiche avec la progression et la timeline.
 
-## Base conservée
+## Mise en production
 
-- V3.1.2 TEST — centre de notifications.
-- V3.1.1 TEST — correctif encaissements ateliers.
-- V3.1.0 TEST — bibliothèque de prestations.
+1. Remplacer les fichiers de la production GitHub par ceux de ce dossier.
+2. Commit changes.
+3. Attendre la mise à jour de GitHub Pages.
+4. Vérifier que l'application affiche PROD V3.6.1 MODULAIRE.
+
+## Version
+
+PROD V3.6.1 MODULAIRE
+
+
+## Version PROD V3.6.1
+
+- Retrait du bouton **+ Nouvelle cliente** dans le suivi mariages.
+- Le bouton **🎯 Préparer mon rendez-vous** devient l’entrée principale pour créer une nouvelle fiche mariage guidée.

@@ -1,74 +1,70 @@
-## V3.2.1 PROD
+## PROD V3.6.1 — CRM Mariage sans bouton Nouvelle cliente
 
-- Todo list déplacée juste sous le bloc **Bonjour Elodie**.
-- Le centre de notifications vient maintenant après la Todo list.
-- Le journal des versions reste dans **Paramètres > À propos de l’application**.
+- Passage en production de la V3.6.1 validée.
+- CRM Mariage avec fiche en onglets.
+- Retrait du bouton + Nouvelle cliente au profit de Préparer mon rendez-vous.
 
-## V3.2.0 TEST
+## TEST V3.6.1 — CRM Mariage sans bouton Nouvelle cliente
 
-- Nouveau tableau de bord allégé et orienté actions.
-- La version reste visible en haut, mais le journal complet est déplacé.
-- Le journal est accessible via le bouton `Notes de version` et dans `Paramètres > À propos de l’application`.
-- Ajout des cartes rapides : à encaisser, devis en attente, ateliers à venir, mariages à venir.
-- Ajout d’un bloc synthétique des 7 prochains jours.
+- Retrait du bouton **+ Nouvelle cliente** dans le suivi mariages.
+- La création d’un nouveau dossier mariage passe maintenant par **🎯 Préparer mon rendez-vous**.
 
-## V3.1.2 TEST
-- Ajout du centre de notifications prioritaires sur le tableau de bord.
-- Alertes automatiques : factures échues, factures à encaisser sous 7 jours, devis à relancer, mariages proches, ateliers proches et stock bas.
-- Ajout de boutons d'accès direct vers les documents ou fiches concernés.
+## TEST V3.6.0 — CRM Mariage
 
-## V3.1.1 TEST
-- Correction du calcul “À encaisser prochainement” pour les ateliers avec prestations complémentaires.
-- Si un devis atelier existe, son total devient la référence.
-- Les factures liées au devis sont déduites du reste à facturer, même si elles ne sont pas encore payées.
+- Réorganisation de la fiche mariage en onglets.
+- Onglets ajoutés : Résumé, Fiche, Créations, Documents, Suivi, Budget, Historique.
+- Conservation du bandeau Wedding Manager en haut de fiche.
+- Conservation du bouton retour à la liste en haut.
+- Objectif : rendre les fiches mariage plus lisibles et moins longues.
 
-# Changelog
-
-## TEST V3.1.0 MODULAIRE
-
-- Ajout de la bibliothèque de prestations dans les paramètres.
-- Intégration des prestations actives dans les boutons rapides des prestations complémentaires atelier.
-- Conservation du correctif V3.0.4 sur les encaissements ateliers.
+## TEST V3.5.3 — Wedding Manager sans jalons J-
+- Retrait du bloc Jalons J- de la fiche mariage.
+- Conservation du bandeau, de la timeline, de la todo mariage, des documents et du budget.
 
 # Journal des modifications
 
-## V3.0.4 PROD — Correctif encaissements ateliers
+## TEST V3.5.3
+- Ajout d’un bouton **Retour à la liste des mariages** en haut des fiches mariage.
+- Le bouton reste dans une barre supérieure discrète pour éviter de devoir descendre dans toute la fiche ouverte.
 
-- Correction du calcul **À encaisser prochainement**.
-- Lorsqu’un atelier privé ou structure possède déjà une facture d’acompte, une facture de solde ou une facture totale liée à son devis, le montant global de l’atelier n’est plus ajouté en double dans “À facturer”.
-- Les factures créées depuis un devis atelier héritent désormais automatiquement des informations atelier.
-- Les anciennes factures déjà créées sont reconnues via le lien avec le devis atelier.
 
-# Journal des modifications — L’Atelier Fleurs & Sens
+## TEST V3.5.1 MODULAIRE
+- Ajout du bouton **Préparer mon rendez-vous** dans le module Mariages.
+- Ajout d’un assistant de rendez-vous téléphonique mariage.
+- Création automatique d’une fiche mariage complète depuis les réponses du rendez-vous.
+- Génération automatique des articles, de la synthèse, des notes et des tâches de suivi.
 
-## V3.0.3 TEST — Journal des modifications
 
-- Ajout d’un bloc **Journal des modifications** sur le tableau de bord.
-- Affichage de la version active : `TEST V3.0.3 MODULAIRE`.
-- Affichage des modifications récentes.
-- Affichage des prochaines étapes prévues.
-- Conservation du correctif V3.0.2 sur le bouton `Ajouter le client`.
-- Conservation des prestations complémentaires ateliers et des mentions internes masquées côté client.
+## TEST V3.4.2 MODULAIRE
+- Tri du bloc “Mariages en cours” par date de livraison, du plus proche au plus éloigné.
+- Les dossiers sans date de livraison sont placés en bas de liste.
 
-## V3.0.2 TEST — Correctif ajout client
+# CHANGELOG
 
-- Correction renforcée du bouton `Ajouter le client` dans l’onglet `Fiches clientes`.
-- Ajout d’un listener direct et prioritaire pour éviter que le clic ne soit bloqué par le découpage modulaire.
+## V3.4.1 TEST — Suivi mariages semi-automatique
 
-## V3.0.1 TEST — Premier correctif client
+- Les étapes devis/factures/livraison/photos/mariage terminé peuvent être validées manuellement pour les anciens dossiers.
+- Les étapes restent validées automatiquement quand un document lié est détecté.
+- Ajout des statuts “Automatique” et “Manuel” dans la checklist mariage.
+- Ajout de la prochaine étape recommandée dans la fiche mariage.
+- Pas de modification du module ateliers.
 
-- Premier correctif sur l’ajout client après migration vers la V3 modulaire.
 
-## V3.0.0 TEST — Architecture modulaire
+## V3.4.0 TEST — Centre de suivi des mariages
 
-- Passage d’un fichier HTML unique vers une structure en dossiers.
-- Extraction du CSS dans `css/style.css`.
-- Extraction de la logique principale dans `js/app.js`.
-- Création de fichiers modules préparatoires : `clients.js`, `ateliers.js`, `devis.js`, `factures.js`, `finances.js`, etc.
+### Nouveautés
+- Ajout du bloc **Mariages en cours** sur le tableau de bord.
+- Ajout d’une checklist métier dans chaque fiche mariage.
+- Calcul automatique de la progression d’un dossier mariage.
+- Étapes automatiques selon les données existantes : devis envoyé, devis accepté, acompte payé, solde payé, livraison, photos et statut terminé.
+- Étapes manuelles : inspirations reçues, moodboard, choix des fleurs, commande fournisseur, bouquet réalisé et accessoires réalisés.
+- Ajout d’une chronologie automatique dans la fiche mariage.
+- Les notes internes ajoutées depuis la fiche mariage sont intégrées à la chronologie.
 
-## V2.1.1 TEST — Prestations complémentaires ateliers
-
-- Ajout de prestations complémentaires dans les ateliers.
-- Quantité, prix unitaire, total automatique.
-- Ventilation URSSAF conservée en interne.
-- Mentions `bien` / `service` masquées sur les devis et factures client.
+### Conservé depuis V3.3.1 TEST
+- Prestations complémentaires disponibles dans les ateliers et les mariages.
+- Module Paramètres enrichi.
+- Tableau de bord V3.2.1 validé.
+- To-Do list placée entre Bonjour Elodie et le centre de notifications.
+- Centre de notifications.
+- Correctifs encaissements ateliers.
