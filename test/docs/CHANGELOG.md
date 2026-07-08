@@ -1,3 +1,11 @@
+## TEST V3.6.0 — CRM Mariage
+
+- Réorganisation de la fiche mariage en onglets.
+- Onglets ajoutés : Résumé, Fiche, Créations, Documents, Suivi, Budget, Historique.
+- Conservation du bandeau Wedding Manager en haut de fiche.
+- Conservation du bouton retour à la liste en haut.
+- Objectif : rendre les fiches mariage plus lisibles et moins longues.
+
 ## TEST V3.5.3 — Wedding Manager sans jalons J-
 - Retrait du bloc Jalons J- de la fiche mariage.
 - Conservation du bandeau, de la timeline, de la todo mariage, des documents et du budget.

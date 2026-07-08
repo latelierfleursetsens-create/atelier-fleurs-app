@@ -1,28 +1,32 @@
-# L'Atelier Fleurs & Sens — V3.5.3 TEST MODULAIRE
+# L'Atelier Fleurs & Sens — V3.6.0 TEST MODULAIRE
 
-Version test dédiée à l’allègement du **Wedding Manager** dans les fiches mariage.
+Version de test basée sur la V3.5.3 validée.
 
-## Nouveauté V3.5.3
+## Nouveauté V3.6.0 — CRM Mariage
 
-- Retrait du bloc **Jalons J-** dans la fiche mariage.
-- Conservation du reste du Wedding Manager :
-  - bandeau résumé,
-  - progression,
-  - prochaine action recommandée,
-  - timeline mariage,
-  - todo dédiée,
-  - documents du dossier,
-  - budget du mariage.
+La fiche mariage est réorganisée en onglets pour éviter une page trop longue :
 
-## Conservé depuis V3.5.2
+- Résumé
+- Fiche
+- Créations
+- Documents
+- Suivi
+- Budget
+- Historique
 
-- Bouton **← Retour à la liste des mariages** en haut des fiches mariage.
-- Bouton **🎯 Préparer mon rendez-vous** dans **Clients > Mariages**.
-- Assistant de rendez-vous téléphonique mariage.
-- Création automatique d’une fiche mariage depuis l’assistant.
-- Suivi mariage avec cases automatiques et manuelles.
-- Mariages en cours triés par date de livraison.
-- Prestations complémentaires mariage et atelier.
-- Tableau de bord V3.2.1.
+Le bouton de retour à la liste reste disponible tout en haut.
+Le Wedding Manager reste visible en haut de la fiche avec la progression et la timeline.
 
-À tester uniquement sur le dépôt GitHub TEST.
+## À tester
+
+1. Ouvrir une fiche mariage existante.
+2. Vérifier que les onglets s'affichent sous le bandeau Wedding Manager.
+3. Naviguer entre Résumé, Fiche, Créations, Documents, Suivi, Budget et Historique.
+4. Modifier une info dans l'onglet Fiche, enregistrer, puis revenir.
+5. Ajouter une création dans Créations.
+6. Ajouter une note dans Historique.
+7. Vérifier que les données ne disparaissent pas quand on change d'onglet.
+
+## Version
+
+TEST V3.6.0 MODULAIRE
