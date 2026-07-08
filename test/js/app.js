@@ -1,10 +1,12 @@
-/* V3.2.1 TEST MODULAIRE — tableau de bord ajusté : Todo list placée entre le module Bonjour Elodie et le centre de notifications. */
+/* V3.3.1 TEST MODULAIRE — prestations complémentaires disponibles aussi dans les fiches mariage. */
 "use strict";
 
-var APP_VERSION = "TEST V3.2.1 MODULAIRE";
-var APP_VERSION_NOTE = "Version test : tableau de bord ajusté avec la Todo list placée juste sous le module Bonjour Elodie.";
+var APP_VERSION = "TEST V3.3.1 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : ajout des prestations complémentaires dans les fiches mariage + correction affichage version.";
 var APP_CHANGELOG = [
-  "V3.2.1 TEST — Todo list déplacée juste entre Bonjour Elodie et le centre de notifications.",
+  "V3.3.1 TEST — Prestations complémentaires proposées aussi dans les fiches mariage + affichage version corrigé.",
+  "V3.3.0 TEST — Module Paramètres enrichi : déplacements, modèles de mails, coordonnées, URSSAF et prestations centralisées.",
+  "V3.2.1 PROD — Todo list déplacée juste entre Bonjour Elodie et le centre de notifications.",
   "V3.2.0 TEST — Nouveau tableau de bord orienté actions : version discrète, indicateurs clés et journal déplacé dans Paramètres > À propos de l’application.",
   "V3.1.2 TEST — Ajout du centre de notifications prioritaires sur le tableau de bord.",
   "V3.1.1 TEST — Correctif encaissements ateliers avec devis/factures liés.",
@@ -18,9 +20,8 @@ var APP_CHANGELOG = [
   "V2.1.1 TEST — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
 ];
 var APP_ROADMAP = [
-  "Tester le nouvel emplacement de la Todo list",
-  "Valider le centre de notifications prioritaires",
-  "Ajouter le calcul automatique des frais de déplacement",
+  "Tester le module Paramètres enrichi",
+  "Brancher automatiquement le calcul des frais de déplacement dans les devis ateliers",
   "Découper réellement les modules Clients et Ateliers dans leurs fichiers JS",
   "Préparer la future gestion de stock fleurs et fournitures"
 ];
@@ -44,6 +45,12 @@ var DEFAULT_SETTINGS = {
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
   partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"",
+  kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
+  mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
+  mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
+  mailMessageDevis:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>devis</strong> relatif à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance. Si vous avez la moindre question, je reste bien entendu à votre disposition.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
+  mailMessageFacture:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>facture</strong> relative à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
+  mailMessageRelance:"Bonjour {client},\n\nJe me permets de revenir vers vous concernant le devis {numero}.\nN'hésitez pas à me dire si vous avez des questions ou besoin d'un ajustement.\n\nBien chaleureusement,\nÉlodie",
   prestationsBibliotheque:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); })
 };
 
@@ -3392,6 +3399,10 @@ function captureParamsForm(){
   s.acompteParDefaut=num(val("pAcompte")); s.validiteDevis=num(val("pValid")); s.delaiPaiement=num(val("pDelai"));
   s.seuilBiens=num(val("pSeuilB")); s.seuilServices=num(val("pSeuilS")); s.tauxCotisBiens=num(val("pTauxB")); s.tauxCotisServices=num(val("pTauxS"));
   s.partService=num(val("pPartService"));
+  s.kmOfferts=num(val("pKmOfferts")); s.tarifKm=num(val("pTarifKm"));
+  var dar=document.getElementById("pDeplacementAllerRetour"); s.deplacementAllerRetour=!!(dar&&dar.checked);
+  s.mailObjetDevis=val("pMailObjetDevis"); s.mailObjetFacture=val("pMailObjetFacture");
+  s.mailMessageDevis=val("pMailMessageDevis"); s.mailMessageFacture=val("pMailMessageFacture"); s.mailMessageRelance=val("pMailMessageRelance");
   s.googleDriveUrl=val("pGoogleDriveUrl");
   var gda=document.getElementById("pGoogleDriveAuto"); s.googleDriveAuto=!!(gda&&gda.checked);
   s.prestationsBibliotheque=prestationsSettingsFromDOM();
@@ -3399,7 +3410,7 @@ function captureParamsForm(){
 function viewPrestationsBibliothequeSettings(){
   var list=prestationBibliothequeNormalisee();
   var html='<div class="card"><div class="flexb"><div><h3 style="margin:0 0 4px;">Bibliothèque de prestations</h3>'+ 
-    '<p class="muted" style="margin:0;font-size:12px;">Ces lignes rapides seront proposées dans les prestations complémentaires des ateliers. Les catégories restent internes et ne s’affichent pas sur les devis/factures client.</p></div>'+ 
+    '<p class="muted" style="margin:0;font-size:12px;">Ces lignes rapides seront proposées dans les prestations complémentaires des ateliers et des mariages. Les catégories restent internes et ne s’affichent pas sur les devis/factures client.</p></div>'+ 
     '<button class="btn small primary" data-action="params-prestation-add">+ Ajouter une prestation</button></div>';
   html+='<div class="scroll" style="margin-top:12px;"><table><thead><tr style="text-align:left;color:var(--ink-s);font-size:12px;"><th style="padding:6px;">Actif</th><th style="padding:6px;">Libellé</th><th style="padding:6px;">Catégorie interne</th><th style="padding:6px;width:85px;">Qté</th><th style="padding:6px;width:120px;">Prix par défaut</th><th style="padding:6px;width:40px;"></th></tr></thead><tbody>';
   list.forEach(function(p){
@@ -3416,6 +3427,38 @@ function viewPrestationsBibliothequeSettings(){
     '<p class="muted" style="margin:10px 0 0;font-size:12px;">Exemples : frais de déplacement en service, pack premium en bien, personnalisation en service. Tu peux mettre un prix par défaut ou laisser à 0 € pour le saisir au cas par cas.</p></div>';
   return html;
 }
+function calculFraisDeplacement(km){
+  var s=state.settings||{};
+  var distance=Math.max(0,num(km));
+  var facturable=Math.max(0,distance-num(s.kmOfferts));
+  var trajet=s.deplacementAllerRetour===false?1:2;
+  return r2(facturable*num(s.tarifKm)*trajet);
+}
+function viewDeplacementSettings(){
+  var s=state.settings||{};
+  var exemple=calculFraisDeplacement(35);
+  return '<div class="card"><h3 style="margin:0 0 4px;">Déplacements</h3>'+ 
+    '<p class="muted" style="margin-top:0;font-size:12px;">Ces réglages serviront au calcul automatique des frais de déplacement. Pour l’instant, ils sont centralisés ici et prêts à être branchés aux devis ateliers.</p>'+ 
+    '<div class="inline"><div>'+ 
+      '<label class="field"><span>Kilomètres offerts</span><input id="pKmOfferts" type="number" min="0" step="1" value="'+esc(s.kmOfferts==null?20:s.kmOfferts)+'"><span class="hint">Ex : 20 km offerts.</span></label>'+ 
+    '</div><div>'+ 
+      '<label class="field"><span>Tarif au km</span><input id="pTarifKm" type="number" min="0" step="0.01" value="'+esc(s.tarifKm==null?0.60:s.tarifKm)+'"><span class="hint">Ex : 0,60 € / km.</span></label>'+ 
+    '</div></div>'+ 
+    '<label style="display:flex;gap:8px;align-items:center;margin:4px 0 10px;"><input type="checkbox" id="pDeplacementAllerRetour" '+(s.deplacementAllerRetour!==false?'checked':'')+' style="width:18px;height:18px;"> Calculer en aller-retour</label>'+ 
+    '<div class="summary" style="margin-bottom:0;font-size:12px;">Exemple avec 35 km : '+euro(exemple)+' de frais de déplacement avec les réglages actuels.</div>'+ 
+  '</div>';
+}
+function viewMailTemplatesSettings(){
+  var s=state.settings||{};
+  return '<div class="card"><h3 style="margin:0 0 4px;">Modèles de mails</h3>'+ 
+    '<p class="muted" style="margin-top:0;font-size:12px;">Ces textes seront utilisés lors de l’envoi des devis et factures par email. Variables possibles : {client}, {numero}, {type}, {montant}, {date}, {entreprise}.</p>'+ 
+    '<label class="field"><span>Objet mail devis</span><input id="pMailObjetDevis" value="'+esc(s.mailObjetDevis||DEFAULT_SETTINGS.mailObjetDevis)+'"></label>'+ 
+    '<label class="field"><span>Message mail devis</span><textarea id="pMailMessageDevis" style="min-height:150px;">'+esc(s.mailMessageDevis||DEFAULT_SETTINGS.mailMessageDevis)+'</textarea></label>'+ 
+    '<label class="field"><span>Objet mail facture</span><input id="pMailObjetFacture" value="'+esc(s.mailObjetFacture||DEFAULT_SETTINGS.mailObjetFacture)+'"></label>'+ 
+    '<label class="field"><span>Message mail facture</span><textarea id="pMailMessageFacture" style="min-height:150px;">'+esc(s.mailMessageFacture||DEFAULT_SETTINGS.mailMessageFacture)+'</textarea></label>'+ 
+    '<label class="field"><span>Modèle de relance devis</span><textarea id="pMailMessageRelance" style="min-height:100px;">'+esc(s.mailMessageRelance||DEFAULT_SETTINGS.mailMessageRelance)+'</textarea><span class="hint">Ce modèle est sauvegardé pour la future fonction de relance automatique.</span></label>'+ 
+  '</div>';
+}
 function viewAboutAppSettings(){
   var changes=(APP_CHANGELOG||[]).slice(0,6).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
   var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
@@ -3431,7 +3474,8 @@ function viewParams(){
   var s=state.settings, partB=Math.max(0,100-num(s.partService));
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
-  return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Ces informations apparaissent sur vos devis et factures.</p>'+
+  return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
+  '<div class="summary"><b>V3.3.1 TEST</b> — Les prestations complémentaires sont maintenant centralisées pour les ateliers et les mariages.</div>'+
   viewAboutAppSettings()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
@@ -3451,6 +3495,7 @@ function viewParams(){
   '<div class="card"><h3 style="margin:0 0 4px;">Répartition des ateliers</h3><p class="muted" style="margin-top:0;font-size:12px;">Pour chaque <b>service</b>, le prix est ventilé : prestation de services + vente de biens (matériel emporté). Le total facturé ne change pas.</p>'+
     '<div class="inline" style="align-items:flex-end;"><div style="max-width:160px;"><label class="field"><span>Part service (%)</span><input id="pPartService" type="number" min="0" max="100" value="'+esc(s.partService)+'"></label></div>'+
     '<div style="padding-bottom:12px;" class="muted">→ <b style="color:var(--bordeaux);">'+partB+' %</b> en vente de biens</div></div></div>'+
+  viewDeplacementSettings()+
   '<div class="card"><h3 style="margin:0 0 10px;">Votre entreprise</h3>'+
     F("Nom de l'entreprise","pNom",s.nomEntreprise)+F("Votre nom (entrepreneur individuel)","pEnt",s.entrepreneur)+
     F("Adresse","pAdr",s.adresse)+F("SIRET","pSiret",s.siret,"Obligatoire sur les factures.")+
@@ -3460,6 +3505,7 @@ function viewParams(){
     F("Mention TVA","pTva",s.mentionTVA)+F("Conditions de règlement","pCond",s.conditionsReglement)+
     '<label class="field"><span>Mentions de pénalités (factures)</span><textarea id="pPen">'+esc(s.penalites)+'</textarea></label>'+
     '<div class="inline"><div>'+F("Acompte par défaut (%)","pAcompte",s.acompteParDefaut,"","number")+'</div><div>'+F("Validité devis (jours)","pValid",s.validiteDevis,"","number")+'</div><div>'+F("Délai paiement (jours)","pDelai",s.delaiPaiement,"","number")+'</div></div></div>'+
+  viewMailTemplatesSettings()+
   '<div class="card"><h3 style="margin:0 0 4px;">Seuils & cotisations (indicatifs)</h3><p class="muted" style="margin-top:0;font-size:12px;">À confirmer auprès de l\'URSSAF — ils évoluent chaque année.</p>'+
     '<div class="inline"><div>'+F("Seuil biens (€)","pSeuilB",s.seuilBiens,"","number")+'</div><div>'+F("Seuil services (€)","pSeuilS",s.seuilServices,"","number")+'</div></div>'+
     '<div class="inline"><div>'+F("Taux cotis. biens (%)","pTauxB",s.tauxCotisBiens,"","number")+'</div><div>'+F("Taux cotis. services (%)","pTauxS",s.tauxCotisServices,"","number")+'</div></div></div>'+
@@ -3675,6 +3721,7 @@ function newMariage(){
   var m={ id:uid(), nom:"", email:"", tel:"", canalCommunication:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"", synthese:"",
     statut:"contact", livre:false, dateLivree:"", relance:"", devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"",
     articles:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};}),
+    prestationsComplementaires:[],
     medias:[], historique:[], createdAt:todayISO() };
   state.mariages.unshift(m); ui.mariageOpen=m.id; saveCache(); render();
 }
@@ -3684,6 +3731,71 @@ function captureMariageInputs(){
   ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
+  captureMariagePrestations(m);
+}
+function mariagePrestations(m){ return atelierPrestations(m); }
+function mariagePrestationsTotal(m){ return atelierPrestationsTotal(m); }
+function mariageExtraLinesFromDOM(){
+  var rows=document.querySelectorAll('[data-marextra-row]'), out=[];
+  rows.forEach(function(row){
+    var id=row.getAttribute('data-marextra-row')||uid();
+    var designation=(row.querySelector('[data-marextra-field="designation"]')||{}).value||"";
+    var qte=num((row.querySelector('[data-marextra-field="qte"]')||{}).value);
+    var prix=num((row.querySelector('[data-marextra-field="prix"]')||{}).value);
+    var type=(row.querySelector('[data-marextra-type]')||{}).value||"bien";
+    if(!qte) qte=1;
+    if(designation.trim() || prix>0){ out.push({id:id,designation:designation.trim(),type:type==="service"?"service":"bien",urssafType:type==="service"?"service":"bien",qte:qte,prix:prix}); }
+  });
+  return out;
+}
+function captureMariagePrestations(m){
+  if(!m) return;
+  var box=document.getElementById('marExtraBox');
+  if(!box) return;
+  m.prestationsComplementaires=mariageExtraLinesFromDOM();
+}
+function refreshMariageExtraTotalsFromDOM(){
+  var box=document.getElementById('marExtraTotal');
+  var rows=document.querySelectorAll('[data-marextra-row]');
+  var total=0;
+  rows.forEach(function(row){
+    var qte=num((row.querySelector('[data-marextra-field="qte"]')||{}).value);
+    var prix=num((row.querySelector('[data-marextra-field="prix"]')||{}).value);
+    if(!qte) qte=1;
+    var ligneTotal=r2(qte*prix);
+    total+=ligneTotal;
+    var cell=row.querySelector('[data-marextra-line-total]');
+    if(cell) cell.innerHTML=euro(ligneTotal);
+  });
+  if(box) box.innerHTML='Total compléments : '+euro(total);
+}
+function viewMariagePrestationsComplementaires(m){
+  m=m||{};
+  var lignes=mariagePrestations(m);
+  var total=mariagePrestationsTotal(m);
+  var html='<div class="card" id="marExtraBox" style="background:var(--cream);"><div class="flexb"><div><h3 style="margin:0;">Prestations complémentaires à ajouter au devis</h3>'+
+    '<p class="muted" style="margin:4px 0 0;">Ajoute ici les frais de déplacement, packs premium, livraison, personnalisations ou toute ligne libre pour le devis mariage.</p></div>'+
+    '<span class="chip" id="marExtraTotal">Total compléments : '+euro(total)+'</span></div>';
+  var presets=prestationsActives();
+  html+='<div class="row-actions" style="margin-top:12px;">'+presets.map(function(p,i){ var prix=p.prix?(' · '+euro(p.prix)):''; return '<button class="btn small soft" data-action="mar-extra-add-'+i+'">+ '+esc(p.label)+esc(prix)+'</button>'; }).join('')+'</div>';
+  if(!lignes.length){
+    html+='<p class="muted" style="margin:12px 0 0;">Aucune prestation complémentaire pour le moment.</p>';
+  }else{
+    html+='<div class="scroll" style="margin-top:12px;"><table><thead><tr style="text-align:left;color:var(--ink-s);font-size:12px;"><th style="padding:6px;">Libellé</th><th style="padding:6px;">Catégorie interne</th><th style="padding:6px;width:82px;">Qté</th><th style="padding:6px;width:115px;">Prix unit.</th><th style="padding:6px;width:110px;text-align:right;">Total</th><th style="padding:6px;width:40px;"></th></tr></thead><tbody>';
+    lignes.forEach(function(l){
+      html+='<tr data-marextra-row="'+esc(l.id)+'" style="border-top:1px solid var(--line);">'+
+        '<td style="padding:6px;"><input data-marextra-field="designation" value="'+esc(l.designation||'')+'" placeholder="Ex : Frais de déplacement"></td>'+
+        '<td style="padding:6px;"><select data-marextra-type>'+atelierPrestationTypeOptions(l.type)+'</select></td>'+
+        '<td style="padding:6px;"><input data-marextra-field="qte" type="number" min="0" step="1" value="'+esc(l.qte||1)+'"></td>'+
+        '<td style="padding:6px;"><input data-marextra-field="prix" type="number" min="0" step="0.01" value="'+esc(l.prix||0)+'"></td>'+
+        '<td data-marextra-line-total style="padding:6px;text-align:right;font-weight:700;white-space:nowrap;">'+euro(num(l.qte)*num(l.prix))+'</td>'+
+        '<td style="padding:6px;text-align:center;"><button data-action="mar-extra-del-'+esc(l.id)+'" style="border:none;background:none;color:#9b3b3b;cursor:pointer;font-size:18px;">×</button></td>'+
+      '</tr>';
+    });
+    html+='</tbody></table></div>';
+  }
+  html+='<p class="muted" style="margin:10px 0 0;font-size:12px;">Ces catégories restent internes : elles ne s’affichent pas sur le devis ni sur la facture client.</p></div>';
+  return html;
 }
 function mariageCardHTML(m){
   var cd=mariageCountdown(m), st=STATUT_MAR[m.statut]||STATUT_MAR.contact;
@@ -3856,7 +3968,7 @@ function viewMariageDetail(m){
     (hist||'<p class="muted" style="margin:0;">Aucune note pour l\'instant.</p>')+'</div>';
   var delPending = ui.confirmDelete === "mariage:"+m.id;
   var del='<div class="row-actions" style="margin-top:6px;"><button class="btn danger" data-action="mar-del-'+m.id+'">'+(delPending?'Confirmer suppression':'Supprimer cette fiche')+'</button></div>';
-  return medCard+summary+infos+artsCard+df+histCard+del;
+  return medCard+summary+infos+artsCard+viewMariagePrestationsComplementaires(m)+df+histCard+del;
 }
 function compressImage2(file,cb){
   var r=new FileReader();
@@ -3892,8 +4004,25 @@ function docFileName(kind, doc){
   var base=(kind==="devis"?"devis":"facture")+"-"+(doc.numero||"document");
   return base.replace(/[^a-z0-9_-]+/gi,"-").replace(/-+/g,"-") + ".pdf";
 }
+function docTemplateVars(kind, doc){
+  var montant = doc.montant!=null ? doc.montant : totals(doc.lignes||[],state.settings.partService).total;
+  return {
+    client:(doc.client&&doc.client.nom)||"",
+    numero:doc.numero||"",
+    type:kind==="devis"?"devis":"facture",
+    montant:euro(montant),
+    date:frDate(doc.date),
+    entreprise:(state.settings&&state.settings.nomEntreprise)||"L'Atelier Fleurs & Sens"
+  };
+}
+function applyDocTemplate(str, kind, doc){
+  var vars=docTemplateVars(kind, doc);
+  return String(str||"").replace(/\{(client|numero|type|montant|date|entreprise)\}/g,function(_,k){ return vars[k]||""; });
+}
 function docSubject(kind, doc){
-  return (kind==="devis" ? "Votre devis " : "Votre facture ") + (doc.numero||"") + " - L'Atelier Fleurs & Sens";
+  var s=state.settings||{};
+  var tpl = kind==="devis" ? (s.mailObjetDevis||DEFAULT_SETTINGS.mailObjetDevis) : (s.mailObjetFacture||DEFAULT_SETTINGS.mailObjetFacture);
+  return applyDocTemplate(tpl, kind, doc);
 }
 
 function docEmailHtml(kind, doc){
@@ -3928,36 +4057,9 @@ function docEmailHtml(kind, doc){
 }
 
 function docMailMessage(kind, doc){
-var nom=(doc.client&&doc.client.nom)||"";
-var type=(kind==="devis")?"devis":"facture";
-var accord=(kind==="devis")?"relatif":"relative";
-
-return `
-<p>Bonjour ${nom},</p>
-
-<p>J'espère que vous allez bien.</p>
-
-<p>Je vous prie de trouver ci-joint votre <strong>${type}</strong> ${accord} à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>
-
-<p>Je vous remercie chaleureusement pour votre confiance et pour m'avoir permis de participer, à ma façon, à ce joli projet. ✨</p>
-
-<p>Si vous avez la moindre question, je reste bien entendu à votre disposition.</p>
-
-<p>Au plaisir d'échanger à nouveau avec vous et de vous accompagner dans de futures créations florales.</p>
-
-<p>Je vous souhaite une belle journée.</p>
-
-<p>Bien chaleureusement,</p>
-
-<p>
-<strong>Élodie Rouzé</strong><br>
-<strong>L'Atelier Fleurs & Sens</strong><br>
-🌿 Des fleurs, des émotions, un instant pour soi<br>
-📞 06 50 91 63 59<br>
-📧 latelierfleursetsens@gmail.com<br>
-🌐 www.latelierfleursetsens.fr
-</p>
-`;
+  var s=state.settings||{};
+  var tpl = kind==="devis" ? (s.mailMessageDevis||DEFAULT_SETTINGS.mailMessageDevis) : (s.mailMessageFacture||DEFAULT_SETTINGS.mailMessageFacture);
+  return applyDocTemplate(tpl, kind, doc);
 }
 function clientEmailOrPrompt(doc){
   var current=(doc.client&&doc.client.email)||"";
@@ -4909,7 +5011,9 @@ function handleAction(action){
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
     state.mariages=state.mariages.filter(function(x){return x.id!==mid;}); ui.mariageOpen=null; ui.confirmDelete=null; saveCache(); render(); toast("Fiche mariage supprimée."); return; }
-  if(action==="mar-createdevis"){ var mc=getMariage(ui.mariageOpen); if(mc){ captureMariageInputs(); saveCache(); newWizard(); ui.wizard.clientMode="nouveau"; ui.wizard.client={nom:mc.nom||"",adresse:mc.lieu||"",email:mc.email||"",tel:mc.tel||""}; ui.wizard.lignes=(mc.articles||[]).map(function(a){ return {id:uid(), designation:a.label||"Article mariage", type:"bien", qte:1, prix:0}; }); ui.wizard.step = ui.wizard.lignes.length ? 2 : 1; ui.wizard.notes="Devis créé depuis la fiche mariage"+(mc.date?" du "+frDate(mc.date):""); ui.wizardLinkMariage=mc.id; ui.tab="devis"; render(); window.scrollTo(0,0); } return; }
+  if(action.indexOf("mar-extra-add-")===0){ var mx=getMariage(ui.mariageOpen); if(mx){ captureMariageInputs(); var mpi=Number(action.slice(14)); var mlist=prestationsActives(); var mpreset=mlist[mpi]||mlist[mlist.length-1]||{label:"Autre / champ libre",type:"bien",qte:1,prix:0}; mx.prestationsComplementaires=mx.prestationsComplementaires||[]; var mptype=mpreset.type==="service"?"service":"bien"; mx.prestationsComplementaires.push({id:uid(),designation:mpreset.label,type:mptype,urssafType:mptype,qte:mpreset.qte||1,prix:num(mpreset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis mariage."); } return; }
+  if(action.indexOf("mar-extra-del-")===0){ var mxd=getMariage(ui.mariageOpen); if(mxd){ captureMariageInputs(); var mxid=action.slice(14); mxd.prestationsComplementaires=(mxd.prestationsComplementaires||[]).filter(function(l){return l.id!==mxid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
+  if(action==="mar-createdevis"){ var mc=getMariage(ui.mariageOpen); if(mc){ captureMariageInputs(); saveCache(); newWizard(); ui.wizard.clientMode="nouveau"; ui.wizard.client={nom:mc.nom||"",adresse:mc.lieu||"",email:mc.email||"",tel:mc.tel||""}; ui.wizard.lignes=(mc.articles||[]).map(function(a){ return {id:uid(), designation:a.label||"Article mariage", type:"bien", qte:1, prix:0}; }); mariagePrestations(mc).forEach(function(l){ ui.wizard.lignes.push({id:uid(), designation:l.designation||"Prestation complémentaire", type:l.type==="service"?"service":"bien", qte:l.qte||1, prix:r2(l.prix)}); }); ui.wizard.step = ui.wizard.lignes.length ? 2 : 1; ui.wizard.notes="Devis créé depuis la fiche mariage"+(mc.dateMariage?" du "+frDate(mc.dateMariage):""); ui.wizardLinkMariage=mc.id; ui.tab="devis"; render(); window.scrollTo(0,0); } return; }
   if(action==="mar-media-pick"){ document.getElementById("marMedia").click(); return; }
   if(action.indexOf("mar-media-open-")===0){ openMedia(action.slice(15)); return; }
   if(action.indexOf("mar-media-del-")===0){ var m1=getMariage(ui.mariageOpen); if(m1){ captureMariageInputs(); var rid=action.slice(14); m1.medias=(m1.medias||[]).filter(function(x){return x.id!==rid;}); saveCache(); render(); } return; }
@@ -5013,6 +5117,8 @@ document.addEventListener("input", function(e){
     var id8=t.getAttribute("data-id"); var oc2=getCommande(ui.commandeOpen); var l8=oc2&&(oc2.lignes||[]).find(function(x){return x.id===id8;}); if(l8){ l8.designation=t.value; }
   } else if(t.hasAttribute&&t.hasAttribute("data-atextra-field")){
     refreshAtelierExtraTotalsFromDOM();
+  } else if(t.hasAttribute&&t.hasAttribute("data-marextra-field")){
+    refreshMariageExtraTotalsFromDOM();
   }
 });
 document.addEventListener("change", function(e){
@@ -5026,6 +5132,7 @@ document.addEventListener("change", function(e){
   if(t.hasAttribute&&t.hasAttribute("data-cmdlinetype")){ var cid=t.getAttribute("data-id"); var cl=ui.commandeDraft&&ui.commandeDraft.lignes.find(function(x){return x.id===cid;}); if(cl){ cl.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-cmdopen-type")){ var oid=t.getAttribute("data-id"); var oc=getCommande(ui.commandeOpen); var ol=oc&&(oc.lignes||[]).find(function(x){return x.id===oid;}); if(ol){ ol.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-atextra-type")){ refreshAtelierExtraTotalsFromDOM(); return; }
+  if(t.hasAttribute&&t.hasAttribute("data-marextra-type")){ refreshMariageExtraTotalsFromDOM(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="cmd-clientsel"){ if(ui.commandeDraft) ui.commandeDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="fac-clientsel"){ if(ui.factureDraft) ui.factureDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="site-clientsel"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.clientId=t.value; captureSiteSaleDraft(); } return; }
