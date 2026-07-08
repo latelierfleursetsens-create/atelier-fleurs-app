@@ -1,31 +1,27 @@
-# L'Atelier Fleurs & Sens — V3.1.2 TEST MODULAIRE
+# L'Atelier Fleurs & Sens — V3.2.0 TEST MODULAIRE
 
-Version de test basée sur la V3.1.1 TEST validée.
+Version de test basée sur la V3.1.2 TEST.
 
-## Nouveauté V3.1.2 TEST
+## Nouveauté V3.2.0 TEST
 
-Ajout d'un **centre de notifications prioritaires** sur le tableau de bord.
-
-Il remonte automatiquement :
-
-- les factures échues ;
-- les factures à encaisser dans les 7 prochains jours ;
-- les devis envoyés depuis plus de 7 jours à relancer ;
-- les mariages proches ;
-- les ateliers prévus sous 7 jours ;
-- les alertes de stock bas.
-
-Chaque ligne possède un bouton **Ouvrir** pour aller directement vers le devis, la facture, l'atelier, le mariage ou le stock.
+- Nouveau tableau de bord plus clair et orienté actions.
+- Version affichée en haut sous forme discrète.
+- Suppression du gros bloc de journal des modifications sur le tableau de bord.
+- Journal déplacé dans **Paramètres > À propos de l’application**.
+- Ajout de cartes rapides : à encaisser, devis en attente, ateliers à venir, mariages à venir.
+- Ajout d’un bloc **Les 7 prochains jours**.
+- Conservation du centre de notifications prioritaire.
 
 ## À tester
 
-1. Ouvrir le tableau de bord.
-2. Vérifier que le bloc **Centre de notifications** apparaît sous le journal de version.
-3. Tester les boutons **Ouvrir** sur une facture, un devis ou un atelier.
-4. Vérifier qu'aucune donnée n'est modifiée automatiquement : c'est uniquement un assistant de suivi.
+1. Vérifier que le tableau de bord affiche bien `TEST V3.2.0 MODULAIRE`.
+2. Vérifier que le journal ne prend plus de place sur le tableau de bord.
+3. Cliquer sur `Notes de version`.
+4. Aller dans `Paramètres` et vérifier le bloc `À propos de l’application`.
+5. Tester les cartes rapides et les boutons `Ouvrir` du centre de notifications.
 
-## Base utilisée
+## Base conservée
 
+- V3.1.2 TEST — centre de notifications.
 - V3.1.1 TEST — correctif encaissements ateliers.
 - V3.1.0 TEST — bibliothèque de prestations.
-- PROD V3.0.4 — architecture modulaire et correctifs encaissements.

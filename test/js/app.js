@@ -1,9 +1,10 @@
-/* V3.1.2 TEST MODULAIRE — centre de notifications prioritaires sur le tableau de bord. */
+/* V3.2.0 TEST MODULAIRE — tableau de bord allégé, orienté actions, avec journal déplacé dans Paramètres. */
 "use strict";
 
-var APP_VERSION = "TEST V3.1.2 MODULAIRE";
-var APP_VERSION_NOTE = "Version test : ajout d’un centre de notifications prioritaires sur le tableau de bord.";
+var APP_VERSION = "TEST V3.2.0 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : nouveau tableau de bord plus lisible, version discrète et journal déplacé dans Paramètres > À propos de l’application.";
 var APP_CHANGELOG = [
+  "V3.2.0 TEST — Nouveau tableau de bord orienté actions : version discrète, indicateurs clés et journal déplacé dans Paramètres > À propos de l’application.",
   "V3.1.2 TEST — Ajout du centre de notifications prioritaires sur le tableau de bord.",
   "V3.1.1 TEST — Correctif encaissements ateliers avec devis/factures liés.",
   "V3.1.0 TEST — Ajout d’une bibliothèque de prestations réutilisables dans Paramètres.",
@@ -16,12 +17,10 @@ var APP_CHANGELOG = [
   "V2.1.1 TEST — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
 ];
 var APP_ROADMAP = [
-  "Tester le centre de notifications prioritaires",
+  "Tester le nouveau tableau de bord allégé",
+  "Valider le centre de notifications prioritaires",
   "Ajouter le calcul automatique des frais de déplacement",
-  "Découper réellement le module Clients dans js/clients.js",
-  "Découper le module Ateliers dans js/ateliers.js",
-  "Créer une bibliothèque de prestations réutilisables",
-  "Ajouter le calcul automatique des frais de déplacement",
+  "Découper réellement les modules Clients et Ateliers dans leurs fichiers JS",
   "Préparer la future gestion de stock fleurs et fournitures"
 ];
 
@@ -49,7 +48,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1 };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -529,6 +528,13 @@ function renderModal(){
     return;
   }
 
+  if(ui.versionNotesModal){
+    var vm=document.createElement("div");
+    vm.innerHTML=viewVersionNotesModal();
+    document.body.appendChild(vm.firstElementChild);
+    return;
+  }
+
   if(ui.pendingPaymentsModal){
     var pm=document.createElement("div");
     pm.innerHTML=viewPendingPaymentsModal();
@@ -695,19 +701,95 @@ function viewPendingPaymentsModal(){
 
 
 function viewVersionDashboard(){
+  var env = APP_VERSION.indexOf("TEST")>=0 ? "TEST" : "PROD";
+  var bg = env==="TEST" ? "#fffaf5" : "#eef7f1";
+  var border = env==="TEST" ? "var(--gold-s)" : "#9fc9ab";
+  return '<div class="card" style="background:'+bg+';border-color:'+border+';margin-bottom:12px;padding:10px 14px;">'+
+    '<div class="flexb" style="gap:8px;">'+
+      '<div><b style="color:var(--green);">✅ Version : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:2px;">☁ Synchronisation active · '+esc(APP_VERSION_NOTE)+'</div></div>'+ 
+      '<button class="btn small ghost" data-action="version-notes-open">ℹ️ Notes de version</button>'+ 
+    '</div>'+ 
+  '</div>';
+}
+function viewVersionNotesModal(){
   var changes=(APP_CHANGELOG||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
   var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
-  return '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;">'+
+  return '<div id="modal" class="modal"><div class="modal-inner">'+
+    '<div class="modal-actions"><button class="btn ghost" data-action="version-notes-close">Fermer</button></div>'+ 
+    '<div class="card" style="background:#fff;">'+
+      '<h2 style="margin-top:0;">À propos de l’application</h2>'+ 
+      '<div class="summary" style="margin-bottom:14px;"><b style="color:var(--bordeaux);">'+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">'+esc(APP_VERSION_NOTE)+'</div></div>'+ 
+      '<div class="inline" style="align-items:flex-start;">'+
+        '<div><h3 style="margin:0 0 8px;">Modifications récentes</h3><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+changes+'</ul></div>'+ 
+        '<div><h3 style="margin:0 0 8px;">Prochaines étapes</h3><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+road+'</ul></div>'+ 
+      '</div>'+ 
+    '</div>'+ 
+  '</div></div>';
+}
+function dashboardKpiCounts(){
+  var today=todayISO();
+  var devis=(state.devis||[]).filter(function(d){return d.statut==="envoye" || d.statut==="brouillon";}).length;
+  var ateliers=(state.ateliers||[]).filter(function(a){return a.date && a.date>=today && a.statut!=="annule" && a.statut!=="termine";}).length;
+  var mariages=(state.mariages||[]).filter(function(m){
+    if(mariageTermine(m)) return false;
+    var d=m.dateLivraison||m.dateMariage||"";
+    return d && d>=today;
+  }).length;
+  return {devis:devis,ateliers:ateliers,mariages:mariages};
+}
+function viewDashboardHero(enAttente){
+  var d=todaySmartData();
+  var resume=[];
+  if(d.echues) resume.push(d.echues+' facture'+(d.echues>1?'s':'')+' échue'+(d.echues>1?'s':''));
+  if(d.devisRelance) resume.push(d.devisRelance+' devis à relancer');
+  if(d.ateliersSoon) resume.push(d.ateliersSoon+' atelier'+(d.ateliersSoon>1?'s':'')+' sous 7 jours');
+  if(d.mariagesLivraison) resume.push(d.mariagesLivraison+' mariage'+(d.mariagesLivraison>1?'s':'')+' à livrer sous 7 jours');
+  if(!resume.length) resume.push('aucune urgence prioritaire');
+  return '<div class="card" style="background:linear-gradient(135deg,#fffdfb,#f4e4dd);border-color:var(--gold-s);margin-bottom:14px;">'+
     '<div class="flexb" style="align-items:flex-start;">'+
-      '<div><b style="color:var(--green);">✅ Version active : '+esc(APP_VERSION)+'</b>'+
-      '<div class="muted" style="font-size:12px;margin-top:4px;">'+esc(APP_VERSION_NOTE)+'</div></div>'+
-      '<span class="pill" style="background:var(--green-s);color:var(--green);">Journal V3</span>'+
-    '</div>'+
-    '<div class="inline" style="margin-top:12px;align-items:flex-start;">'+
-      '<div><div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">✔ Modifications récentes</div><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.5;">'+changes+'</ul></div>'+
-      '<div><div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">□ Prochaines étapes</div><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.5;">'+road+'</ul></div>'+
-    '</div>'+
-    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Ce bloc sert de journal de bord pour savoir exactement ce qui a été ajouté ou corrigé dans la version de production.</p>'+
+      '<div><div class="serif" style="font-size:24px;font-weight:700;color:var(--bordeaux);">Bonjour Elodie 🌸</div>'+ 
+      '<p class="muted" style="margin:6px 0 0;">Aujourd’hui : '+esc(resume.join(' · '))+'.</p></div>'+ 
+      '<div style="text-align:right;"><div class="muted" style="font-size:12px;">À encaisser prochainement</div><button class="btn primary" data-action="dash-pending-payments" style="margin-top:4px;">'+euro(enAttente)+'</button></div>'+ 
+    '</div>'+ 
+  '</div>';
+}
+function kpiCard(icon,lab,val,action,hint){
+  return '<div class="stat" '+(action?'data-action="'+action+'" style="cursor:pointer;"':'')+'><div class="lab">'+icon+' '+esc(lab)+'</div><div class="val" style="font-size:24px;">'+val+'</div>'+(hint?'<div class="muted" style="font-size:11px;margin-top:4px;">'+esc(hint)+'</div>':'')+'</div>';
+}
+function viewDashboardKpis(enAttente){
+  var c=dashboardKpiCounts();
+  return '<div class="grid-stats" style="margin-bottom:14px;">'+
+    kpiCard('💰','À encaisser',euro(enAttente),'dash-pending-payments','Factures, acomptes, soldes et ateliers')+
+    kpiCard('📄','Devis en attente',String(c.devis),'nav-devis','Brouillons ou envoyés')+
+    kpiCard('🌸','Ateliers à venir',String(c.ateliers),'nav-ateliers','À partir d’aujourd’hui')+
+    kpiCard('💍','Mariages à venir',String(c.mariages),'nav-mariages','Non terminés')+
+  '</div>';
+}
+function viewDashboardNextSevenDays(){
+  var today=todayISO(), end=addDays(today,7);
+  var events=calEvents().filter(function(e){return e.date>=today && e.date<=end;}).slice(0,8);
+  var html='<div class="card" style="margin-bottom:14px;"><div class="flexb"><h3 style="margin:0;">📆 Les 7 prochains jours</h3><button class="btn small ghost" data-action="go-calendrier">Calendrier</button></div>';
+  if(!events.length) return html+'<p class="muted" style="margin:10px 0 0;">Aucun événement ou paiement prévu dans les 7 prochains jours.</p></div>';
+  var by={};
+  events.forEach(function(e){ by[e.date]=by[e.date]||[]; by[e.date].push(e); });
+  Object.keys(by).sort().forEach(function(date){
+    html+='<div style="margin-top:10px;"><div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;">'+frDate(date)+'</div>';
+    by[date].forEach(function(e){
+      html+='<button data-action="'+esc(e.action)+'" style="width:100%;border:none;background:#fff;text-align:left;cursor:pointer;font-family:inherit;padding:8px 0;border-bottom:1px solid var(--line);"><b style="color:var(--bordeaux);">'+e.icon+' '+esc(e.title)+'</b><div class="muted" style="font-size:12px;">'+(e.sub?esc(e.sub):'')+'</div></button>';
+    });
+    html+='</div>';
+  });
+  return html+'</div>';
+}
+function viewDashboardUrssaf(currentMonthSplit, monthLabel){
+  return '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+ 
+    '<div class="grid-stats" style="margin-bottom:0;">'+
+      stat("CA total à déclarer", euro(currentMonthSplit.total), true)+
+      stat("Vente de biens", euro(currentMonthSplit.biens), false, "var(--blush-s)")+
+      stat("Prestations de services", euro(currentMonthSplit.services), false, "var(--green-s)")+
+    '</div>'+ 
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Calculé sur les encaissements réellement payés du mois : factures payées, encaissements manuels et ventes site internet.</p>'+ 
   '</div>';
 }
 
@@ -840,19 +922,14 @@ function viewDashboard(){
   }
 
   return ''+
-  '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
-    '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
+  '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+ 
+    '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+ 
   viewVersionDashboard()+
+  viewDashboardHero(enAttente)+
+  viewDashboardKpis(enAttente)+
   viewNotificationsDashboard()+
-  '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
-    '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
-    '<div class="grid-stats" style="margin-bottom:0;">'+
-      stat("CA total à déclarer", euro(currentMonthSplit.total), true)+
-      stat("Vente de biens", euro(currentMonthSplit.biens), false, "var(--blush-s)")+
-      stat("Prestations de services", euro(currentMonthSplit.services), false, "var(--green-s)")+
-    '</div>'+
-    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Calculé sur les encaissements réellement payés du mois : factures payées, encaissements manuels et ventes site internet.</p>'+
-  '</div>'+
+  viewDashboardNextSevenDays()+
+  viewDashboardUrssaf(currentMonthSplit, monthLabel)+
 
   '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
@@ -868,7 +945,6 @@ function viewDashboard(){
     '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — '+esc(APP_VERSION)+'</p>'+
   '</div>'+
   prepBanner+
-  viewSmartDashboard()+
   viewAteliersPreview()+
   viewStockPreview()+
   viewCalendarPreview()+
@@ -3347,11 +3423,23 @@ function viewPrestationsBibliothequeSettings(){
     '<p class="muted" style="margin:10px 0 0;font-size:12px;">Exemples : frais de déplacement en service, pack premium en bien, personnalisation en service. Tu peux mettre un prix par défaut ou laisser à 0 € pour le saisir au cas par cas.</p></div>';
   return html;
 }
+function viewAboutAppSettings(){
+  var changes=(APP_CHANGELOG||[]).slice(0,6).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
+  var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
+  return '<div class="card"><div class="flexb" style="align-items:flex-start;">'+
+    '<div><h3 style="margin:0 0 6px;">À propos de l’application</h3><p class="muted" style="margin:0;font-size:12px;">Journal technique déplacé ici pour garder le tableau de bord clair.</p></div>'+ 
+    '<span class="pill" style="background:var(--green-s);color:var(--green);">'+esc(APP_VERSION)+'</span></div>'+ 
+    '<p class="muted" style="font-size:12px;margin:10px 0 0;">'+esc(APP_VERSION_NOTE)+'</p>'+ 
+    '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--bordeaux);font-weight:700;">Voir les modifications récentes</summary><ul style="margin:8px 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+changes+'</ul></details>'+ 
+    '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--bordeaux);font-weight:700;">Voir les prochaines étapes</summary><ul style="margin:8px 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+road+'</ul></details>'+ 
+  '</div>';
+}
 function viewParams(){
   var s=state.settings, partB=Math.max(0,100-num(s.partService));
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Ces informations apparaissent sur vos devis et factures.</p>'+
+  viewAboutAppSettings()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
@@ -4333,6 +4421,17 @@ async function envoyerDocumentEmail(kind, doc){
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
+
+  if(action==="version-notes-open"){
+    ui.versionNotesModal=true;
+    renderModal();
+    return;
+  }
+  if(action==="version-notes-close"){
+    ui.versionNotesModal=false;
+    renderModal();
+    return;
+  }
 
   if(action==="payment-prompt-ok"){
     var sel=document.getElementById("paymentPromptSelect");

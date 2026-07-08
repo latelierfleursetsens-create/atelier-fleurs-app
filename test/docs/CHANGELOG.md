@@ -1,3 +1,11 @@
+## V3.2.0 TEST
+
+- Nouveau tableau de bord allégé et orienté actions.
+- La version reste visible en haut, mais le journal complet est déplacé.
+- Le journal est accessible via le bouton `Notes de version` et dans `Paramètres > À propos de l’application`.
+- Ajout des cartes rapides : à encaisser, devis en attente, ateliers à venir, mariages à venir.
+- Ajout d’un bloc synthétique des 7 prochains jours.
+
 ## V3.1.2 TEST
 - Ajout du centre de notifications prioritaires sur le tableau de bord.
 - Alertes automatiques : factures échues, factures à encaisser sous 7 jours, devis à relancer, mariages proches, ateliers proches et stock bas.
