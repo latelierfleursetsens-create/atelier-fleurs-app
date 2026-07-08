@@ -1,27 +1,31 @@
-# L'Atelier Fleurs & Sens — V3.1.1 TEST MODULAIRE
+# L'Atelier Fleurs & Sens — V3.1.2 TEST MODULAIRE
 
-Version de test basée sur la PROD V3.0.4.
+Version de test basée sur la V3.1.1 TEST validée.
 
-## Nouveauté V3.1.1 TEST
+## Nouveauté V3.1.2 TEST
 
-- Ajout d’une bibliothèque de prestations dans **Paramètres**.
-- Les prestations actives deviennent des boutons rapides dans les ateliers.
-- Chaque prestation peut avoir un libellé, une catégorie interne bien/service, une quantité, un prix par défaut et un statut actif/inactif.
-- Les catégories restent internes et ne s’affichent pas sur les documents clients.
+Ajout d'un **centre de notifications prioritaires** sur le tableau de bord.
+
+Il remonte automatiquement :
+
+- les factures échues ;
+- les factures à encaisser dans les 7 prochains jours ;
+- les devis envoyés depuis plus de 7 jours à relancer ;
+- les mariages proches ;
+- les ateliers prévus sous 7 jours ;
+- les alertes de stock bas.
+
+Chaque ligne possède un bouton **Ouvrir** pour aller directement vers le devis, la facture, l'atelier, le mariage ou le stock.
 
 ## À tester
 
-1. Aller dans **Paramètres > Bibliothèque de prestations**.
-2. Ajouter ou modifier une prestation.
-3. Enregistrer les paramètres.
-4. Ouvrir un atelier.
-5. Vérifier que les boutons rapides affichent les prestations actives.
-6. Ajouter une prestation au devis atelier et vérifier le total.
+1. Ouvrir le tableau de bord.
+2. Vérifier que le bloc **Centre de notifications** apparaît sous le journal de version.
+3. Tester les boutons **Ouvrir** sur une facture, un devis ou un atelier.
+4. Vérifier qu'aucune donnée n'est modifiée automatiquement : c'est uniquement un assistant de suivi.
 
 ## Base utilisée
 
-- PROD V3.0.4 MODULAIRE — correctif encaissements ateliers.
-
-
-## V3.1.1 TEST
-Correctif du calcul “À encaisser prochainement” pour les ateliers : le total de référence reprend le devis lié, les prestations complémentaires sont incluses, et les factures d’acompte/solde reliées par devis sont déduites du reste à facturer.
+- V3.1.1 TEST — correctif encaissements ateliers.
+- V3.1.0 TEST — bibliothèque de prestations.
+- PROD V3.0.4 — architecture modulaire et correctifs encaissements.

@@ -1,3 +1,8 @@
+## V3.1.2 TEST
+- Ajout du centre de notifications prioritaires sur le tableau de bord.
+- Alertes automatiques : factures échues, factures à encaisser sous 7 jours, devis à relancer, mariages proches, ateliers proches et stock bas.
+- Ajout de boutons d'accès direct vers les documents ou fiches concernés.
+
 ## V3.1.1 TEST
 - Correction du calcul “À encaisser prochainement” pour les ateliers avec prestations complémentaires.
 - Si un devis atelier existe, son total devient la référence.

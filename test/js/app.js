@@ -1,9 +1,11 @@
-/* V3.1.0 TEST MODULAIRE — bibliothèque de prestations réutilisables dans les paramètres. */
+/* V3.1.2 TEST MODULAIRE — centre de notifications prioritaires sur le tableau de bord. */
 "use strict";
 
-var APP_VERSION = "TEST V3.1.1 MODULAIRE";
-var APP_VERSION_NOTE = "Version test basée sur la PROD V3.0.4 : ajout d’une bibliothèque de prestations réutilisables dans Paramètres.";
+var APP_VERSION = "TEST V3.1.2 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : ajout d’un centre de notifications prioritaires sur le tableau de bord.";
 var APP_CHANGELOG = [
+  "V3.1.2 TEST — Ajout du centre de notifications prioritaires sur le tableau de bord.",
+  "V3.1.1 TEST — Correctif encaissements ateliers avec devis/factures liés.",
   "V3.1.0 TEST — Ajout d’une bibliothèque de prestations réutilisables dans Paramètres.",
   "V3.0.4 PROD — Correctif du double comptage des ateliers dans À encaisser prochainement.",
   "V3.0.3 PROD — Architecture modulaire validée et mise en production.",
@@ -14,7 +16,7 @@ var APP_CHANGELOG = [
   "V2.1.1 TEST — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
 ];
 var APP_ROADMAP = [
-  "Tester la bibliothèque de prestations sur les ateliers",
+  "Tester le centre de notifications prioritaires",
   "Ajouter le calcul automatique des frais de déplacement",
   "Découper réellement le module Clients dans js/clients.js",
   "Découper le module Ateliers dans js/ateliers.js",
@@ -720,6 +722,88 @@ function viewTodoDashboard(){
   '</div>';
 }
 
+
+function dashboardPriorityNotifications(){
+  var today=todayISO();
+  var soon7=addDays(today,7);
+  var soon14=addDays(today,14);
+  var items=[];
+  function add(level,title,detail,amount,action,sortDate){
+    items.push({level:level,title:title,detail:detail||"",amount:amount,action:action||"",sortDate:sortDate||today});
+  }
+  function levelRank(l){ return l==="danger"?0:(l==="warning"?1:2); }
+
+  (state.factures||[]).forEach(function(f){
+    if(f.statut==="payee") return;
+    var due=f.echeance||f.date||"";
+    var client=(f.client&&f.client.nom)||"Cliente non renseignée";
+    var label=(f.numero||"Facture")+" · "+(TYPE_FAC[f.type]||"Facture");
+    if(due && due<today){
+      add("danger","Facture échue",label+" · "+client+" · échéance "+frDate(due),Number(f.montant)||0,"notif-open-facture-"+f.id,due);
+    }else if(due && due<=soon7){
+      add("warning","Facture à encaisser bientôt",label+" · "+client+" · échéance "+frDate(due),Number(f.montant)||0,"notif-open-facture-"+f.id,due);
+    }
+  });
+
+  (state.devis||[]).forEach(function(d){
+    if(d.statut!=="envoye") return;
+    if(d.date && d.date<=addDays(today,-7)){
+      var client=(d.client&&d.client.nom)||"Cliente non renseignée";
+      add("warning","Devis à relancer",(d.numero||"Devis")+" · "+client+" · envoyé le "+frDate(d.date),totals(d.lignes||[],state.settings.partService).total,"notif-open-devis-"+d.id,d.date);
+    }
+  });
+
+  (state.mariages||[]).forEach(function(m){
+    if(mariageTermine(m)) return;
+    var dl=m.dateLivraison||m.dateMariage||"";
+    if(dl && dl>=today && dl<=soon14){
+      add("warning","Mariage proche",(m.nom||"Cliente")+" · livraison/mariage le "+frDate(dl)+(m.lieu?" · "+m.lieu:""),null,"notif-open-mariage-"+m.id,dl);
+    }
+  });
+
+  (state.ateliers||[]).forEach(function(a){
+    if(a.statut==="annule"||a.statut==="termine") return;
+    if(a.date && a.date>=today && a.date<=soon7){
+      add("info","Atelier à venir",atelierModeLabel(atelierMode(a))+" · "+(a.theme||"À compléter")+" · "+frDate(a.date),atelierTotals(a).total,"notif-open-atelier-"+a.id,a.date);
+    }
+  });
+
+  (state.stockItems||[]).forEach(function(it){
+    if(Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil)){
+      add("warning","Stock bas",(it.nom||"Article")+" · reste "+(Number(it.quantite)||0)+" "+(it.unite||"")+" · seuil "+(Number(it.seuil)||0),null,"nav-stock",today);
+    }
+  });
+
+  items.sort(function(a,b){
+    return levelRank(a.level)-levelRank(b.level) || (a.sortDate||"").localeCompare(b.sortDate||"") || (a.title||"").localeCompare(b.title||"");
+  });
+  return items.slice(0,10);
+}
+function viewNotificationsDashboard(){
+  var items=dashboardPriorityNotifications();
+  var danger=items.filter(function(i){return i.level==="danger";}).length;
+  var warning=items.filter(function(i){return i.level==="warning";}).length;
+  var title=danger?"🔴 "+danger+" urgence"+(danger>1?"s":""):(warning?"🟠 "+warning+" point"+(warning>1?"s":"")+" à surveiller":"🟢 Tout est calme");
+  var html='<div class="card" style="border-color:var(--bordeaux);background:#fffdfb;margin-bottom:14px;">'+
+    '<div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0;">🔔 Centre de notifications</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Actions prioritaires calculées automatiquement : factures, devis, mariages, ateliers et stock.</p></div><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(title)+'</span></div>';
+  if(!items.length){
+    html+='<p class="muted" style="margin:12px 0 0;">Aucune alerte prioritaire pour le moment.</p>';
+  }else{
+    html+='<div style="margin-top:10px;">';
+    items.forEach(function(it){
+      var bg=it.level==="danger"?"#fbe6df":(it.level==="warning"?"#fbf3e6":"var(--green-s)");
+      var icon=it.level==="danger"?"⚠️":(it.level==="warning"?"⏳":"ℹ️");
+      html+='<div class="checkrow" style="align-items:flex-start;background:'+bg+';border-radius:10px;border-bottom:none;margin-bottom:7px;padding:10px;">'+
+        '<div style="flex:1;min-width:0;"><div><b style="color:var(--bordeaux);">'+icon+' '+esc(it.title)+'</b></div><div class="muted" style="font-size:12px;margin-top:2px;">'+esc(it.detail)+'</div></div>'+
+        '<div style="text-align:right;min-width:96px;">'+(it.amount!=null?'<b style="color:var(--bordeaux);">'+euro(it.amount)+'</b>':'')+(it.action?'<div style="margin-top:6px;"><button class="btn small ghost" data-action="'+esc(it.action)+'">Ouvrir</button></div>':'')+'</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  return html;
+}
+
 function viewDashboard(){
   var an=String(ui.anneeDash), ca=caAnnee(an);
   var totB=r2(ca.biens.reduce(function(a,b){return a+b;},0));
@@ -759,6 +843,7 @@ function viewDashboard(){
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
   viewVersionDashboard()+
+  viewNotificationsDashboard()+
   '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
     '<div class="grid-stats" style="margin-bottom:0;">'+
@@ -4350,7 +4435,25 @@ function handleAction(action){
   }
 
   
-  if(action==="treso-current-month"){ var tn=new Date(); ui.tresoYear=tn.getFullYear(); ui.tresoMonth=tn.getMonth()+1; render(); return; }
+
+  if(action.indexOf("notif-open-facture-")===0){
+    var nf=(state.factures||[]).find(function(f){return f.id===action.slice(19);});
+    if(nf){ ui.preview={kind:"facture",doc:nf}; renderModal(); }
+    return;
+  }
+  if(action.indexOf("notif-open-devis-")===0){
+    var nd=findDevis(action.slice(17));
+    if(nd){ ui.preview={kind:"devis",doc:nd}; renderModal(); }
+    return;
+  }
+  if(action.indexOf("notif-open-atelier-")===0){
+    ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(19); ui.mariageOpen=null; ui.commandeOpen=null; render(); window.scrollTo(0,0); return;
+  }
+  if(action.indexOf("notif-open-mariage-")===0){
+    ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(19); ui.atelierOpen=null; ui.commandeOpen=null; render(); window.scrollTo(0,0); return;
+  }
+
+    if(action==="treso-current-month"){ var tn=new Date(); ui.tresoYear=tn.getFullYear(); ui.tresoMonth=tn.getMonth()+1; render(); return; }
 
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
