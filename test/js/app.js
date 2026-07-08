@@ -1,9 +1,10 @@
-/* V3.2.0 TEST MODULAIRE — tableau de bord allégé, orienté actions, avec journal déplacé dans Paramètres. */
+/* V3.2.1 TEST MODULAIRE — tableau de bord ajusté : Todo list placée entre le module Bonjour Elodie et le centre de notifications. */
 "use strict";
 
-var APP_VERSION = "TEST V3.2.0 MODULAIRE";
-var APP_VERSION_NOTE = "Version test : nouveau tableau de bord plus lisible, version discrète et journal déplacé dans Paramètres > À propos de l’application.";
+var APP_VERSION = "TEST V3.2.1 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : tableau de bord ajusté avec la Todo list placée juste sous le module Bonjour Elodie.";
 var APP_CHANGELOG = [
+  "V3.2.1 TEST — Todo list déplacée juste entre Bonjour Elodie et le centre de notifications.",
   "V3.2.0 TEST — Nouveau tableau de bord orienté actions : version discrète, indicateurs clés et journal déplacé dans Paramètres > À propos de l’application.",
   "V3.1.2 TEST — Ajout du centre de notifications prioritaires sur le tableau de bord.",
   "V3.1.1 TEST — Correctif encaissements ateliers avec devis/factures liés.",
@@ -17,7 +18,7 @@ var APP_CHANGELOG = [
   "V2.1.1 TEST — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
 ];
 var APP_ROADMAP = [
-  "Tester le nouveau tableau de bord allégé",
+  "Tester le nouvel emplacement de la Todo list",
   "Valider le centre de notifications prioritaires",
   "Ajouter le calcul automatique des frais de déplacement",
   "Découper réellement les modules Clients et Ateliers dans leurs fichiers JS",
@@ -926,19 +927,11 @@ function viewDashboard(){
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+ 
   viewVersionDashboard()+
   viewDashboardHero(enAttente)+
-  viewDashboardKpis(enAttente)+
+  viewTodoDashboard()+
   viewNotificationsDashboard()+
+  viewDashboardKpis(enAttente)+
   viewDashboardNextSevenDays()+
   viewDashboardUrssaf(currentMonthSplit, monthLabel)+
-
-  '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
-    '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
-    '<div class="inline">'+
-      '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
-      '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
-    '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version '+esc(APP_VERSION)+'.</p>'+
-  '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+

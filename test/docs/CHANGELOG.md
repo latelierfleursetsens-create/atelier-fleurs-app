@@ -1,3 +1,9 @@
+## V3.2.1 TEST
+
+- Todo list déplacée juste sous le bloc **Bonjour Elodie**.
+- Le centre de notifications vient maintenant après la Todo list.
+- Le journal des versions reste dans **Paramètres > À propos de l’application**.
+
 ## V3.2.0 TEST
 
 - Nouveau tableau de bord allégé et orienté actions.
