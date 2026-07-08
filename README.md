@@ -1,6 +1,6 @@
-# L'Atelier Fleurs & Sens — V3.6.1 PROD MODULAIRE
+# L'Atelier Fleurs & Sens — V3.6.3 PROD MODULAIRE
 
-Version de production basée sur la V3.6.1 test validée.
+Version de production avec correctif devis mariage : coordonnées client à jour et canal de communication masqué côté client.
 
 ## Nouveauté V3.6.1 — CRM Mariage
 
@@ -22,14 +22,14 @@ Le Wedding Manager reste visible en haut de la fiche avec la progression et la t
 1. Remplacer les fichiers de la production GitHub par ceux de ce dossier.
 2. Commit changes.
 3. Attendre la mise à jour de GitHub Pages.
-4. Vérifier que l'application affiche PROD V3.6.1 MODULAIRE.
+4. Vérifier que l'application affiche PROD V3.6.3 MODULAIRE.
 
 ## Version
 
-PROD V3.6.1 MODULAIRE
+PROD V3.6.3 MODULAIRE
 
 
-## Version PROD V3.6.1
+## Version PROD V3.6.3
 
 - Retrait du bouton **+ Nouvelle cliente** dans le suivi mariages.
 - Le bouton **🎯 Préparer mon rendez-vous** devient l’entrée principale pour créer une nouvelle fiche mariage guidée.

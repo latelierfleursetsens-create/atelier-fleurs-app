@@ -1,3 +1,9 @@
+## PROD V3.6.3 — Correctif devis mariage
+
+- Le canal de communication n’apparaît plus sur les devis ni les factures côté client.
+- Lors de la création/recréation d’un devis depuis une fiche mariage, les coordonnées sont reprises depuis la fiche cliente à jour si elle existe.
+- Correction utile notamment après modification du numéro de téléphone dans la fiche cliente.
+
 ## PROD V3.6.1 — CRM Mariage sans bouton Nouvelle cliente
 
 - Passage en production de la V3.6.1 validée.
