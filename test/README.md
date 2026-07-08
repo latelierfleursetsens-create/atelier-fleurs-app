@@ -1,39 +1,22 @@
-# L’Atelier Fleurs & Sens — V3.4.2 TEST
+# L'Atelier Fleurs & Sens — V3.5.0 TEST MODULAIRE
 
-Version de test modulaire dédiée au suivi des mariages.
+Version test dédiée au **Wedding Manager**.
 
-## Nouveautés
+## Nouveautés V3.5.0
 
-- Ajout d’un bloc **Mariages en cours** sur le tableau de bord.
-- Ajout d’une progression par dossier mariage : nombre d’étapes réalisées et pourcentage.
-- Ajout dans chaque fiche mariage d’un **Suivi du mariage** sous forme de checklist métier.
-- Étapes automatiques : devis envoyé, devis accepté, acompte encaissé, solde encaissé, livraison, photos, mariage terminé.
-- Étapes manuelles : inspirations reçues, moodboard, validation des fleurs, commande fournisseur, bouquet, accessoires.
-- Ajout d’une **Chronologie** dans chaque fiche mariage : devis, factures, livraison, date du mariage et notes internes.
-- Conservation des prestations complémentaires mariage ajoutées en V3.3.1.
+- Bandeau résumé en haut de chaque fiche mariage.
+- Progression, prochaine action recommandée et reste à encaisser.
+- Timeline horizontale du flux mariage.
+- Jalons J-180 / J-90 / J-30 / J-15 / J-7 / J-2 / Jour J.
+- To-do dédiée à chaque mariage.
+- Bloc documents du dossier : inspirations, synthèse, devis, factures.
+- Bloc budget : CA devis, coût matières, marge estimée, reste à encaisser.
 
-## Test recommandé
+## Conservé depuis V3.4.2
 
-1. Remplacer tous les fichiers sur le GitHub de test.
-2. Ouvrir l’application en navigation privée ou faire un rechargement forcé.
-3. Vérifier le tableau de bord : **TEST V3.4.1 MODULAIRE**.
-4. Vérifier le nouveau bloc **Mariages en cours**.
-5. Ouvrir une fiche mariage.
-6. Cocher quelques étapes manuelles dans **Suivi du mariage**.
-7. Vérifier que la progression se met à jour.
-8. Ajouter une note dans la **Chronologie**.
-9. Vérifier que les étapes automatiques se cochent selon le devis/factures/photos/livraison.
+- Suivi du mariage avec cases automatiques et manuelles.
+- Mariages en cours triés par date de livraison.
+- Prestations complémentaires mariage et atelier.
+- Tableau de bord V3.2.1.
 
-
-## V3.4.2 TEST — Correctif anciens mariages
-
-- Les étapes automatiques du suivi mariage restent automatiques si le logiciel trouve le devis, la facture, la livraison ou les médias liés.
-- Si le dossier a été créé avant l’ERP ou géré hors logiciel, les étapes peuvent désormais être cochées manuellement.
-- Ajout d’un statut visible : Automatique, Manuel, À valider ou auto, À faire.
-- Ajout d’une prochaine étape recommandée dans la fiche mariage.
-- Aucun changement sur les ateliers.
-
-
-## V3.4.2 TEST
-- Le bloc “Mariages en cours” du tableau de bord est désormais classé par date de livraison, du plus proche au plus éloigné.
-- Les mariages sans date de livraison restent en bas de liste.
+À tester uniquement sur le dépôt GitHub TEST.
