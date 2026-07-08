@@ -1,3 +1,24 @@
+## V3.6.4 PROD
+- Correctif téléphone sur devis mariage : priorité à la fiche cliente mise à jour, même en cas de doublon client.
+- Lorsqu’une fiche cliente est enregistrée, elle reçoit désormais un `updatedAt` pour être priorisée dans les futurs devis.
+
+## PROD V3.6.3 — Correctif devis mariage
+
+- Le canal de communication n’apparaît plus sur les devis ni les factures côté client.
+- Lors de la création/recréation d’un devis depuis une fiche mariage, les coordonnées sont reprises depuis la fiche cliente à jour si elle existe.
+- Correction utile notamment après modification du numéro de téléphone dans la fiche cliente.
+
+## PROD V3.6.1 — CRM Mariage sans bouton Nouvelle cliente
+
+- Passage en production de la V3.6.1 validée.
+- CRM Mariage avec fiche en onglets.
+- Retrait du bouton + Nouvelle cliente au profit de Préparer mon rendez-vous.
+
+## TEST V3.6.1 — CRM Mariage sans bouton Nouvelle cliente
+
+- Retrait du bouton **+ Nouvelle cliente** dans le suivi mariages.
+- La création d’un nouveau dossier mariage passe maintenant par **🎯 Préparer mon rendez-vous**.
+
 ## TEST V3.6.0 — CRM Mariage
 
 - Réorganisation de la fiche mariage en onglets.
