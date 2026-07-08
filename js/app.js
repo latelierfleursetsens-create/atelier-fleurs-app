@@ -1,9 +1,13 @@
-/* V3.1.0 TEST MODULAIRE — bibliothèque de prestations réutilisables dans les paramètres. */
+/* V3.2.1 PROD MODULAIRE — tableau de bord ajusté : Todo list placée entre le module Bonjour Elodie et le centre de notifications. */
 "use strict";
 
-var APP_VERSION = "PROD V3.1.1 MODULAIRE";
-var APP_VERSION_NOTE = "Version test basée sur la PROD V3.0.4 : ajout d’une bibliothèque de prestations réutilisables dans Paramètres.";
+var APP_VERSION = "PROD V3.2.1 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : tableau de bord ajusté avec la Todo list placée juste sous le module Bonjour Elodie.";
 var APP_CHANGELOG = [
+  "V3.2.1 PROD — Todo list déplacée juste entre Bonjour Elodie et le centre de notifications.",
+  "V3.2.0 TEST — Nouveau tableau de bord orienté actions : version discrète, indicateurs clés et journal déplacé dans Paramètres > À propos de l’application.",
+  "V3.1.2 TEST — Ajout du centre de notifications prioritaires sur le tableau de bord.",
+  "V3.1.1 TEST — Correctif encaissements ateliers avec devis/factures liés.",
   "V3.1.0 TEST — Ajout d’une bibliothèque de prestations réutilisables dans Paramètres.",
   "V3.0.4 PROD — Correctif du double comptage des ateliers dans À encaisser prochainement.",
   "V3.0.3 PROD — Architecture modulaire validée et mise en production.",
@@ -14,12 +18,10 @@ var APP_CHANGELOG = [
   "V2.1.1 TEST — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
 ];
 var APP_ROADMAP = [
-  "Tester la bibliothèque de prestations sur les ateliers",
+  "Tester le nouvel emplacement de la Todo list",
+  "Valider le centre de notifications prioritaires",
   "Ajouter le calcul automatique des frais de déplacement",
-  "Découper réellement le module Clients dans js/clients.js",
-  "Découper le module Ateliers dans js/ateliers.js",
-  "Créer une bibliothèque de prestations réutilisables",
-  "Ajouter le calcul automatique des frais de déplacement",
+  "Découper réellement les modules Clients et Ateliers dans leurs fichiers JS",
   "Préparer la future gestion de stock fleurs et fournitures"
 ];
 
@@ -47,7 +49,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1 };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -527,6 +529,13 @@ function renderModal(){
     return;
   }
 
+  if(ui.versionNotesModal){
+    var vm=document.createElement("div");
+    vm.innerHTML=viewVersionNotesModal();
+    document.body.appendChild(vm.firstElementChild);
+    return;
+  }
+
   if(ui.pendingPaymentsModal){
     var pm=document.createElement("div");
     pm.innerHTML=viewPendingPaymentsModal();
@@ -693,19 +702,95 @@ function viewPendingPaymentsModal(){
 
 
 function viewVersionDashboard(){
+  var env = APP_VERSION.indexOf("TEST")>=0 ? "TEST" : "PROD";
+  var bg = env==="TEST" ? "#fffaf5" : "#eef7f1";
+  var border = env==="TEST" ? "var(--gold-s)" : "#9fc9ab";
+  return '<div class="card" style="background:'+bg+';border-color:'+border+';margin-bottom:12px;padding:10px 14px;">'+
+    '<div class="flexb" style="gap:8px;">'+
+      '<div><b style="color:var(--green);">✅ Version : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:2px;">☁ Synchronisation active · '+esc(APP_VERSION_NOTE)+'</div></div>'+ 
+      '<button class="btn small ghost" data-action="version-notes-open">ℹ️ Notes de version</button>'+ 
+    '</div>'+ 
+  '</div>';
+}
+function viewVersionNotesModal(){
   var changes=(APP_CHANGELOG||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
   var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
-  return '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;">'+
+  return '<div id="modal" class="modal"><div class="modal-inner">'+
+    '<div class="modal-actions"><button class="btn ghost" data-action="version-notes-close">Fermer</button></div>'+ 
+    '<div class="card" style="background:#fff;">'+
+      '<h2 style="margin-top:0;">À propos de l’application</h2>'+ 
+      '<div class="summary" style="margin-bottom:14px;"><b style="color:var(--bordeaux);">'+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">'+esc(APP_VERSION_NOTE)+'</div></div>'+ 
+      '<div class="inline" style="align-items:flex-start;">'+
+        '<div><h3 style="margin:0 0 8px;">Modifications récentes</h3><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+changes+'</ul></div>'+ 
+        '<div><h3 style="margin:0 0 8px;">Prochaines étapes</h3><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+road+'</ul></div>'+ 
+      '</div>'+ 
+    '</div>'+ 
+  '</div></div>';
+}
+function dashboardKpiCounts(){
+  var today=todayISO();
+  var devis=(state.devis||[]).filter(function(d){return d.statut==="envoye" || d.statut==="brouillon";}).length;
+  var ateliers=(state.ateliers||[]).filter(function(a){return a.date && a.date>=today && a.statut!=="annule" && a.statut!=="termine";}).length;
+  var mariages=(state.mariages||[]).filter(function(m){
+    if(mariageTermine(m)) return false;
+    var d=m.dateLivraison||m.dateMariage||"";
+    return d && d>=today;
+  }).length;
+  return {devis:devis,ateliers:ateliers,mariages:mariages};
+}
+function viewDashboardHero(enAttente){
+  var d=todaySmartData();
+  var resume=[];
+  if(d.echues) resume.push(d.echues+' facture'+(d.echues>1?'s':'')+' échue'+(d.echues>1?'s':''));
+  if(d.devisRelance) resume.push(d.devisRelance+' devis à relancer');
+  if(d.ateliersSoon) resume.push(d.ateliersSoon+' atelier'+(d.ateliersSoon>1?'s':'')+' sous 7 jours');
+  if(d.mariagesLivraison) resume.push(d.mariagesLivraison+' mariage'+(d.mariagesLivraison>1?'s':'')+' à livrer sous 7 jours');
+  if(!resume.length) resume.push('aucune urgence prioritaire');
+  return '<div class="card" style="background:linear-gradient(135deg,#fffdfb,#f4e4dd);border-color:var(--gold-s);margin-bottom:14px;">'+
     '<div class="flexb" style="align-items:flex-start;">'+
-      '<div><b style="color:var(--green);">✅ Version active : '+esc(APP_VERSION)+'</b>'+
-      '<div class="muted" style="font-size:12px;margin-top:4px;">'+esc(APP_VERSION_NOTE)+'</div></div>'+
-      '<span class="pill" style="background:var(--green-s);color:var(--green);">Journal V3</span>'+
-    '</div>'+
-    '<div class="inline" style="margin-top:12px;align-items:flex-start;">'+
-      '<div><div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">✔ Modifications récentes</div><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.5;">'+changes+'</ul></div>'+
-      '<div><div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">□ Prochaines étapes</div><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.5;">'+road+'</ul></div>'+
-    '</div>'+
-    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Ce bloc sert de journal de bord pour savoir exactement ce qui a été ajouté ou corrigé dans la version de production.</p>'+
+      '<div><div class="serif" style="font-size:24px;font-weight:700;color:var(--bordeaux);">Bonjour Elodie 🌸</div>'+ 
+      '<p class="muted" style="margin:6px 0 0;">Aujourd’hui : '+esc(resume.join(' · '))+'.</p></div>'+ 
+      '<div style="text-align:right;"><div class="muted" style="font-size:12px;">À encaisser prochainement</div><button class="btn primary" data-action="dash-pending-payments" style="margin-top:4px;">'+euro(enAttente)+'</button></div>'+ 
+    '</div>'+ 
+  '</div>';
+}
+function kpiCard(icon,lab,val,action,hint){
+  return '<div class="stat" '+(action?'data-action="'+action+'" style="cursor:pointer;"':'')+'><div class="lab">'+icon+' '+esc(lab)+'</div><div class="val" style="font-size:24px;">'+val+'</div>'+(hint?'<div class="muted" style="font-size:11px;margin-top:4px;">'+esc(hint)+'</div>':'')+'</div>';
+}
+function viewDashboardKpis(enAttente){
+  var c=dashboardKpiCounts();
+  return '<div class="grid-stats" style="margin-bottom:14px;">'+
+    kpiCard('💰','À encaisser',euro(enAttente),'dash-pending-payments','Factures, acomptes, soldes et ateliers')+
+    kpiCard('📄','Devis en attente',String(c.devis),'nav-devis','Brouillons ou envoyés')+
+    kpiCard('🌸','Ateliers à venir',String(c.ateliers),'nav-ateliers','À partir d’aujourd’hui')+
+    kpiCard('💍','Mariages à venir',String(c.mariages),'nav-mariages','Non terminés')+
+  '</div>';
+}
+function viewDashboardNextSevenDays(){
+  var today=todayISO(), end=addDays(today,7);
+  var events=calEvents().filter(function(e){return e.date>=today && e.date<=end;}).slice(0,8);
+  var html='<div class="card" style="margin-bottom:14px;"><div class="flexb"><h3 style="margin:0;">📆 Les 7 prochains jours</h3><button class="btn small ghost" data-action="go-calendrier">Calendrier</button></div>';
+  if(!events.length) return html+'<p class="muted" style="margin:10px 0 0;">Aucun événement ou paiement prévu dans les 7 prochains jours.</p></div>';
+  var by={};
+  events.forEach(function(e){ by[e.date]=by[e.date]||[]; by[e.date].push(e); });
+  Object.keys(by).sort().forEach(function(date){
+    html+='<div style="margin-top:10px;"><div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;">'+frDate(date)+'</div>';
+    by[date].forEach(function(e){
+      html+='<button data-action="'+esc(e.action)+'" style="width:100%;border:none;background:#fff;text-align:left;cursor:pointer;font-family:inherit;padding:8px 0;border-bottom:1px solid var(--line);"><b style="color:var(--bordeaux);">'+e.icon+' '+esc(e.title)+'</b><div class="muted" style="font-size:12px;">'+(e.sub?esc(e.sub):'')+'</div></button>';
+    });
+    html+='</div>';
+  });
+  return html+'</div>';
+}
+function viewDashboardUrssaf(currentMonthSplit, monthLabel){
+  return '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+ 
+    '<div class="grid-stats" style="margin-bottom:0;">'+
+      stat("CA total à déclarer", euro(currentMonthSplit.total), true)+
+      stat("Vente de biens", euro(currentMonthSplit.biens), false, "var(--blush-s)")+
+      stat("Prestations de services", euro(currentMonthSplit.services), false, "var(--green-s)")+
+    '</div>'+ 
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Calculé sur les encaissements réellement payés du mois : factures payées, encaissements manuels et ventes site internet.</p>'+ 
   '</div>';
 }
 
@@ -718,6 +803,88 @@ function viewTodoDashboard(){
     '</div>'+
     '<p class="muted" style="margin:0;font-size:12px;">Cette liste ne sauvegarde plus à chaque lettre. Clique sur Enregistrer ou quitte le champ.</p>'+
   '</div>';
+}
+
+
+function dashboardPriorityNotifications(){
+  var today=todayISO();
+  var soon7=addDays(today,7);
+  var soon14=addDays(today,14);
+  var items=[];
+  function add(level,title,detail,amount,action,sortDate){
+    items.push({level:level,title:title,detail:detail||"",amount:amount,action:action||"",sortDate:sortDate||today});
+  }
+  function levelRank(l){ return l==="danger"?0:(l==="warning"?1:2); }
+
+  (state.factures||[]).forEach(function(f){
+    if(f.statut==="payee") return;
+    var due=f.echeance||f.date||"";
+    var client=(f.client&&f.client.nom)||"Cliente non renseignée";
+    var label=(f.numero||"Facture")+" · "+(TYPE_FAC[f.type]||"Facture");
+    if(due && due<today){
+      add("danger","Facture échue",label+" · "+client+" · échéance "+frDate(due),Number(f.montant)||0,"notif-open-facture-"+f.id,due);
+    }else if(due && due<=soon7){
+      add("warning","Facture à encaisser bientôt",label+" · "+client+" · échéance "+frDate(due),Number(f.montant)||0,"notif-open-facture-"+f.id,due);
+    }
+  });
+
+  (state.devis||[]).forEach(function(d){
+    if(d.statut!=="envoye") return;
+    if(d.date && d.date<=addDays(today,-7)){
+      var client=(d.client&&d.client.nom)||"Cliente non renseignée";
+      add("warning","Devis à relancer",(d.numero||"Devis")+" · "+client+" · envoyé le "+frDate(d.date),totals(d.lignes||[],state.settings.partService).total,"notif-open-devis-"+d.id,d.date);
+    }
+  });
+
+  (state.mariages||[]).forEach(function(m){
+    if(mariageTermine(m)) return;
+    var dl=m.dateLivraison||m.dateMariage||"";
+    if(dl && dl>=today && dl<=soon14){
+      add("warning","Mariage proche",(m.nom||"Cliente")+" · livraison/mariage le "+frDate(dl)+(m.lieu?" · "+m.lieu:""),null,"notif-open-mariage-"+m.id,dl);
+    }
+  });
+
+  (state.ateliers||[]).forEach(function(a){
+    if(a.statut==="annule"||a.statut==="termine") return;
+    if(a.date && a.date>=today && a.date<=soon7){
+      add("info","Atelier à venir",atelierModeLabel(atelierMode(a))+" · "+(a.theme||"À compléter")+" · "+frDate(a.date),atelierTotals(a).total,"notif-open-atelier-"+a.id,a.date);
+    }
+  });
+
+  (state.stockItems||[]).forEach(function(it){
+    if(Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil)){
+      add("warning","Stock bas",(it.nom||"Article")+" · reste "+(Number(it.quantite)||0)+" "+(it.unite||"")+" · seuil "+(Number(it.seuil)||0),null,"nav-stock",today);
+    }
+  });
+
+  items.sort(function(a,b){
+    return levelRank(a.level)-levelRank(b.level) || (a.sortDate||"").localeCompare(b.sortDate||"") || (a.title||"").localeCompare(b.title||"");
+  });
+  return items.slice(0,10);
+}
+function viewNotificationsDashboard(){
+  var items=dashboardPriorityNotifications();
+  var danger=items.filter(function(i){return i.level==="danger";}).length;
+  var warning=items.filter(function(i){return i.level==="warning";}).length;
+  var title=danger?"🔴 "+danger+" urgence"+(danger>1?"s":""):(warning?"🟠 "+warning+" point"+(warning>1?"s":"")+" à surveiller":"🟢 Tout est calme");
+  var html='<div class="card" style="border-color:var(--bordeaux);background:#fffdfb;margin-bottom:14px;">'+
+    '<div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0;">🔔 Centre de notifications</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Actions prioritaires calculées automatiquement : factures, devis, mariages, ateliers et stock.</p></div><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(title)+'</span></div>';
+  if(!items.length){
+    html+='<p class="muted" style="margin:12px 0 0;">Aucune alerte prioritaire pour le moment.</p>';
+  }else{
+    html+='<div style="margin-top:10px;">';
+    items.forEach(function(it){
+      var bg=it.level==="danger"?"#fbe6df":(it.level==="warning"?"#fbf3e6":"var(--green-s)");
+      var icon=it.level==="danger"?"⚠️":(it.level==="warning"?"⏳":"ℹ️");
+      html+='<div class="checkrow" style="align-items:flex-start;background:'+bg+';border-radius:10px;border-bottom:none;margin-bottom:7px;padding:10px;">'+
+        '<div style="flex:1;min-width:0;"><div><b style="color:var(--bordeaux);">'+icon+' '+esc(it.title)+'</b></div><div class="muted" style="font-size:12px;margin-top:2px;">'+esc(it.detail)+'</div></div>'+
+        '<div style="text-align:right;min-width:96px;">'+(it.amount!=null?'<b style="color:var(--bordeaux);">'+euro(it.amount)+'</b>':'')+(it.action?'<div style="margin-top:6px;"><button class="btn small ghost" data-action="'+esc(it.action)+'">Ouvrir</button></div>':'')+'</div>'+
+      '</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  return html;
 }
 
 function viewDashboard(){
@@ -756,34 +923,21 @@ function viewDashboard(){
   }
 
   return ''+
-  '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
-    '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
+  '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+ 
+    '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+ 
   viewVersionDashboard()+
-  '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
-    '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
-    '<div class="grid-stats" style="margin-bottom:0;">'+
-      stat("CA total à déclarer", euro(currentMonthSplit.total), true)+
-      stat("Vente de biens", euro(currentMonthSplit.biens), false, "var(--blush-s)")+
-      stat("Prestations de services", euro(currentMonthSplit.services), false, "var(--green-s)")+
-    '</div>'+
-    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Calculé sur les encaissements réellement payés du mois : factures payées, encaissements manuels et ventes site internet.</p>'+
-  '</div>'+
-
-  '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
-    '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
-    '<div class="inline">'+
-      '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
-      '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
-    '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version '+esc(APP_VERSION)+'.</p>'+
-  '</div>'+
+  viewDashboardHero(enAttente)+
+  viewTodoDashboard()+
+  viewNotificationsDashboard()+
+  viewDashboardKpis(enAttente)+
+  viewDashboardNextSevenDays()+
+  viewDashboardUrssaf(currentMonthSplit, monthLabel)+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
     '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — '+esc(APP_VERSION)+'</p>'+
   '</div>'+
   prepBanner+
-  viewSmartDashboard()+
   viewAteliersPreview()+
   viewStockPreview()+
   viewCalendarPreview()+
@@ -3262,11 +3416,23 @@ function viewPrestationsBibliothequeSettings(){
     '<p class="muted" style="margin:10px 0 0;font-size:12px;">Exemples : frais de déplacement en service, pack premium en bien, personnalisation en service. Tu peux mettre un prix par défaut ou laisser à 0 € pour le saisir au cas par cas.</p></div>';
   return html;
 }
+function viewAboutAppSettings(){
+  var changes=(APP_CHANGELOG||[]).slice(0,6).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
+  var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
+  return '<div class="card"><div class="flexb" style="align-items:flex-start;">'+
+    '<div><h3 style="margin:0 0 6px;">À propos de l’application</h3><p class="muted" style="margin:0;font-size:12px;">Journal technique déplacé ici pour garder le tableau de bord clair.</p></div>'+ 
+    '<span class="pill" style="background:var(--green-s);color:var(--green);">'+esc(APP_VERSION)+'</span></div>'+ 
+    '<p class="muted" style="font-size:12px;margin:10px 0 0;">'+esc(APP_VERSION_NOTE)+'</p>'+ 
+    '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--bordeaux);font-weight:700;">Voir les modifications récentes</summary><ul style="margin:8px 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+changes+'</ul></details>'+ 
+    '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--bordeaux);font-weight:700;">Voir les prochaines étapes</summary><ul style="margin:8px 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+road+'</ul></details>'+ 
+  '</div>';
+}
 function viewParams(){
   var s=state.settings, partB=Math.max(0,100-num(s.partService));
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Ces informations apparaissent sur vos devis et factures.</p>'+
+  viewAboutAppSettings()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
@@ -4249,6 +4415,17 @@ async function envoyerDocumentEmail(kind, doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 function handleAction(action){
 
+  if(action==="version-notes-open"){
+    ui.versionNotesModal=true;
+    renderModal();
+    return;
+  }
+  if(action==="version-notes-close"){
+    ui.versionNotesModal=false;
+    renderModal();
+    return;
+  }
+
   if(action==="payment-prompt-ok"){
     var sel=document.getElementById("paymentPromptSelect");
     var val=sel?sel.value:"";
@@ -4350,7 +4527,25 @@ function handleAction(action){
   }
 
   
-  if(action==="treso-current-month"){ var tn=new Date(); ui.tresoYear=tn.getFullYear(); ui.tresoMonth=tn.getMonth()+1; render(); return; }
+
+  if(action.indexOf("notif-open-facture-")===0){
+    var nf=(state.factures||[]).find(function(f){return f.id===action.slice(19);});
+    if(nf){ ui.preview={kind:"facture",doc:nf}; renderModal(); }
+    return;
+  }
+  if(action.indexOf("notif-open-devis-")===0){
+    var nd=findDevis(action.slice(17));
+    if(nd){ ui.preview={kind:"devis",doc:nd}; renderModal(); }
+    return;
+  }
+  if(action.indexOf("notif-open-atelier-")===0){
+    ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(19); ui.mariageOpen=null; ui.commandeOpen=null; render(); window.scrollTo(0,0); return;
+  }
+  if(action.indexOf("notif-open-mariage-")===0){
+    ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(19); ui.atelierOpen=null; ui.commandeOpen=null; render(); window.scrollTo(0,0); return;
+  }
+
+    if(action==="treso-current-month"){ var tn=new Date(); ui.tresoYear=tn.getFullYear(); ui.tresoMonth=tn.getMonth()+1; render(); return; }
 
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 

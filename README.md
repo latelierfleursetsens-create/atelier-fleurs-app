@@ -1,27 +1,28 @@
-# L'Atelier Fleurs & Sens — V3.1.1 PROD MODULAIRE
+# L'Atelier Fleurs & Sens — V3.2.1 PROD MODULAIRE
 
-Version de test basée sur la PROD V3.0.4.
+Version de production basée sur la V3.2.1 TEST validée.
 
-## Nouveauté V3.1.1 PROD
+## Nouveauté V3.2.1 PROD
 
-- Ajout d’une bibliothèque de prestations dans **Paramètres**.
-- Les prestations actives deviennent des boutons rapides dans les ateliers.
-- Chaque prestation peut avoir un libellé, une catégorie interne bien/service, une quantité, un prix par défaut et un statut actif/inactif.
-- Les catégories restent internes et ne s’affichent pas sur les documents clients.
+- Todo list placée entre le module Bonjour Elodie et le centre de notifications.
+- Nouveau tableau de bord plus clair et orienté actions.
+- Version affichée en haut sous forme discrète.
+- Suppression du gros bloc de journal des modifications sur le tableau de bord.
+- Journal déplacé dans **Paramètres > À propos de l’application**.
+- Ajout de cartes rapides : à encaisser, devis en attente, ateliers à venir, mariages à venir.
+- Ajout d’un bloc **Les 7 prochains jours**.
+- Conservation du centre de notifications prioritaire.
 
 ## À tester
 
-1. Aller dans **Paramètres > Bibliothèque de prestations**.
-2. Ajouter ou modifier une prestation.
-3. Enregistrer les paramètres.
-4. Ouvrir un atelier.
-5. Vérifier que les boutons rapides affichent les prestations actives.
-6. Ajouter une prestation au devis atelier et vérifier le total.
+1. Vérifier que le tableau de bord affiche bien `PROD V3.2.1 MODULAIRE`.
+2. Vérifier que le journal ne prend plus de place sur le tableau de bord.
+3. Cliquer sur `Notes de version`.
+4. Aller dans `Paramètres` et vérifier le bloc `À propos de l’application`.
+5. Tester les cartes rapides et les boutons `Ouvrir` du centre de notifications.
 
-## Base utilisée
+## Base conservée
 
-- PROD V3.0.4 MODULAIRE — correctif encaissements ateliers.
-
-
-## V3.1.1 PROD
-Correctif du calcul “À encaisser prochainement” pour les ateliers : le total de référence reprend le devis lié, les prestations complémentaires sont incluses, et les factures d’acompte/solde reliées par devis sont déduites du reste à facturer.
+- V3.1.2 TEST — centre de notifications.
+- V3.1.1 TEST — correctif encaissements ateliers.
+- V3.1.0 TEST — bibliothèque de prestations.

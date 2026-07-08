@@ -1,4 +1,23 @@
-## V3.1.1 PROD
+## V3.2.1 PROD
+
+- Todo list déplacée juste sous le bloc **Bonjour Elodie**.
+- Le centre de notifications vient maintenant après la Todo list.
+- Le journal des versions reste dans **Paramètres > À propos de l’application**.
+
+## V3.2.0 TEST
+
+- Nouveau tableau de bord allégé et orienté actions.
+- La version reste visible en haut, mais le journal complet est déplacé.
+- Le journal est accessible via le bouton `Notes de version` et dans `Paramètres > À propos de l’application`.
+- Ajout des cartes rapides : à encaisser, devis en attente, ateliers à venir, mariages à venir.
+- Ajout d’un bloc synthétique des 7 prochains jours.
+
+## V3.1.2 TEST
+- Ajout du centre de notifications prioritaires sur le tableau de bord.
+- Alertes automatiques : factures échues, factures à encaisser sous 7 jours, devis à relancer, mariages proches, ateliers proches et stock bas.
+- Ajout de boutons d'accès direct vers les documents ou fiches concernés.
+
+## V3.1.1 TEST
 - Correction du calcul “À encaisser prochainement” pour les ateliers avec prestations complémentaires.
 - Si un devis atelier existe, son total devient la référence.
 - Les factures liées au devis sont déduites du reste à facturer, même si elles ne sont pas encore payées.
