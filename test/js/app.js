@@ -1,9 +1,10 @@
-/* V3.6.5 TEST MODULAIRE — Actualisation automatique du devis mariage lié. */
+/* V3.6.6 TEST MODULAIRE — Correctif téléphone devis mariage robuste. */
 "use strict";
 
-var APP_VERSION = "TEST V3.6.5 MODULAIRE";
-var APP_VERSION_NOTE = "Nouveauté : le devis mariage lié se met à jour automatiquement quand la fiche mariage ou la fiche cliente est modifiée.";
+var APP_VERSION = "TEST V3.6.6 MODULAIRE";
+var APP_VERSION_NOTE = "Correctif : les devis mariage reprennent le téléphone de la fiche cliente liée, même en cas d’ancien doublon ou de recréation.";
 var APP_CHANGELOG = [
+  "V3.6.6 TEST — Correctif téléphone devis mariage : priorité stricte à la fiche cliente liée / mise à jour, même en cas de doublon.",
   "V3.6.5 TEST — Actualisation automatique du devis mariage lié depuis la fiche mariage et la fiche cliente.",
   "V3.6.4 PROD — Correctif téléphone devis mariage : priorité à la fiche cliente à jour lors de la création/recréation du devis.",
   "V3.6.3 PROD — Correctif devis mariage : canal de communication masqué côté client + coordonnées client à jour lors de la création/recréation du devis.",
@@ -4260,16 +4261,26 @@ function createMariageFromRdv(){
   var d=captureMariageRdvDraft();
   if(!String(d.nom||"").trim()){ toast("Indique au minimum le nom de la cliente ou du couple."); return; }
   var articles=mariageRdvArticles(d);
-  var m={ id:uid(), nom:d.nom.trim(), email:d.email, tel:d.tel, canalCommunication:d.canalCommunication, dateMariage:d.dateMariage, dateLivraison:d.dateLivraison, modeLivraison:d.modeLivraison, lieu:d.lieu, theme:[d.theme,d.couleurs].filter(Boolean).join(" · "), budget:d.budget, besoins:mariageRdvBesoins(d), synthese:mariageRdvSynthese(d), statut:"contact", livre:false, dateLivree:"", relance:d.relance, devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"", articles:articles, prestationsComplementaires:[], coutMatieres:"", todoMariage:[], medias:[], historique:[], createdAt:todayISO(), suiviMariage:{} };
+  var k=normName(d.nom), c=(state.clients||[]).find(function(x){return normName(x.nom)===k;});
+  if(c){
+    // On met à jour la fiche cliente existante avec les informations du RDV seulement si elles sont renseignées.
+    // Le devis utilisera ensuite cette fiche cliente liée comme source unique des coordonnées.
+    if(d.email) c.email=d.email;
+    if(d.tel) c.tel=d.tel;
+    if(d.lieu && !c.adresse) c.adresse=d.lieu;
+    if(d.canalCommunication) c.canal=d.canalCommunication;
+    c.updatedAt=todayISO();
+  } else {
+    c={id:uid(),nom:d.nom.trim(),adresse:d.lieu||"",email:d.email||"",tel:d.tel||"",canal:d.canalCommunication||"",anniversaire:"",notes:"Créée depuis l’assistant RDV mariage.",updatedAt:todayISO()};
+    state.clients.push(c);
+  }
+  var m={ id:uid(), clientId:c.id, nom:d.nom.trim(), email:d.email, tel:d.tel, canalCommunication:d.canalCommunication, dateMariage:d.dateMariage, dateLivraison:d.dateLivraison, modeLivraison:d.modeLivraison, lieu:d.lieu, theme:[d.theme,d.couleurs].filter(Boolean).join(" · "), budget:d.budget, besoins:mariageRdvBesoins(d), synthese:mariageRdvSynthese(d), statut:"contact", livre:false, dateLivree:"", relance:d.relance, devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"", articles:articles, prestationsComplementaires:[], coutMatieres:"", todoMariage:[], medias:[], historique:[], createdAt:todayISO(), suiviMariage:{} };
   if(String(d.inspirations||"").trim()) m.suiviMariage.inspirations=true;
   m.historique.unshift({date:todayISO(),texte:"Rendez-vous téléphonique préparé dans l’assistant RDV."});
   if(d.notes) m.historique.unshift({date:todayISO(),texte:"Notes RDV : "+d.notes});
   m.todoMariage.push({id:uid(),label:"Envoyer la synthèse du rendez-vous",done:false,createdAt:todayISO()});
   m.todoMariage.push({id:uid(),label:"Préparer le devis mariage",done:false,createdAt:todayISO()});
   state.mariages.unshift(m);
-  var k=normName(m.nom), c=(state.clients||[]).find(function(x){return normName(x.nom)===k;});
-  if(c){ if(!c.email&&m.email)c.email=m.email; if(!c.tel&&m.tel)c.tel=m.tel; if(!c.canal&&m.canalCommunication)c.canal=m.canalCommunication; }
-  else state.clients.push({id:uid(),nom:m.nom,adresse:m.lieu||"",email:m.email||"",tel:m.tel||"",canal:m.canalCommunication||"",anniversaire:"",notes:"Créée depuis l’assistant RDV mariage."});
   ui.mariageRdvDraft=null; ui.mariageView="fiches"; ui.mariageOpen=m.id; ui.mariageDetailTab="resume";
   saveCache(); render(); window.scrollTo(0,0); toast("Fiche mariage créée depuis le rendez-vous.");
 }
@@ -5501,11 +5512,11 @@ function clientContactScore(c,idx){
 }
 function bestClientCandidate(list, mariageTel){
   if(!list || !list.length) return null;
-  var mt=digitsOnly(mariageTel);
-  var withDifferentTel=list.filter(function(x){ return x.c && x.c.tel && digitsOnly(x.c.tel) && digitsOnly(x.c.tel)!==mt; });
-  var pool=withDifferentTel.length ? withDifferentTel : list;
-  pool.sort(function(a,b){ return clientContactScore(b.c,b.i)-clientContactScore(a.c,a.i); });
-  return pool[0].c;
+  // Ancien bug : on privilégiait parfois une fiche dont le téléphone était différent
+  // de celui du mariage. En cas de doublon, cela pouvait faire remonter un vieux numéro
+  // dans le devis. Désormais on prend uniquement la fiche cliente la plus récente / complète.
+  list.sort(function(a,b){ return clientContactScore(b.c,b.i)-clientContactScore(a.c,a.i); });
+  return list[0].c;
 }
 function clientContactForMariage(m){
   if(!m) return null;
@@ -5520,23 +5531,25 @@ function clientContactForMariage(m){
     var emailMatches=[];
     list.forEach(function(c,i){ if((c.email||"").trim().toLowerCase()===email) emailMatches.push({c:c,i:i}); });
     var bestEmail=bestClientCandidate(emailMatches,m.tel);
-    if(bestEmail) return bestEmail;
+    if(bestEmail){ m.clientId=bestEmail.id; return bestEmail; }
   }
   if(nom){
     var nameMatches=[];
     list.forEach(function(c,i){ if((c.nom||"").trim().toLowerCase()===nom || clientNameMatches(c.nom, m.nom)) nameMatches.push({c:c,i:i}); });
     var bestName=bestClientCandidate(nameMatches,m.tel);
-    if(bestName) return bestName;
+    if(bestName){ m.clientId=bestName.id; return bestName; }
   }
   return null;
 }
 function devisClientFromMariage(m){
   var c=clientContactForMariage(m);
+  // Le devis doit reprendre en priorité la fiche cliente.
+  // Le téléphone stocké dans la fiche mariage peut être ancien, surtout pour les dossiers créés avant le CRM.
   return {
     nom:(c&&c.nom)||m.nom||"",
     adresse:(c&&c.adresse)||m.adresse||m.adresseCliente||m.lieu||"",
     email:(c&&c.email)||m.email||"",
-    tel:(c&&c.tel)||m.tel||""
+    tel:(c&&c.tel)||""
   };
 }
 
@@ -5583,13 +5596,21 @@ function val(id){ var e=document.getElementById(id); return e?e.value:""; }
 function finishWizard(){
   captureWizardInputs();
   var w=ui.wizard, client;
-  if(w.clientMode==="existant"){ client=state.clients.find(function(c){return c.id===w.clientId;}); }
+  var linkedMariage = ui.wizardLinkMariage ? getMariage(ui.wizardLinkMariage) : null;
+  if(linkedMariage){
+    // Pour un devis mariage, on ne se fie pas aux champs du wizard si une fiche cliente existe :
+    // cela évite de remettre un ancien téléphone dans le devis.
+    client=clientContactForMariage(linkedMariage);
+    if(!client){
+      client=Object.assign({id:uid(),updatedAt:todayISO()}, devisClientFromMariage(linkedMariage));
+      state.clients.push(client);
+      linkedMariage.clientId=client.id;
+    }
+  } else if(w.clientMode==="existant"){ client=state.clients.find(function(c){return c.id===w.clientId;}); }
   else {
     var k=normName(w.client.nom);
     client=state.clients.find(function(c){return normName(c.nom)===k;});
     if(client){
-      // En création/recréation de devis mariage, on force les coordonnées du devis avec la fiche cliente à jour.
-      // Sinon un ancien doublon client peut conserver un vieux téléphone dans le PDF.
       if(w.client.email) client.email=w.client.email;
       if(w.client.tel) client.tel=w.client.tel;
       if(w.client.adresse) client.adresse=w.client.adresse;
@@ -5597,9 +5618,11 @@ function finishWizard(){
     }
     else { client=Object.assign({id:uid(),updatedAt:todayISO()},w.client); state.clients.push(client); }
   }
-  var d={ id:uid(), numero:prochainNumero("devis"), date:w.date, validite:addDays(w.date,state.settings.validiteDevis), client:client, lignes:w.lignes, notes:w.notes, statut:"brouillon" };
+  var devisClient = linkedMariage ? devisClientFromMariage(linkedMariage) : Object.assign({}, client||{});
+  var d={ id:uid(), numero:prochainNumero("devis"), date:w.date, validite:addDays(w.date,state.settings.validiteDevis), client:devisClient, lignes:w.lignes, notes:w.notes, statut:"brouillon" };
   state.devis.unshift(d);
-  if(ui.wizardLinkMariage){ var lm=getMariage(ui.wizardLinkMariage); if(lm){ lm.devisLie=d.id; } ui.wizardLinkMariage=null; }
+  if(linkedMariage){ linkedMariage.devisLie=d.id; }
+  ui.wizardLinkMariage=null;
   ui.wizard=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+d.numero+" créé.");
 }
 function saveParams(){

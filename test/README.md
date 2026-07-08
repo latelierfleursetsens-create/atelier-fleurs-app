@@ -11,3 +11,7 @@
 1. Ouvrir une fiche mariage avec un devis lié.
 2. Modifier téléphone, synthèse, créations ou prestations complémentaires.
 3. Ouvrir le devis lié : les coordonnées et lignes doivent être à jour.
+
+
+## V3.6.6 TEST
+Correctif téléphone devis mariage : priorité stricte à la fiche cliente liée / mise à jour, même en cas de doublon ou de recréation du devis.
