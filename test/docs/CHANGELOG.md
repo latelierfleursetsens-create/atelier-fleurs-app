@@ -1,4 +1,13 @@
-# Changelog
+# CHANGELOG
+
+## V3.4.1 TEST — Suivi mariages semi-automatique
+
+- Les étapes devis/factures/livraison/photos/mariage terminé peuvent être validées manuellement pour les anciens dossiers.
+- Les étapes restent validées automatiquement quand un document lié est détecté.
+- Ajout des statuts “Automatique” et “Manuel” dans la checklist mariage.
+- Ajout de la prochaine étape recommandée dans la fiche mariage.
+- Pas de modification du module ateliers.
+
 
 ## V3.4.0 TEST — Centre de suivi des mariages
 

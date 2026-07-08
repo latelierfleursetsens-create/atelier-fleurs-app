@@ -1,4 +1,4 @@
-# L’Atelier Fleurs & Sens — V3.4.0 TEST
+# L’Atelier Fleurs & Sens — V3.4.1 TEST
 
 Version de test modulaire dédiée au suivi des mariages.
 
@@ -16,10 +16,19 @@ Version de test modulaire dédiée au suivi des mariages.
 
 1. Remplacer tous les fichiers sur le GitHub de test.
 2. Ouvrir l’application en navigation privée ou faire un rechargement forcé.
-3. Vérifier le tableau de bord : **TEST V3.4.0 MODULAIRE**.
+3. Vérifier le tableau de bord : **TEST V3.4.1 MODULAIRE**.
 4. Vérifier le nouveau bloc **Mariages en cours**.
 5. Ouvrir une fiche mariage.
 6. Cocher quelques étapes manuelles dans **Suivi du mariage**.
 7. Vérifier que la progression se met à jour.
 8. Ajouter une note dans la **Chronologie**.
 9. Vérifier que les étapes automatiques se cochent selon le devis/factures/photos/livraison.
+
+
+## V3.4.1 TEST — Correctif anciens mariages
+
+- Les étapes automatiques du suivi mariage restent automatiques si le logiciel trouve le devis, la facture, la livraison ou les médias liés.
+- Si le dossier a été créé avant l’ERP ou géré hors logiciel, les étapes peuvent désormais être cochées manuellement.
+- Ajout d’un statut visible : Automatique, Manuel, À valider ou auto, À faire.
+- Ajout d’une prochaine étape recommandée dans la fiche mariage.
+- Aucun changement sur les ateliers.

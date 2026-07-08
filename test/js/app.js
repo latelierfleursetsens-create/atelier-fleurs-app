@@ -1,9 +1,10 @@
-/* V3.4.0 TEST MODULAIRE — centre de suivi des mariages + checklist métier + chronologie. */
+/* V3.4.1 TEST MODULAIRE — suivi mariages : étapes automatiques + validation manuelle pour anciens dossiers. */
 "use strict";
 
-var APP_VERSION = "TEST V3.4.0 MODULAIRE";
-var APP_VERSION_NOTE = "Version test : ajout du centre de suivi des mariages, de la checklist métier et de la chronologie automatique.";
+var APP_VERSION = "TEST V3.4.1 MODULAIRE";
+var APP_VERSION_NOTE = "Version test : suivi des mariages amélioré avec étapes semi-automatiques et validation manuelle pour les anciens dossiers.";
 var APP_CHANGELOG = [
+  "V3.4.1 TEST — Suivi mariages : les étapes automatiques peuvent être cochées manuellement pour les anciens dossiers sans devis/facture liés.",
   "V3.4.0 TEST — Centre de suivi des mariages : checklist métier, progression sur le tableau de bord et chronologie automatique.",
   "V3.3.1 TEST — Prestations complémentaires proposées aussi dans les fiches mariage + affichage version corrigé.",
   "V3.3.0 TEST — Module Paramètres enrichi : déplacements, modèles de mails, coordonnées, URSSAF et prestations centralisées.",
@@ -3477,7 +3478,7 @@ function viewParams(){
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
-  '<div class="summary"><b>V3.4.0 TEST</b> — Centre de suivi des mariages, checklist métier et chronologie automatique.</div>'+
+  '<div class="summary"><b>V3.4.1 TEST</b> — Suivi mariages amélioré : étapes semi-automatiques et validation manuelle possible pour les anciens dossiers.</div>'+
   viewAboutAppSettings()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
@@ -3884,7 +3885,7 @@ var MARIAGE_WORKFLOW_STEPS=[
   {id:"devis_accepte",label:"Devis accepté",mode:"auto"},
   {id:"acompte_encaisse",label:"Acompte encaissé",mode:"auto"},
   {id:"fleurs_validees",label:"Choix des fleurs validé",mode:"manual"},
-  {id:"commande_fournisseur",label:"Commande fournisseur effectuée",mode:"manual"},
+  {id:"commande_fournisseur",label:"Commande fournisseur effectuée",mode:"semi"},
   {id:"bouquet_realise",label:"Bouquet réalisé",mode:"manual"},
   {id:"accessoires_realises",label:"Accessoires réalisés",mode:"manual"},
   {id:"solde_encaisse",label:"Solde encaissé",mode:"auto"},
@@ -3907,18 +3908,42 @@ function mariageCommandeFournisseurAuto(m){
 function mariageWorkflowManual(m,id){
   return !!(m && m.suiviMariage && m.suiviMariage[id]);
 }
-function mariageWorkflowStepValue(m,step){
-  if(!m) return false;
+function mariageWorkflowAutoValue(m,step){
+  if(!m || !step) return false;
   switch(step.id){
-    case "devis_envoye": return !!(m.devisEnvoye || (m.devisLie && (findDevis(m.devisLie)||{}).statut && (findDevis(m.devisLie)||{}).statut!=="brouillon"));
+    case "devis_envoye": {
+      var d=(m.devisLie?findDevis(m.devisLie):null);
+      return !!(m.devisEnvoye || (d && d.statut && d.statut!=="brouillon"));
+    }
     case "devis_accepte": return mariageDevisAccepte(m);
     case "acompte_encaisse": return mariageAcomptePaye(m);
     case "solde_encaisse": return mariageSoldePaye(m);
     case "livraison_effectuee": return !!(m.livre || m.dateLivree || m.statut==="realise");
     case "photos_ajoutees": return !!(m.medias && m.medias.length);
     case "mariage_termine": return mariageTermine(m);
-    case "commande_fournisseur": return mariageWorkflowManual(m,step.id) || mariageCommandeFournisseurAuto(m);
-    default: return mariageWorkflowManual(m,step.id);
+    case "commande_fournisseur": return mariageCommandeFournisseurAuto(m);
+    default: return false;
+  }
+}
+function mariageWorkflowStepValue(m,step){
+  return mariageWorkflowAutoValue(m,step) || mariageWorkflowManual(m,step.id);
+}
+function mariageWorkflowSource(m,step){
+  if(mariageWorkflowAutoValue(m,step)) return "auto";
+  if(mariageWorkflowManual(m,step.id)) return "manual";
+  return "none";
+}
+function mariageWorkflowAutoHint(step){
+  switch(step.id){
+    case "devis_envoye": return "Auto si un devis lié est envoyé. Cochable manuellement si le devis a été fait hors logiciel.";
+    case "devis_accepte": return "Auto si le devis lié est accepté. Cochable manuellement pour un ancien accord client.";
+    case "acompte_encaisse": return "Auto si une facture d’acompte liée est payée. Cochable manuellement si l’acompte a été encaissé hors logiciel.";
+    case "solde_encaisse": return "Auto si une facture de solde/totale liée est payée. Cochable manuellement si le solde a été encaissé hors logiciel.";
+    case "livraison_effectuee": return "Auto si la commande est marquée livrée/réalisée. Cochable manuellement si la livraison a été faite hors logiciel.";
+    case "photos_ajoutees": return "Auto si des médias sont ajoutés. Cochable manuellement si les photos sont rangées ailleurs.";
+    case "mariage_termine": return "Auto si le mariage est marqué réalisé/livré. Cochable manuellement pour clôturer un ancien dossier.";
+    case "commande_fournisseur": return "Auto si une commande fournisseur liée est détectée, sinon cochable manuellement.";
+    default: return "À cocher manuellement.";
   }
 }
 function mariageWorkflowStats(m){
@@ -3930,23 +3955,36 @@ function mariageWorkflowColor(pct){ return pct>=80?"var(--green)":(pct>=45?"var(
 function mariageWorkflowMissing(m){
   return MARIAGE_WORKFLOW_STEPS.filter(function(st){return !mariageWorkflowStepValue(m,st);}).map(function(st){return st.label;});
 }
+function mariageWorkflowNextStep(m){
+  return MARIAGE_WORKFLOW_STEPS.find(function(st){return !mariageWorkflowStepValue(m,st);}) || null;
+}
+function mariageWorkflowStatusHTML(source,step){
+  if(source==="auto") return '<span class="pill" style="background:var(--green-s);color:var(--green);">Automatique</span>';
+  if(source==="manual") return '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">Manuel</span>';
+  if(step.mode==="auto" || step.mode==="semi") return '<span class="pill" style="background:#efe7df;color:var(--ink-s);">À valider ou auto</span>';
+  return '<span class="pill" style="background:#efe7df;color:var(--ink-s);">À faire</span>';
+}
 function viewMariageWorkflow(m){
   var st=mariageWorkflowStats(m), color=mariageWorkflowColor(st.pct), missing=mariageWorkflowMissing(m).slice(0,3);
+  var next=mariageWorkflowNextStep(m);
   var rows=MARIAGE_WORKFLOW_STEPS.map(function(step){
-    var checked=mariageWorkflowStepValue(m,step);
-    var auto=step.mode==="auto" || (step.id==="commande_fournisseur" && mariageCommandeFournisseurAuto(m));
+    var source=mariageWorkflowSource(m,step);
+    var checked=source!=="none";
+    var autoLocked=source==="auto";
+    var hint=source==="auto"?"Validée automatiquement par le logiciel.":(source==="manual"?"Validée manuellement par toi.":mariageWorkflowAutoHint(step));
     return '<div class="checkrow" style="align-items:flex-start;">'+
-      '<input type="checkbox" '+(checked?'checked ':'')+(auto?'disabled ':'')+'data-action="mar-workflow-toggle-'+esc(step.id)+'">'+
-      '<div style="flex:1;'+(checked?'text-decoration:line-through;color:var(--ink-s);':'')+'"><b>'+esc(step.label)+'</b>'+
-        '<div class="muted" style="font-size:11px;margin-top:2px;">'+(auto?'Automatique selon devis, facture, livraison ou photos':'À cocher manuellement')+'</div></div>'+ 
+      '<input type="checkbox" '+(checked?'checked ':'')+(autoLocked?'disabled ':'')+'data-action="mar-workflow-toggle-'+esc(step.id)+'">'+
+      '<div style="flex:1;'+(checked?'text-decoration:line-through;color:var(--ink-s);':'')+'"><div class="flexb" style="gap:8px;"><b>'+esc(step.label)+'</b>'+mariageWorkflowStatusHTML(source,step)+'</div>'+
+        '<div class="muted" style="font-size:11px;margin-top:2px;">'+esc(hint)+'</div></div>'+ 
     '</div>';
   }).join('');
   return '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;">'+
     '<div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0;">📋 Suivi du mariage</h3>'+ 
-    '<p class="muted" style="margin:4px 0 0;">Checklist métier du premier contact jusqu’à la livraison.</p></div>'+ 
+    '<p class="muted" style="margin:4px 0 0;">Checklist métier du premier contact jusqu’à la livraison. Les anciens mariages peuvent être complétés manuellement.</p></div>'+ 
     '<span class="chip"><b>'+st.done+'/'+st.total+'</b> étapes · '+st.pct+' %</span></div>'+ 
     '<div class="jauge" style="margin:12px 0;"><div class="track"><div class="fill" style="width:'+st.pct+'%;background:'+color+';"></div></div></div>'+ 
-    (missing.length?'<p class="muted" style="margin:0 0 10px;font-size:12px;">Prochaines étapes : '+esc(missing.join(' · '))+(mariageWorkflowMissing(m).length>3?'…':'')+'</p>':'<p class="muted" style="margin:0 0 10px;font-size:12px;">Toutes les étapes sont cochées 🎉</p>')+
+    (next?'<div class="summary" style="margin-bottom:10px;"><b>➡️ Prochaine étape recommandée :</b> '+esc(next.label)+'</div>':'<div class="summary" style="margin-bottom:10px;"><b>🎉 Dossier complet :</b> toutes les étapes sont validées.</div>')+
+    (missing.length?'<p class="muted" style="margin:0 0 10px;font-size:12px;">Étapes restantes : '+esc(missing.join(' · '))+(mariageWorkflowMissing(m).length>3?'…':'')+'</p>':'')+
     rows+
   '</div>';
 }
