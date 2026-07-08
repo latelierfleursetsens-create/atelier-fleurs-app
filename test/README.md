@@ -1,41 +1,27 @@
-# L’Atelier Fleurs & Sens — V3 TEST modulaire
+# L'Atelier Fleurs & Sens — V3.1.1 TEST MODULAIRE
 
-Cette version part de la V2.1.1 TEST validée : prestations complémentaires atelier, devis/factures sans mentions internes bien/service côté client.
+Version de test basée sur la PROD V3.0.4.
 
-## Objectif de cette V3
+## Nouveauté V3.1.1 TEST
 
-Sortir du fichier HTML unique et passer progressivement vers une application organisée en dossiers :
+- Ajout d’une bibliothèque de prestations dans **Paramètres**.
+- Les prestations actives deviennent des boutons rapides dans les ateliers.
+- Chaque prestation peut avoir un libellé, une catégorie interne bien/service, une quantité, un prix par défaut et un statut actif/inactif.
+- Les catégories restent internes et ne s’affichent pas sur les documents clients.
 
-- `index.html` : structure de la page uniquement.
-- `css/style.css` : design.
-- `assets/logo.jpg` : logo extrait du HTML.
-- `js/app.js` : logique actuelle de l’application, extraite du fichier historique.
-- `js/*.js` : fichiers préparés pour la phase 2, où chaque module sera séparé par métier.
+## À tester
 
-## Important
+1. Aller dans **Paramètres > Bibliothèque de prestations**.
+2. Ajouter ou modifier une prestation.
+3. Enregistrer les paramètres.
+4. Ouvrir un atelier.
+5. Vérifier que les boutons rapides affichent les prestations actives.
+6. Ajouter une prestation au devis atelier et vérifier le total.
 
-Cette V3 est une phase 1 de modularisation : elle doit fonctionner comme la V2.1.1, mais avec CSS/JS séparés.
-Pour ne pas casser l’application, toute la logique reste pour l’instant dans `js/app.js`.
+## Base utilisée
 
-## Test conseillé
+- PROD V3.0.4 MODULAIRE — correctif encaissements ateliers.
 
-1. Ouvrir `index.html`.
-2. Vérifier l’affichage `TEST V3.0.0 MODULAIRE`.
-3. Se connecter.
-4. Tester un atelier avec prestation complémentaire.
-5. Générer un devis et une facture.
-6. Vérifier la trésorerie / ventilation URSSAF.
 
-## Étape suivante
-
-Découper progressivement `js/app.js` vers :
-
-- `ateliers.js`
-- `devis.js`
-- `factures.js`
-- `finances.js`
-- `mariages.js`
-- `clients.js`
-- `dashboard.js`
-
-Chaque découpage devra être testé avant de passer au module suivant.
+## V3.1.1 TEST
+Correctif du calcul “À encaisser prochainement” pour les ateliers : le total de référence reprend le devis lié, les prestations complémentaires sont incluses, et les factures d’acompte/solde reliées par devis sont déduites du reste à facturer.

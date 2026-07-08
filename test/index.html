@@ -4,9 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>L'Atelier Fleurs &amp; Sens — Gestion — TEST V3.0.2 MODULAIRE</title>
-<!-- Version TEST V3.0.2 MODULAIRE : architecture en plusieurs fichiers, base fonctionnelle issue de V2.1.1 -->
-<!-- Version TEST V3.0.2 MODULAIRE : prestations complémentaires ateliers + devis/factures + ventilation URSSAF -->
+<title>L'Atelier Fleurs &amp; Sens — Gestion — TEST V3.1.1 MODULAIRE</title>
+<!-- Version TEST V3.1.1 MODULAIRE : bibliothèque de prestations réutilisables dans les paramètres -->
+<!-- Version PROD V3.0.4 MODULAIRE : correctif double comptage À encaisser prochainement pour les ateliers liés à devis/factures -->
+<!-- Version PROD V3.0.3 MODULAIRE : architecture V3 validée en production + journal des modifications -->
+<!-- Version PROD V3.0.3 MODULAIRE : prestations complémentaires ateliers + devis/factures + ventilation URSSAF -->
 <!-- Version PROD V2.0.40 : correctif menus déroulants moyens de paiement sur saisie facture/encaissement -->
 <!-- Version PROD V2.0.39 : version harmonisée + trésorerie mensuelle sélection mois/année vérifiée -->
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
@@ -16,7 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
-<!-- V3 TEST : CSS et JS externalisés. La logique historique reste dans js/app.js pour éviter de casser la version stable. -->
+<!-- V3 TEST : CSS et JS externalisés. La logique historique reste dans js/app.js pendant la modularisation progressive. -->
 </head>
 <body>
 <div id="login" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px;">

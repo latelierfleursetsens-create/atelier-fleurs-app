@@ -1,7 +1,37 @@
-/* V3.0.0 TEST MODULAIRE — logique applicative extraite depuis V2.1.1 stable. */
+/* V3.1.0 TEST MODULAIRE — bibliothèque de prestations réutilisables dans les paramètres. */
 "use strict";
 
+var APP_VERSION = "TEST V3.1.1 MODULAIRE";
+var APP_VERSION_NOTE = "Version test basée sur la PROD V3.0.4 : ajout d’une bibliothèque de prestations réutilisables dans Paramètres.";
+var APP_CHANGELOG = [
+  "V3.1.0 TEST — Ajout d’une bibliothèque de prestations réutilisables dans Paramètres.",
+  "V3.0.4 PROD — Correctif du double comptage des ateliers dans À encaisser prochainement.",
+  "V3.0.3 PROD — Architecture modulaire validée et mise en production.",
+  "V3.0.3 TEST — Ajout du journal des modifications visible sur le tableau de bord.",
+  "V3.0.2 TEST — Correction renforcée du bouton Ajouter le client dans Fiches clientes.",
+  "V3.0.1 TEST — Premier correctif sur l’ajout client après passage en architecture modulaire.",
+  "V3.0.0 TEST — Mise en place de l’architecture en plusieurs fichiers.",
+  "V2.1.1 TEST — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
+];
+var APP_ROADMAP = [
+  "Tester la bibliothèque de prestations sur les ateliers",
+  "Ajouter le calcul automatique des frais de déplacement",
+  "Découper réellement le module Clients dans js/clients.js",
+  "Découper le module Ateliers dans js/ateliers.js",
+  "Créer une bibliothèque de prestations réutilisables",
+  "Ajouter le calcul automatique des frais de déplacement",
+  "Préparer la future gestion de stock fleurs et fournitures"
+];
+
 /* ===================== Données par défaut ===================== */
+var DEFAULT_PRESTATIONS_BIBLIOTHEQUE = [
+  {id:"dep", label:"Frais de déplacement", type:"service", prix:0, qte:1, actif:true},
+  {id:"premium", label:"Pack premium", type:"bien", prix:0, qte:1, actif:true},
+  {id:"perso", label:"Personnalisation", type:"service", prix:0, qte:1, actif:true},
+  {id:"fournitures", label:"Fournitures supplémentaires", type:"bien", prix:0, qte:1, actif:true},
+  {id:"livraison", label:"Livraison", type:"service", prix:0, qte:1, actif:true},
+  {id:"autre", label:"Autre / champ libre", type:"service", prix:0, qte:1, actif:true}
+];
 var DEFAULT_SETTINGS = {
   nomEntreprise:"L'Atelier Fleurs & Sens", entrepreneur:"", adresse:"Valenciennes (59)",
   siret:"", tel:"", email:"", site:"latelierfleursetsens.fr", iban:"", bic:"",
@@ -11,7 +41,8 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:""
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"",
+  prestationsBibliotheque:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); })
 };
 
 /* ===================== État ===================== */
@@ -310,7 +341,7 @@ function subNav(items, current, prefix){
 }
 
 function moduleHeader(title, subtitle){
-  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">TEST V3.0.2 MODULAIRE</span></div>';
+  return '<div class="flexb" style="margin-bottom:12px;"><div><h2 style="margin:0;">'+title+'</h2><p class="muted" style="margin:4px 0 0;">'+subtitle+'</p></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(APP_VERSION)+'</span></div>';
 }
 
 function viewClientsModule(){
@@ -660,6 +691,24 @@ function viewPendingPaymentsModal(){
 }
 
 
+
+function viewVersionDashboard(){
+  var changes=(APP_CHANGELOG||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
+  var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
+  return '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;">'+
+    '<div class="flexb" style="align-items:flex-start;">'+
+      '<div><b style="color:var(--green);">✅ Version active : '+esc(APP_VERSION)+'</b>'+
+      '<div class="muted" style="font-size:12px;margin-top:4px;">'+esc(APP_VERSION_NOTE)+'</div></div>'+
+      '<span class="pill" style="background:var(--green-s);color:var(--green);">Journal V3</span>'+
+    '</div>'+
+    '<div class="inline" style="margin-top:12px;align-items:flex-start;">'+
+      '<div><div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">✔ Modifications récentes</div><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.5;">'+changes+'</ul></div>'+
+      '<div><div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">□ Prochaines étapes</div><ul style="margin:0 0 0 18px;padding:0;font-size:13px;line-height:1.5;">'+road+'</ul></div>'+
+    '</div>'+
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Ce bloc sert de journal de bord pour savoir exactement ce qui a été ajouté ou corrigé dans la version de production.</p>'+
+  '</div>';
+}
+
 function viewTodoDashboard(){
   return '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;">📝 Todo list</h3><button class="btn small gold" data-action="dash-todo-save">Enregistrer</button></div>'+
@@ -709,7 +758,7 @@ function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+
     '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+
-  '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V3.0.2 MODULAIRE</b><div class="muted" style="font-size:12px;margin-top:4px;">Prestations complémentaires dans les ateliers + correction : ajout client renforcé + mentions internes bien/service masquées sur les devis et factures client.</div></div>'+
+  viewVersionDashboard()+
   '<div class="card" style="border-color:var(--bordeaux);background:#fffaf5;margin-bottom:14px;">'+
     '<div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">🧾 Déclaration URSSAF du mois</h3><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+monthLabel+'</span></div>'+
     '<div class="grid-stats" style="margin-bottom:0;">'+
@@ -726,12 +775,12 @@ function viewDashboard(){
       '<div><label class="field"><span>Choses à faire</span><textarea id="dashTodoList" style="min-height:120px;" placeholder="Ex : relancer une cliente, préparer un devis, commander des fleurs…">'+esc(state.todoList||"")+'</textarea></label></div>'+
       '<div><label class="field"><span>Achats à faire</span><textarea id="dashShoppingList" style="min-height:120px;" placeholder="Ex : rubans, colle chaude, fleurs, cartons, matériel atelier…">'+esc(state.shoppingList||"")+'</textarea></label></div>'+
     '</div>'+
-    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version TEST V3.0.2 MODULAIRE.</p>'+
+    '<p class="muted" style="margin:0;font-size:12px;">Bloc Todo list stable — version '+esc(APP_VERSION)+'.</p>'+
   '</div>'+
 
   '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
     '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — TEST V3.0.2 MODULAIRE</p>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — '+esc(APP_VERSION)+'</p>'+
   '</div>'+
   prepBanner+
   viewSmartDashboard()+
@@ -1837,7 +1886,7 @@ function viewTresorerie(){
       '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
-    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : TEST V3.0.2 MODULAIRE</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
+    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
       stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
@@ -2023,13 +2072,30 @@ function atelierLinkedDevis(a){
     var d=findDevis(a.devisId);
     if(d) return d;
   }
+  if(a.devisNumero){
+    var byNum=(state.devis||[]).find(function(d){return d.numero===a.devisNumero;});
+    if(byNum) return byNum;
+  }
   return (state.devis||[]).find(function(d){return d.origine==="atelier" && d.atelierId===a.id;}) || null;
 }
 function atelierFacturesLiees(a){
   if(!a) return [];
   var d=atelierLinkedDevis(a);
+  var factureIds=a.factureIds||[];
+  var devisIds=[];
+  var devisNumeros=[];
+  if(d){
+    if(d.id) devisIds.push(d.id);
+    if(d.numero) devisNumeros.push(d.numero);
+  }
+  if(a.devisId) devisIds.push(a.devisId);
+  if(a.devisNumero) devisNumeros.push(a.devisNumero);
   return (state.factures||[]).filter(function(f){
-    return (f.origine==="atelier" && f.atelierId===a.id) || (d && f.devisId===d.id && f.origine==="atelier");
+    return (f.origine==="atelier" && f.atelierId===a.id) ||
+      (f.atelierId && f.atelierId===a.id) ||
+      (f.devisId && devisIds.indexOf(f.devisId)>=0) ||
+      (f.devisNumero && devisNumeros.indexOf(f.devisNumero)>=0) ||
+      (factureIds.indexOf(f.id)>=0);
   });
 }
 function atelierClientForDoc(a){
@@ -2060,13 +2126,27 @@ function atelierClientForDoc(a){
   }
   return client;
 }
-var ATELIER_PRESTATION_PRESETS=[
-  {label:"Frais de déplacement", type:"service"},
-  {label:"Pack premium", type:"bien"},
-  {label:"Personnalisation", type:"service"},
-  {label:"Fournitures supplémentaires", type:"bien"},
-  {label:"Autre / champ libre", type:"service"}
-];
+function prestationBibliothequeNormalisee(){
+  var base = (state.settings && Array.isArray(state.settings.prestationsBibliotheque) && state.settings.prestationsBibliotheque.length)
+    ? state.settings.prestationsBibliotheque
+    : DEFAULT_PRESTATIONS_BIBLIOTHEQUE;
+  return base.map(function(p,i){
+    var type=(p.type==="bien"||p.urssafType==="bien")?"bien":"service";
+    return {
+      id:p.id||("prest_"+i+"_"+uid()),
+      label:String(p.label||p.designation||p.libelle||"").trim()||"Prestation",
+      type:type,
+      urssafType:type,
+      qte:num(p.qte!=null?p.qte:1)||1,
+      prix:num(p.prix!=null?p.prix:p.prixUnitaire),
+      actif:p.actif!==false
+    };
+  });
+}
+function prestationsActives(){
+  var list=prestationBibliothequeNormalisee().filter(function(p){ return p.actif; });
+  return list.length?list:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); });
+}
 function atelierPrestationTypeOptions(selected){
   selected=selected||"service";
   return '<option value="service"'+(selected==="service"?' selected':'')+'>Prestation de services</option>'+ 
@@ -2151,7 +2231,8 @@ function viewAtelierPrestationsComplementaires(a){
   var html='<div class="card" id="atExtraBox" style="background:var(--cream);"><div class="flexb"><div><h3 style="margin:0;">Prestations complémentaires à ajouter au devis</h3>'+ 
     '<p class="muted" style="margin:4px 0 0;">Ajoute ici les frais de déplacement, packs premium, personnalisations ou toute ligne libre. Elles seront intégrées au devis atelier avec quantité, prix unitaire et catégorie URSSAF.</p></div>'+ 
     '<span class="chip" id="atExtraTotal">Total compléments : '+euro(total)+'</span></div>';
-  html+='<div class="row-actions" style="margin-top:12px;">'+ATELIER_PRESTATION_PRESETS.map(function(p,i){return '<button class="btn small soft" data-action="at-extra-add-'+i+'">+ '+esc(p.label)+'</button>';}).join('')+'</div>';
+  var presets=prestationsActives();
+  html+='<div class="row-actions" style="margin-top:12px;">'+presets.map(function(p,i){ var prix=p.prix?(' · '+euro(p.prix)):''; return '<button class="btn small soft" data-action="at-extra-add-'+i+'">+ '+esc(p.label)+esc(prix)+'</button>'; }).join('')+'</div>';
   if(!lignes.length){
     html+='<p class="muted" style="margin:12px 0 0;">Aucune prestation complémentaire pour le moment.</p>';
   }else{
@@ -2365,9 +2446,17 @@ function atelierTotals(a){
   if(mode==="prive") total=Number(a.montantForfait)||0;
   if(mode!=="thematique") total+=atelierPrestationsTotal(a);
 
+  // V3.1.1 : pour les ateliers ayant déjà un devis, le total de référence est le devis.
+  // Cela évite d'oublier les prestations complémentaires et permet de calculer
+  // correctement le reste à facturer après acompte / solde.
+  var d=atelierLinkedDevis(a);
+  if(d && Array.isArray(d.lignes)){
+    total=totals(d.lignes||[],state.settings.partService).total;
+  }
+
   var sitePaye=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.payeSiteMontant)||Number(p.montant)||0);},0);
   var siteSolde=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.soldeSite)||0);},0);
-  var factures=(state.factures||[]).filter(function(f){return f.origine==="atelier"&&f.atelierId===a.id;});
+  var factures=atelierFacturesLiees(a);
   var facture=factures.reduce(function(s,f){return s+(Number(f.montant)||0);},0);
   var paye=r2(sitePaye+factures.filter(function(f){return f.statut==="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
   var attente=r2(siteSolde+factures.filter(function(f){return f.statut!=="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
@@ -2894,11 +2983,24 @@ function lierFactureACommande(devisId, facture){
     }
   }
 }
+function factureHeriteInfosDevis(d,f){
+  if(!d || !f) return f;
+  if(d.origine==="atelier" || d.atelierId){
+    f.origine="atelier";
+    f.atelierId=d.atelierId||f.atelierId||"";
+    f.atelierMode=d.atelierMode||f.atelierMode||"";
+    f.atelierType=d.atelierType||f.atelierType||"";
+    f.atelierTheme=d.atelierTheme||f.atelierTheme||"";
+    f.atelierDate=d.atelierDate||f.atelierDate||"";
+  }
+  return f;
+}
 function creerAcompte(d){
   var t=totals(d.lignes,state.settings.partService), p=state.settings.acompteParDefaut, date=todayISO();
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -2908,6 +3010,7 @@ function creerSolde(d){
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -2916,6 +3019,7 @@ function creerTotale(d){
   var t=totals(d.lignes,state.settings.partService), date=todayISO();
   var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:addDays(date,state.settings.delaiPaiement),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
@@ -3106,6 +3210,58 @@ function viewEmails(){
 }
 
 /* ===================== Paramètres ===================== */
+function prestationTypeOptions(selected){
+  selected=selected||"service";
+  return '<option value="service"'+(selected==="service"?' selected':'')+'>Prestation de services</option>'+ 
+    '<option value="bien"'+(selected==="bien"?' selected':'')+'>Vente de biens</option>';
+}
+function prestationsSettingsFromDOM(){
+  var rows=document.querySelectorAll('[data-param-prestation-row]'), out=[];
+  rows.forEach(function(row){
+    var id=row.getAttribute('data-param-prestation-row')||uid();
+    var label=(row.querySelector('[data-param-prestation-field="label"]')||{}).value||"";
+    var type=(row.querySelector('[data-param-prestation-field="type"]')||{}).value||"service";
+    var qte=num((row.querySelector('[data-param-prestation-field="qte"]')||{}).value)||1;
+    var prix=num((row.querySelector('[data-param-prestation-field="prix"]')||{}).value);
+    var actifInput=row.querySelector('[data-param-prestation-field="actif"]');
+    var actif=actifInput?!!actifInput.checked:true;
+    if(label.trim() || prix>0){ out.push({id:id,label:label.trim()||"Prestation",type:type==="bien"?"bien":"service",qte:qte,prix:prix,actif:actif}); }
+  });
+  return out.length?out:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); });
+}
+function captureParamsForm(){
+  var s=state.settings;
+  if(!document.getElementById("pNom")) return;
+  s.nomEntreprise=val("pNom"); s.entrepreneur=val("pEnt"); s.adresse=val("pAdr"); s.siret=val("pSiret");
+  s.tel=val("pTel"); s.email=val("pEmail"); s.site=val("pSite"); s.iban=val("pIban"); s.bic=val("pBic");
+  s.mentionTVA=val("pTva"); s.conditionsReglement=val("pCond"); s.penalites=val("pPen");
+  s.acompteParDefaut=num(val("pAcompte")); s.validiteDevis=num(val("pValid")); s.delaiPaiement=num(val("pDelai"));
+  s.seuilBiens=num(val("pSeuilB")); s.seuilServices=num(val("pSeuilS")); s.tauxCotisBiens=num(val("pTauxB")); s.tauxCotisServices=num(val("pTauxS"));
+  s.partService=num(val("pPartService"));
+  s.googleDriveUrl=val("pGoogleDriveUrl");
+  var gda=document.getElementById("pGoogleDriveAuto"); s.googleDriveAuto=!!(gda&&gda.checked);
+  s.prestationsBibliotheque=prestationsSettingsFromDOM();
+}
+function viewPrestationsBibliothequeSettings(){
+  var list=prestationBibliothequeNormalisee();
+  var html='<div class="card"><div class="flexb"><div><h3 style="margin:0 0 4px;">Bibliothèque de prestations</h3>'+ 
+    '<p class="muted" style="margin:0;font-size:12px;">Ces lignes rapides seront proposées dans les prestations complémentaires des ateliers. Les catégories restent internes et ne s’affichent pas sur les devis/factures client.</p></div>'+ 
+    '<button class="btn small primary" data-action="params-prestation-add">+ Ajouter une prestation</button></div>';
+  html+='<div class="scroll" style="margin-top:12px;"><table><thead><tr style="text-align:left;color:var(--ink-s);font-size:12px;"><th style="padding:6px;">Actif</th><th style="padding:6px;">Libellé</th><th style="padding:6px;">Catégorie interne</th><th style="padding:6px;width:85px;">Qté</th><th style="padding:6px;width:120px;">Prix par défaut</th><th style="padding:6px;width:40px;"></th></tr></thead><tbody>';
+  list.forEach(function(p){
+    html+='<tr data-param-prestation-row="'+esc(p.id)+'" style="border-top:1px solid var(--line);">'+
+      '<td style="padding:6px;text-align:center;"><input data-param-prestation-field="actif" type="checkbox" '+(p.actif?'checked':'')+' style="width:18px;height:18px;"></td>'+
+      '<td style="padding:6px;"><input data-param-prestation-field="label" value="'+esc(p.label)+'" placeholder="Ex : Frais de déplacement"></td>'+ 
+      '<td style="padding:6px;"><select data-param-prestation-field="type">'+prestationTypeOptions(p.type)+'</select></td>'+ 
+      '<td style="padding:6px;"><input data-param-prestation-field="qte" type="number" min="0" step="1" value="'+esc(p.qte||1)+'"></td>'+ 
+      '<td style="padding:6px;"><input data-param-prestation-field="prix" type="number" min="0" step="0.01" value="'+esc(p.prix||0)+'"></td>'+ 
+      '<td style="padding:6px;text-align:center;"><button data-action="params-prestation-del-'+esc(p.id)+'" style="border:none;background:none;color:#9b3b3b;cursor:pointer;font-size:18px;">×</button></td>'+ 
+    '</tr>';
+  });
+  html+='</tbody></table></div>'+ 
+    '<p class="muted" style="margin:10px 0 0;font-size:12px;">Exemples : frais de déplacement en service, pack premium en bien, personnalisation en service. Tu peux mettre un prix par défaut ou laisser à 0 € pour le saisir au cas par cas.</p></div>';
+  return html;
+}
 function viewParams(){
   var s=state.settings, partB=Math.max(0,100-num(s.partService));
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
@@ -3141,6 +3297,7 @@ function viewParams(){
   '<div class="card"><h3 style="margin:0 0 4px;">Seuils & cotisations (indicatifs)</h3><p class="muted" style="margin-top:0;font-size:12px;">À confirmer auprès de l\'URSSAF — ils évoluent chaque année.</p>'+
     '<div class="inline"><div>'+F("Seuil biens (€)","pSeuilB",s.seuilBiens,"","number")+'</div><div>'+F("Seuil services (€)","pSeuilS",s.seuilServices,"","number")+'</div></div>'+
     '<div class="inline"><div>'+F("Taux cotis. biens (%)","pTauxB",s.tauxCotisBiens,"","number")+'</div><div>'+F("Taux cotis. services (%)","pTauxS",s.tauxCotisServices,"","number")+'</div></div></div>'+
+  viewPrestationsBibliothequeSettings()+
   '<button class="btn gold" data-action="params-save">Enregistrer les paramètres</button>';
 }
 
@@ -4270,7 +4427,7 @@ function handleAction(action){
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
   if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
   if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
-  if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var preset=ATELIER_PRESTATION_PRESETS[pi]||ATELIER_PRESTATION_PRESETS[4]; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:preset.type,urssafType:preset.type,qte:1,prix:0}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
+  if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var list=prestationsActives(); var preset=list[pi]||list[list.length-1]||{label:"Autre / champ libre",type:"service",qte:1,prix:0}; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; var ptype=preset.type==="bien"?"bien":"service"; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:ptype,urssafType:ptype,qte:preset.qte||1,prix:num(preset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
   if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
   if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
   if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; aa.participants.push({id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}); ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée."); } return; }
@@ -4318,6 +4475,8 @@ function handleAction(action){
   if(action==="gdrive-save"){ saveParams(); return; }
   if(action==="gdrive-backup"){ state.settings.googleDriveUrl=val("pGoogleDriveUrl"); var gda=document.getElementById("pGoogleDriveAuto"); state.settings.googleDriveAuto=!!(gda&&gda.checked); googleDriveBackup(true); return; }
   if(action==="gdrive-restore-latest"){ state.settings.googleDriveUrl=val("pGoogleDriveUrl"); var gda2=document.getElementById("pGoogleDriveAuto"); state.settings.googleDriveAuto=!!(gda2&&gda2.checked); googleDriveRestoreLatest(); return; }
+  if(action==="params-prestation-add"){ captureParamsForm(); state.settings.prestationsBibliotheque=prestationBibliothequeNormalisee(); state.settings.prestationsBibliotheque.push({id:uid(),label:"Nouvelle prestation",type:"service",qte:1,prix:0,actif:true}); saveCache(); render(); toast("Prestation ajoutée à la bibliothèque."); return; }
+  if(action.indexOf("params-prestation-del-")===0){ captureParamsForm(); var pid=action.slice(22); state.settings.prestationsBibliotheque=prestationBibliothequeNormalisee().filter(function(p){return p.id!==pid;}); saveCache(); render(); toast("Prestation supprimée de la bibliothèque."); return; }
 
   // wizard
   if(action==="wz-cancel"){ ui.wizard=null; render(); return; }
@@ -4587,15 +4746,7 @@ function finishWizard(){
   ui.wizard=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+d.numero+" créé.");
 }
 function saveParams(){
-  var s=state.settings;
-  s.nomEntreprise=val("pNom"); s.entrepreneur=val("pEnt"); s.adresse=val("pAdr"); s.siret=val("pSiret");
-  s.tel=val("pTel"); s.email=val("pEmail"); s.site=val("pSite"); s.iban=val("pIban"); s.bic=val("pBic");
-  s.mentionTVA=val("pTva"); s.conditionsReglement=val("pCond"); s.penalites=val("pPen");
-  s.acompteParDefaut=num(val("pAcompte")); s.validiteDevis=num(val("pValid")); s.delaiPaiement=num(val("pDelai"));
-  s.seuilBiens=num(val("pSeuilB")); s.seuilServices=num(val("pSeuilS")); s.tauxCotisBiens=num(val("pTauxB")); s.tauxCotisServices=num(val("pTauxS"));
-  s.partService=num(val("pPartService"));
-  s.googleDriveUrl=val("pGoogleDriveUrl");
-  var gda=document.getElementById("pGoogleDriveAuto"); s.googleDriveAuto=!!(gda&&gda.checked);
+  captureParamsForm();
   saveCache(); render(); toast("Paramètres enregistrés.");
 }
 
