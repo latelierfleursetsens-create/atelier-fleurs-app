@@ -1,3 +1,16 @@
+## V3.1.1 PROD
+- Correction du calcul “À encaisser prochainement” pour les ateliers avec prestations complémentaires.
+- Si un devis atelier existe, son total devient la référence.
+- Les factures liées au devis sont déduites du reste à facturer, même si elles ne sont pas encore payées.
+
+# Changelog
+
+## TEST V3.1.0 MODULAIRE
+
+- Ajout de la bibliothèque de prestations dans les paramètres.
+- Intégration des prestations actives dans les boutons rapides des prestations complémentaires atelier.
+- Conservation du correctif V3.0.4 sur les encaissements ateliers.
+
 # Journal des modifications
 
 ## V3.0.4 PROD — Correctif encaissements ateliers
