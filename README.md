@@ -1,35 +1,16 @@
-# L'Atelier Fleurs & Sens — V3.6.3 PROD MODULAIRE
+# L’Atelier Fleurs & Sens — MyBusiness
 
-Version de production avec correctif devis mariage : coordonnées client à jour et canal de communication masqué côté client.
+## Version PROD V3.6.6 MODULAIRE
 
-## Nouveauté V3.6.1 — CRM Mariage
+Version de production à mettre en ligne.
 
-La fiche mariage est réorganisée en onglets pour éviter une page trop longue :
+### Corrections
+- Correction robuste du téléphone repris dans les devis mariage.
+- Priorité à la fiche cliente à jour lors de la création / régénération du devis.
+- Le canal de communication reste masqué sur les devis et factures côté client.
 
-- Résumé
-- Fiche
-- Créations
-- Documents
-- Suivi
-- Budget
-- Historique
+### Évolution
+- Ajout des canaux de communication : Mail et Site internet.
 
-Le bouton de retour à la liste reste disponible tout en haut.
-Le Wedding Manager reste visible en haut de la fiche avec la progression et la timeline.
-
-## Mise en production
-
-1. Remplacer les fichiers de la production GitHub par ceux de ce dossier.
-2. Commit changes.
-3. Attendre la mise à jour de GitHub Pages.
-4. Vérifier que l'application affiche PROD V3.6.3 MODULAIRE.
-
-## Version
-
-PROD V3.6.3 MODULAIRE
-
-
-## Version PROD V3.6.3
-
-- Retrait du bouton **+ Nouvelle cliente** dans le suivi mariages.
-- Le bouton **🎯 Préparer mon rendez-vous** devient l’entrée principale pour créer une nouvelle fiche mariage guidée.
+### Installation
+Remplacer tous les fichiers du dépôt GitHub de production par le contenu de ce dossier, puis attendre la mise à jour GitHub Pages.

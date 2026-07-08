@@ -1,3 +1,7 @@
+## V3.6.4 PROD
+- Correctif téléphone sur devis mariage : priorité à la fiche cliente mise à jour, même en cas de doublon client.
+- Lorsqu’une fiche cliente est enregistrée, elle reçoit désormais un `updatedAt` pour être priorisée dans les futurs devis.
+
 ## PROD V3.6.3 — Correctif devis mariage
 
 - Le canal de communication n’apparaît plus sur les devis ni les factures côté client.
