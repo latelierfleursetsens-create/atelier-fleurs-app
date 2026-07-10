@@ -1,3 +1,18 @@
+# Journal des versions
+
+## V3.7.1 PROD — Photos d’inspiration mariage
+- Import multiple de photos et fichiers pendant la préparation du rendez-vous.
+- Les inspirations importées sont transférées automatiquement dans la nouvelle fiche mariage.
+- Ajout d’un onglet **Inspirations** dans le CRM Mariage.
+- Ajout, aperçu et suppression des médias possibles après la création de la fiche.
+- Validation automatique de l’étape « Inspirations reçues » lorsqu’un média est ajouté.
+
+## V3.7.0 TEST — Tableau de bord simplifié
+- Suppression des aperçus URSSAF, Stock, Clients, ventes site, calendrier et statistiques du tableau de bord.
+- Conservation de Bonjour Élodie, Todo, notifications et mariages en cours.
+- Ajout de trois accès rapides : rendez-vous mariage, atelier et devis.
+- Toutes les données restent accessibles dans leurs modules dédiés.
+
 ## V3.6.4 PROD
 - Correctif téléphone sur devis mariage : priorité à la fiche cliente mise à jour, même en cas de doublon client.
 - Lorsqu’une fiche cliente est enregistrée, elle reçoit désormais un `updatedAt` pour être priorisée dans les futurs devis.

@@ -4,7 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>L'Atelier Fleurs &amp; Sens — Gestion — PROD V3.6.3 MODULAIRE</title>
+<title>MyBusiness — PROD V3.7.1 MODULAIRE</title>
+<!-- Version PROD V3.7.1 MODULAIRE : photos d’inspiration pendant le RDV et dans la fiche mariage -->
 <!-- Version PROD V3.6.3 MODULAIRE : CRM Mariage en onglets + retrait du bouton Nouvelle cliente -->
 <!-- Version TEST V3.4.2 MODULAIRE : tri du bloc Mariages en cours par date de livraison -->
 <!-- Version TEST V3.4.1 MODULAIRE : suivi mariages semi-automatique avec validation manuelle pour anciens dossiers -->
@@ -23,7 +24,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
-<!-- V3 PROD : CSS et JS externalisés. La logique historique reste dans js/app.js pendant la modularisation progressive. -->
+<!-- V3.7.1 TEST : import des photos d’inspiration pendant le RDV et depuis la fiche mariage. -->
 </head>
 <body>
 <div id="login" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px;">
@@ -70,7 +71,8 @@
 </div>
 
 <input type="file" id="logoInput" accept="image/*" style="display:none" />
-<input type="file" id="marMedia" accept="image/*,application/pdf,.pdf,.doc,.docx" style="display:none" />
+<input type="file" id="marMedia" accept="image/*,application/pdf,.pdf,.doc,.docx" multiple style="display:none" />
+<input type="file" id="rdvMedia" accept="image/*,application/pdf,.pdf,.doc,.docx" multiple style="display:none" />
 <input type="file" id="encImport" accept=".csv,text/csv" style="display:none" />
 <input type="file" id="restoreInput" accept=".json,application/json" style="display:none" />
 
