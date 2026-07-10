@@ -1,10 +1,11 @@
-/* V3.6.6 TEST MODULAIRE — Correctif téléphone devis mariage robuste. */
+/* V3.7.0 TEST MODULAIRE — Tableau de bord simplifié et centré sur les actions. */
 "use strict";
 
-var APP_VERSION = "TEST V3.6.6 MODULAIRE";
-var APP_VERSION_NOTE = "Correctif : les devis mariage reprennent le téléphone de la fiche cliente liée, même en cas d’ancien doublon ou de recréation.";
+var APP_VERSION = "TEST V3.7.0 MODULAIRE";
+var APP_VERSION_NOTE = "Test : tableau de bord allégé avec uniquement l’accueil, la Todo, les notifications et les mariages en cours.";
 var APP_CHANGELOG = [
-  "V3.6.6 TEST — Correctif téléphone devis mariage : priorité stricte à la fiche cliente liée / mise à jour, même en cas de doublon.",
+  "V3.7.0 TEST — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
+  "V3.6.6 PROD — Correctif téléphone devis mariage + ajout des canaux Mail et Site internet.",
   "V3.6.5 TEST — Actualisation automatique du devis mariage lié depuis la fiche mariage et la fiche cliente.",
   "V3.6.4 PROD — Correctif téléphone devis mariage : priorité à la fiche cliente à jour lors de la création/recréation du devis.",
   "V3.6.3 PROD — Correctif devis mariage : canal de communication masqué côté client + coordonnées client à jour lors de la création/recréation du devis.",
@@ -83,7 +84,7 @@ var MOISL=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","S
 function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]);}); }
 function num(v){ return Number(v)||0; }
 
-var COMM_CHANNELS=["Mail","Téléphone","WhatsApp","Messenger","TikTok","Instagram","SMS"];
+var COMM_CHANNELS=["Mail","Site internet","Téléphone","WhatsApp","Messenger","TikTok","Instagram","SMS"];
 function commOptions(selected){
   selected=selected||"";
   return '<option value="">Non renseigné</option>'+COMM_CHANNELS.map(function(ch){return '<option value="'+esc(ch)+'"'+(ch===selected?' selected':'')+'>'+esc(ch)+'</option>';}).join("");
@@ -757,19 +758,21 @@ function dashboardKpiCounts(){
   }).length;
   return {devis:devis,ateliers:ateliers,mariages:mariages};
 }
-function viewDashboardHero(enAttente){
-  var d=todaySmartData();
-  var resume=[];
-  if(d.echues) resume.push(d.echues+' facture'+(d.echues>1?'s':'')+' échue'+(d.echues>1?'s':''));
-  if(d.devisRelance) resume.push(d.devisRelance+' devis à relancer');
-  if(d.ateliersSoon) resume.push(d.ateliersSoon+' atelier'+(d.ateliersSoon>1?'s':'')+' sous 7 jours');
-  if(d.mariagesLivraison) resume.push(d.mariagesLivraison+' mariage'+(d.mariagesLivraison>1?'s':'')+' à livrer sous 7 jours');
-  if(!resume.length) resume.push('aucune urgence prioritaire');
+function viewDashboardHero(){
+  var notifications=dashboardPriorityNotifications();
+  var attention=notifications.length;
+  var dateLabel=new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  dateLabel=dateLabel.charAt(0).toUpperCase()+dateLabel.slice(1);
+  var attentionText=attention
+    ? attention+" action"+(attention>1?"s":"")+" nécessite"+(attention>1?"nt":"")+" ton attention."
+    : "Aucune action prioritaire : tout est à jour.";
   return '<div class="card" style="background:linear-gradient(135deg,#fffdfb,#f4e4dd);border-color:var(--gold-s);margin-bottom:14px;">'+
-    '<div class="flexb" style="align-items:flex-start;">'+
-      '<div><div class="serif" style="font-size:24px;font-weight:700;color:var(--bordeaux);">Bonjour Elodie 🌸</div>'+ 
-      '<p class="muted" style="margin:6px 0 0;">Aujourd’hui : '+esc(resume.join(' · '))+'.</p></div>'+ 
-      '<div style="text-align:right;"><div class="muted" style="font-size:12px;">À encaisser prochainement</div><button class="btn primary" data-action="dash-pending-payments" style="margin-top:4px;">'+euro(enAttente)+'</button></div>'+ 
+    '<div class="serif" style="font-size:25px;font-weight:700;color:var(--bordeaux);">Bonjour Élodie 🌸</div>'+ 
+    '<p class="muted" style="margin:5px 0 0;">'+esc(dateLabel)+' · '+esc(attentionText)+'</p>'+ 
+    '<div class="row-actions" style="margin-top:14px;">'+
+      '<button class="btn primary" data-action="dash-rdv-mariage">🎯 Préparer un RDV mariage</button>'+ 
+      '<button class="btn gold" data-action="at-new">🌸 Nouvel atelier</button>'+ 
+      '<button class="btn ghost" data-action="newdevis">📄 Nouveau devis</button>'+ 
     '</div>'+ 
   '</div>';
 }
@@ -907,88 +910,13 @@ function viewNotificationsDashboard(){
 }
 
 function viewDashboard(){
-  var an=String(ui.anneeDash), ca=caAnnee(an);
-  var totB=r2(ca.biens.reduce(function(a,b){return a+b;},0));
-  var totS=r2(ca.services.reduce(function(a,b){return a+b;},0));
-  var totCA=r2(totB+totS);
-  var maxM=Math.max(1, Math.max.apply(null, ca.biens.map(function(b,i){return b+ca.services[i];})));
-  var s=state.settings;
-  var cotB=r2(totB*s.tauxCotisBiens/100), cotS=r2(totS*s.tauxCotisServices/100);
-  var enAttente=pendingPaymentsTotal();
-  function pct(v,seuil){ return Math.min(100,(v/seuil)*100); }
-
-  var bars=MOIS.map(function(m,i){
-    var b=ca.biens[i],sv=ca.services[i]; var hb=(b/maxM)*130, hs=(sv/maxM)*130;
-    var sel = ui.monthDetail && ui.monthDetail.year===an && ui.monthDetail.month===i;
-    return '<div class="col" data-action="dash-month-'+i+'" style="cursor:pointer;padding-top:4px;'+(sel?"background:var(--blush-s);border-radius:8px;":"")+'"><div class="bars" title="'+esc(m+" : "+euro(b+sv))+'">'+
-      (sv>0?'<div style="height:'+hs+'px;background:var(--green);border-radius:3px 3px 0 0;"></div>':'')+
-      (b>0?'<div style="height:'+hb+'px;background:var(--blush);"></div>':'')+
-      '</div><span class="muted" style="font-size:10px;margin-top:4px;'+(sel?"font-weight:700;color:var(--bordeaux);":"")+'">'+m+'</span></div>';
-  }).join("");
-
-  var yopts=anneesDispo().map(function(a){return '<option value="'+a+'"'+(a===an?" selected":"")+'>'+a+'</option>';}).join("");
-  var prep=countPrep();
-  var nowDash=new Date();
-  var currentMonthSplit=caMoisSplit(nowDash.getFullYear(), nowDash.getMonth());
-  var monthLabel=MOISL[nowDash.getMonth()]+' '+nowDash.getFullYear();
-  var prepBanner = '';
-  if(prep.items>0){
-    prepBanner='<div class="card" style="border-color:var(--gold-s);background:#fbf3e6;margin-bottom:14px;">'+
-      '<div style="font-weight:700;color:var(--bordeaux);margin-bottom:8px;">🌿 '+prep.items+' à préparer</div>'+
-      '<div class="row-actions" style="margin-top:0;">'+
-        (prep.commandes?'<button class="btn small gold" data-action="goto-commandes-suivi">'+prep.commandes+' commande'+(prep.commandes>1?'s':'')+' à traiter</button>':'')+
-        (prep.weddings?'<button class="btn small ghost" data-action="goto-preparer">'+prep.weddings+' mariage'+(prep.weddings>1?'s':'')+' à préparer</button>':'')+
-      '</div></div>';
-  }
-
   return ''+
-  '<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Tableau de bord</h2>'+ 
-    '<select id="dashYear" data-action="dash-year" style="width:auto;">'+yopts+'</select></div>'+ 
+  '<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Tableau de bord</h2><div class="muted" style="font-size:12px;margin-top:3px;">Ton espace de travail du jour</div></div></div>'+ 
   viewVersionDashboard()+
-  viewDashboardHero(enAttente)+
+  viewDashboardHero()+
   viewTodoDashboard()+
   viewNotificationsDashboard()+
-  viewDashboardMariageProgress()+
-  viewDashboardKpis(enAttente)+
-  viewDashboardNextSevenDays()+
-  viewDashboardUrssaf(currentMonthSplit, monthLabel)+
-
-  '<div class="card" style="border-color:var(--bordeaux);margin-bottom:14px;">'+
-    '<div class="flexb"><div><h3 style="margin:0;">📦 Stock</h3><p class="muted" style="margin:4px 0 0;">Liste de fleurs, articles, quantités et prix unitaires.</p></div><button class="btn primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;font-size:12px;">Raccourci stock visible — '+esc(APP_VERSION)+'</p>'+
-  '</div>'+
-  prepBanner+
-  viewAteliersPreview()+
-  viewStockPreview()+
-  viewCalendarPreview()+
-  viewAchatsPreview()+
-  viewSiteSalesPreview()+
-  viewCRMPreview()+
-  '<div class="row-actions" style="margin-bottom:14px;">'+
-    '<button class="btn small gold" data-action="csv-'+an+'">Exporter '+an+' (Excel / CSV)</button>'+
-    '<button class="btn small ghost" data-action="csv-all">Exporter toutes les années</button></div>'+
-  '<div class="grid-stats">'+
-    stat("CA encaissé "+an, euro(totCA), true)+
-    stat("dont biens", euro(totB), false, "var(--blush)")+
-    stat("dont services", euro(totS), false, "var(--green-s)")+
-    stat("À encaisser prochainement", euro(enAttente), false, "", "dash-pending-payments")+
-  '</div>'+
-  '<div class="card"><div class="flexb"><h3 style="margin:0 0 4px;">Évolution mensuelle</h3>'+
-    '<div class="muted"><span class="dot" style="background:var(--blush);"></span>biens &nbsp;<span class="dot" style="background:var(--green);"></span>services</div></div>'+
-    '<div class="chart">'+bars+'</div>'+
-    '<p class="muted" style="font-size:11px;margin:8px 0 0;text-align:center;">Touche un mois pour voir le détail des ventes.</p></div>'+
-  monthDetailCard(an)+
-  '<div class="card"><h3 style="margin:0 0 12px;">Suivi micro-entreprise '+an+'</h3>'+
-    jauge("Vente de biens",totB,s.seuilBiens,pct(totB,s.seuilBiens),"var(--bordeaux)")+
-    jauge("Prestations de services",totS,s.seuilServices,pct(totS,s.seuilServices),"var(--green)")+
-    '<div style="margin-top:14px;padding:12px;background:var(--cream);border-radius:10px;font-size:13px;">'+
-      '<div style="font-weight:700;color:var(--bordeaux);margin-bottom:6px;">Cotisations sociales estimées</div>'+
-      '<div class="totrow"><span>Biens ('+s.tauxCotisBiens+' %)</span><span>'+euro(cotB)+'</span></div>'+
-      '<div class="totrow"><span>Services ('+s.tauxCotisServices+' %)</span><span>'+euro(cotS)+'</span></div>'+
-      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:4px;"><span>Total estimé</span><span>'+euro(r2(cotB+cotS))+'</span></div>'+
-    '</div>'+
-    '<p class="muted" style="margin:10px 0 0;font-size:11px;">CA calculé sur les encaissements (factures payées + ventes saisies dans l\'onglet Encaissements), comme pour l\'URSSAF. Seuils et taux indicatifs, modifiables dans Paramètres.</p>'+
-  '</div>';
+  viewDashboardMariageProgress();
 }
 function monthSales(year, mi){
   var pref=String(year)+"-"+("0"+(mi+1)).slice(-2), items=[];
@@ -1383,7 +1311,7 @@ function livraisonOptions(selected){
     return '<option value="'+esc(m)+'"'+(m===selected?' selected':'')+'>'+esc(m)+'</option>';
   }).join("");
 }
-var MARIAGE_COMM_CHANNELS=["Téléphone","SMS","WhatsApp","Messenger","Instagram","TikTok","Snapchat","Facebook"];
+var MARIAGE_COMM_CHANNELS=["Mail","Site internet","Téléphone","SMS","WhatsApp","Messenger","Instagram","TikTok","Snapchat","Facebook"];
 function mariageCommunicationOptions(selected){
   selected=selected||"";
   return '<option value="">Non renseigné</option>'+MARIAGE_COMM_CHANNELS.map(function(c){
@@ -5038,6 +4966,13 @@ function handleAction(action){
     ui.tab="stock";
     render();
     window.scrollTo(0,0);
+    return;
+  }
+
+  if(action==="dash-rdv-mariage"){
+    ui.tab="clientsModule";
+    ui.clientsSub="mariages";
+    mariageRdvStart();
     return;
   }
 

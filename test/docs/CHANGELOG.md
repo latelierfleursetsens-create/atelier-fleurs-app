@@ -1,3 +1,11 @@
+# Journal des versions
+
+## V3.7.0 TEST — Tableau de bord simplifié
+- Suppression des aperçus URSSAF, Stock, Clients, ventes site, calendrier et statistiques du tableau de bord.
+- Conservation de Bonjour Élodie, Todo, notifications et mariages en cours.
+- Ajout de trois accès rapides : rendez-vous mariage, atelier et devis.
+- Toutes les données restent accessibles dans leurs modules dédiés.
+
 ## V3.6.4 PROD
 - Correctif téléphone sur devis mariage : priorité à la fiche cliente mise à jour, même en cas de doublon client.
 - Lorsqu’une fiche cliente est enregistrée, elle reçoit désormais un `updatedAt` pour être priorisée dans les futurs devis.
