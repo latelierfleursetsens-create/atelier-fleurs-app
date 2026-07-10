@@ -1,9 +1,10 @@
-/* V3.7.1 PROD MODULAIRE — Import des photos d’inspiration pendant le RDV et depuis la fiche mariage. */
+/* V3.7.2 PROD MODULAIRE — Correctif du bouton Ajouter au carnet dans les encaissements manuels. */
 "use strict";
 
-var APP_VERSION = "PROD V3.7.1 MODULAIRE";
-var APP_VERSION_NOTE = "Test : ajout des photos d’inspiration pendant la préparation du rendez-vous et dans un onglet dédié de la fiche mariage.";
+var APP_VERSION = "PROD V3.7.2 MODULAIRE";
+var APP_VERSION_NOTE = "Correctif : ajout fiable des encaissements manuels depuis le bouton Ajouter au carnet.";
 var APP_CHANGELOG = [
+  "V3.7.2 PROD — Correctif du bouton Ajouter au carnet dans Clients > Encaissements manuels, avec prise en charge des montants saisis avec une virgule.",
   "V3.7.1 PROD — Photos d’inspiration mariage : import multiple pendant le RDV et onglet Inspirations dans la fiche mariage.",
   "V3.7.0 TEST — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
   "V3.6.6 PROD — Correctif téléphone devis mariage + ajout des canaux Mail et Site internet.",
@@ -3579,7 +3580,7 @@ function viewEncaissements(){
       '<label class="field"><span>Moyen de paiement</span><select id="encPaiement">'+paymentOptions("")+'</select></label>'+
       '<div class="inline"><div><label class="field"><span>Montant biens (€)</span><input id="encBiens" type="number" min="0" step="0.01" placeholder="0"></label></div>'+
       '<div><label class="field"><span>Montant services (€)</span><input id="encServ" type="number" min="0" step="0.01" placeholder="0"></label></div></div>'+
-      '<button class="btn primary" data-action="enc-add">+ Ajouter au carnet</button></div>';
+      '<button id="encAddBtn" type="button" class="btn primary" data-action="enc-add">+ Ajouter au carnet</button></div>';
   if(list.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucun encaissement saisi. Importe ton historique ou ajoute une vente ci-dessus.</p></div>'; return html; }
   html+='<div class="card"><div class="flexb" style="margin-bottom:0;"><h3 style="margin:0;">'+list.length+' encaissement'+(list.length>1?"s":"")+'</h3><span class="muted">'+euro(totB)+' biens · '+euro(totS)+' services</span></div></div>';
   list.forEach(function(e){
@@ -3588,6 +3589,40 @@ function viewEncaissements(){
       '<button class="btn small danger" data-action="enc-del-'+e.id+'">Supprimer</button></div>';
   });
   return html;
+}
+function addManualEncaissementFromForm(){
+  try{
+    var biens=parseAmountFR(val("encBiens"));
+    var services=parseAmountFR(val("encServ"));
+    if(biens===0 && services===0){
+      toast("Indique un montant dans biens et/ou services.");
+      return false;
+    }
+    if(!Array.isArray(state.encaissements)) state.encaissements=[];
+    if(!Array.isArray(state.clients)) state.clients=[];
+    var client=val("encClient").trim();
+    var libelle=val("encLib").trim() || "Encaissement manuel";
+    state.encaissements.unshift({
+      id:uid(),
+      date:val("encDate")||todayISO(),
+      libelle:libelle,
+      montantBiens:r2(biens),
+      montantServices:r2(services),
+      montant:r2(biens+services),
+      client:client,
+      paiement:val("encPaiement")||"",
+      source:"manuel"
+    });
+    if(client) ensureClients([client]);
+    saveCache();
+    render();
+    toast("Encaissement manuel ajouté au carnet.");
+    return true;
+  }catch(err){
+    console.error("Erreur ajout encaissement manuel",err);
+    toast("Impossible d’ajouter l’encaissement. Recharge la page puis réessaie.");
+    return false;
+  }
 }
 function parseAmountFR(s){
   if(s==null) return 0; s=String(s).replace(/[€\s\u00a0]/g,"");
@@ -5433,7 +5468,7 @@ function handleAction(action){
   if(action.indexOf("csv-")===0){ exportCSV(action.slice(4)); return; }
 
   // encaissements
-  if(action==="enc-add"){ var b=num(val("encBiens")), s=num(val("encServ")); if(b===0&&s===0){ toast("Indique un montant (biens et/ou services)."); return; } var cl=val("encClient").trim(); state.encaissements.push({ id:uid(), date:val("encDate")||todayISO(), libelle:val("encLib"), montantBiens:r2(b), montantServices:r2(s), montant:r2(b+s), client:cl, paiement:val("encPaiement"), source:"manuel" }); if(cl) ensureClients([cl]); saveCache(); render(); toast("Encaissement manuel ajouté."); return; }
+  if(action==="enc-add"){ addManualEncaissementFromForm(); return; }
   if(action==="enc-clearimport"){ if(confirm("Supprimer tous les encaissements issus d'un import ? (les ventes saisies à la main sont conservées)")){ state.encaissements=state.encaissements.filter(function(e){return e.source!=="import";}); saveCache(); render(); toast("Encaissements importés supprimés."); } return; }
   if(action.indexOf("enc-del-")===0){ var eid=action.slice(8); if(confirm("Supprimer cet encaissement ?")){ state.encaissements=state.encaissements.filter(function(x){return x.id!==eid;}); saveCache(); render(); } return; }
   if(action==="enc-import"){ document.getElementById("encImport").click(); return; }
@@ -5639,6 +5674,17 @@ function onRestoreFile(file){
 }
 
 /* ===================== Écouteurs ===================== */
+// Correctif V3.7.2 : listener direct et prioritaire pour le bouton "Ajouter au carnet".
+// Utile notamment sur Safari/iPhone lorsque le listener générique ne reçoit pas correctement le clic.
+document.addEventListener("click", function(e){
+  var btn=e.target && e.target.closest ? e.target.closest("#encAddBtn,[data-action='enc-add']") : null;
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+  addManualEncaissementFromForm();
+}, true);
+
 // Correctif V3.0.2 : listener direct et prioritaire pour le bouton "Ajouter le client".
 // Cela évite les cas où le clic était absorbé après le passage en architecture modulaire.
 document.addEventListener("click", function(e){

@@ -1,5 +1,13 @@
 # Journal des versions
 
+## V3.7.2 PROD — Correctif Ajouter au carnet
+
+- Correction du bouton dans **Clients > Encaissements manuels**.
+- Listener direct compatible Safari/iPhone.
+- Prise en charge des décimales avec virgule.
+- Cache-busting des fichiers CSS/JS.
+
+
 ## V3.7.1 PROD — Photos d’inspiration mariage
 - Import multiple de photos et fichiers pendant la préparation du rendez-vous.
 - Les inspirations importées sont transférées automatiquement dans la nouvelle fiche mariage.

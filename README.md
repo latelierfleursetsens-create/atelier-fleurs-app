@@ -1,27 +1,10 @@
-# MyBusiness — V3.7.1 PROD
+# MyBusiness — V3.7.2 PROD
 
-## Photos d’inspiration mariage
+## Correctif Encaissements manuels
 
-Cette version ajoute l’import des photos d’inspiration aux deux moments utiles du dossier :
+- Le bouton **+ Ajouter au carnet** fonctionne via un écouteur direct et prioritaire.
+- Les montants avec une virgule (ex. `35,50`) sont acceptés.
+- Un message d’erreur explicite apparaît si aucun montant n’est renseigné.
+- Les fichiers CSS et JavaScript sont versionnés dans `index.html` pour éviter qu’un ancien fichier reste en cache sur Safari/GitHub Pages.
 
-- **Pendant la préparation du rendez-vous** : dans l’étape « Inspirations et style », le bouton **Ajouter des photos / fichiers** permet de sélectionner une ou plusieurs images. Elles sont conservées lors de la création de la fiche mariage.
-- **Après la création de la fiche** : un onglet dédié **Inspirations** permet d’ajouter, ouvrir et supprimer les photos ou fichiers à tout moment.
-
-### Détails
-
-- sélection de plusieurs fichiers en une fois ;
-- aperçu des images avant de créer la fiche ;
-- suppression possible avant et après la création ;
-- images automatiquement compressées pour limiter leur poids ;
-- PDF, DOC et DOCX également acceptés jusqu’à 2,5 Mo par fichier ;
-- l’étape « Inspirations reçues » du suivi mariage est validée lorsqu’une photo est ajoutée.
-
-## Test conseillé
-
-1. Ouvrir **Mariages > Préparer mon rendez-vous**.
-2. Ajouter deux photos dans l’étape 3.
-3. Compléter le rendez-vous et créer la fiche.
-4. Ouvrir l’onglet **Inspirations** de la fiche créée.
-5. Vérifier que les photos sont présentes, puis en ajouter une autre.
-
-Cette version doit rester sur le dépôt GitHub de test avant validation en production.
+Cette version conserve toutes les fonctions de la V3.7.1 PROD, notamment les photos d’inspiration mariage et le tableau de bord simplifié.
