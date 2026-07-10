@@ -1,9 +1,10 @@
-/* V3.7.0 TEST MODULAIRE — Tableau de bord simplifié et centré sur les actions. */
+/* V3.7.1 TEST MODULAIRE — Import des photos d’inspiration pendant le RDV et depuis la fiche mariage. */
 "use strict";
 
-var APP_VERSION = "TEST V3.7.0 MODULAIRE";
-var APP_VERSION_NOTE = "Test : tableau de bord allégé avec uniquement l’accueil, la Todo, les notifications et les mariages en cours.";
+var APP_VERSION = "TEST V3.7.1 MODULAIRE";
+var APP_VERSION_NOTE = "Test : ajout des photos d’inspiration pendant la préparation du rendez-vous et dans un onglet dédié de la fiche mariage.";
 var APP_CHANGELOG = [
+  "V3.7.1 TEST — Photos d’inspiration mariage : import multiple pendant le RDV et onglet Inspirations dans la fiche mariage.",
   "V3.7.0 TEST — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
   "V3.6.6 PROD — Correctif téléphone devis mariage + ajout des canaux Mail et Site internet.",
   "V3.6.5 TEST — Actualisation automatique du devis mariage lié depuis la fiche mariage et la fiche cliente.",
@@ -4122,7 +4123,7 @@ function mariageRdvDefault(){
     dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"",
     theme:"", couleurs:"", budget:"",
     inspirations:"", fleursAimees:"", fleursAEviter:"", styleBouquet:"",
-    contraintes:"", notes:"", relance:"",
+    contraintes:"", notes:"", relance:"", medias:[],
     bouquet:true, bouquetLancer:false, bouquetEnfant:false,
     nbBoutonnieres:"", nbBracelets:"", nbPeignes:"", couronne:false,
     decoVoiture:false, nbCentres:"", autresPrestations:""
@@ -4202,9 +4203,11 @@ function createMariageFromRdv(){
     c={id:uid(),nom:d.nom.trim(),adresse:d.lieu||"",email:d.email||"",tel:d.tel||"",canal:d.canalCommunication||"",anniversaire:"",notes:"Créée depuis l’assistant RDV mariage.",updatedAt:todayISO()};
     state.clients.push(c);
   }
-  var m={ id:uid(), clientId:c.id, nom:d.nom.trim(), email:d.email, tel:d.tel, canalCommunication:d.canalCommunication, dateMariage:d.dateMariage, dateLivraison:d.dateLivraison, modeLivraison:d.modeLivraison, lieu:d.lieu, theme:[d.theme,d.couleurs].filter(Boolean).join(" · "), budget:d.budget, besoins:mariageRdvBesoins(d), synthese:mariageRdvSynthese(d), statut:"contact", livre:false, dateLivree:"", relance:d.relance, devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"", articles:articles, prestationsComplementaires:[], coutMatieres:"", todoMariage:[], medias:[], historique:[], createdAt:todayISO(), suiviMariage:{} };
-  if(String(d.inspirations||"").trim()) m.suiviMariage.inspirations=true;
+  var rdvMedias=(d.medias||[]).map(function(md){ return Object.assign({},md); });
+  var m={ id:uid(), clientId:c.id, nom:d.nom.trim(), email:d.email, tel:d.tel, canalCommunication:d.canalCommunication, dateMariage:d.dateMariage, dateLivraison:d.dateLivraison, modeLivraison:d.modeLivraison, lieu:d.lieu, theme:[d.theme,d.couleurs].filter(Boolean).join(" · "), budget:d.budget, besoins:mariageRdvBesoins(d), synthese:mariageRdvSynthese(d), statut:"contact", livre:false, dateLivree:"", relance:d.relance, devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"", articles:articles, prestationsComplementaires:[], coutMatieres:"", todoMariage:[], medias:rdvMedias, historique:[], createdAt:todayISO(), suiviMariage:{} };
+  if(String(d.inspirations||"").trim() || rdvMedias.length) m.suiviMariage.inspirations=true;
   m.historique.unshift({date:todayISO(),texte:"Rendez-vous téléphonique préparé dans l’assistant RDV."});
+  if(rdvMedias.length) m.historique.unshift({date:todayISO(),texte:rdvMedias.length+" photo(s) / fichier(s) d’inspiration ajouté(s) pendant le rendez-vous."});
   if(d.notes) m.historique.unshift({date:todayISO(),texte:"Notes RDV : "+d.notes});
   m.todoMariage.push({id:uid(),label:"Envoyer la synthèse du rendez-vous",done:false,createdAt:todayISO()});
   m.todoMariage.push({id:uid(),label:"Préparer le devis mariage",done:false,createdAt:todayISO()});
@@ -4213,6 +4216,16 @@ function createMariageFromRdv(){
   saveCache(); render(); window.scrollTo(0,0); toast("Fiche mariage créée depuis le rendez-vous.");
 }
 function rdvCheck(label,id,checked){ return '<label class="checkrow" style="border-bottom:none;cursor:pointer;"><input type="checkbox" id="'+id+'"'+(checked?' checked':'')+'><div style="flex:1;">'+esc(label)+'</div></label>'; }
+function mariageRdvMediaHtml(d){
+  var medias=(d.medias||[]).map(function(md){
+    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+md.dataUrl+'" data-action="mar-rdv-media-open-'+md.id+'" title="Ouvrir '+esc(md.name||"image")+'"><button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
+    return '<span class="chip">📄 '+esc(md.name||"fichier")+' <button class="btn small ghost" data-action="mar-rdv-media-open-'+md.id+'" style="padding:2px 8px;">ouvrir</button> <button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="padding:2px 8px;">×</button></span>';
+  }).join("");
+  return '<div style="margin-top:10px;padding:12px;border:1px dashed var(--gold-s);border-radius:10px;background:#fffdfb;">'+
+    '<div class="flexb" style="margin-bottom:8px;"><div><b style="color:var(--bordeaux);">Photos d’inspiration</b><div class="muted" style="font-size:12px;">Ajoute les images reçues avant ou pendant l’appel. Sélection multiple possible.</div></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+(d.medias||[]).length+' fichier'+((d.medias||[]).length>1?'s':'')+'</span></div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;">'+(medias||'<span class="muted">Aucune photo ajoutée pour le moment.</span>')+'</div>'+
+    '<button class="btn soft" data-action="mar-rdv-media-pick">📷 Ajouter des photos / fichiers</button></div>';
+}
 function viewMariageRdvWizard(){
   var d=mariageRdvDraft();
   function F(label,id,val,type,ph){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" '+(type?'type="'+type+'" ':'')+'value="'+esc(val||"")+'" '+(ph?'placeholder="'+esc(ph)+'" ':'')+'></label>'; }
@@ -4220,7 +4233,7 @@ function viewMariageRdvWizard(){
   return '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;"><div class="flexb" style="align-items:flex-start;"><div><div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;">Assistant rendez-vous mariage</div><h2 style="margin:3px 0 4px;">🎯 Préparer mon rendez-vous</h2><p class="muted" style="margin:0;">Guide les questions à poser pendant l’appel, puis crée automatiquement une fiche mariage complète.</p></div><button class="btn small ghost" data-action="mar-rdv-cancel">← Retour</button></div></div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">1. Contact</h3>'+F("Nom de la cliente / du couple","rdvNom",d.nom,"text","Ex : Camille & Antoine")+'<div class="inline"><div>'+F("Email","rdvEmail",d.email,"email","")+'</div><div>'+F("Téléphone","rdvTel",d.tel,"tel","")+'</div></div><label class="field"><span>Canal de communication</span><select id="rdvCanalCommunication">'+mariageCommunicationOptions(d.canalCommunication||"Téléphone")+'</select></label></div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">2. Informations mariage</h3><div class="inline"><div>'+F("Date du mariage","rdvDateMariage",d.dateMariage,"date","")+'</div><div>'+F("Date de livraison","rdvDateLivraison",d.dateLivraison,"date","")+'</div></div><div class="inline"><div>'+F("Lieu de réception / ville","rdvLieu",d.lieu,"text","")+'</div><div><label class="field"><span>Mode de livraison</span><select id="rdvModeLivraison">'+livraisonOptions(d.modeLivraison||"")+'</select></label></div></div><div class="inline"><div>'+F("Thème","rdvTheme",d.theme,"text","Bohème, champêtre, élégant…")+'</div><div>'+F("Couleurs","rdvCouleurs",d.couleurs,"text","Champagne, beige, sauge…")+'</div></div>'+F("Budget évoqué","rdvBudget",d.budget,"text","")+'</div>'+ 
-  '<div class="card"><h3 style="margin:0 0 10px;">3. Inspirations et style</h3>'+T("Inspirations reçues / à demander","rdvInspirations",d.inspirations,"Photos Pinterest, bouquet préféré, exemples envoyés…")+'<div class="inline"><div>'+T("Fleurs aimées","rdvFleursAimees",d.fleursAimees,"Pivoine, hortensia, rose stabilisée…")+'</div><div>'+T("À éviter","rdvFleursAEviter",d.fleursAEviter,"Couleurs vives, feuillage vert, rose…")+'</div></div>'+T("Style du bouquet","rdvStyleBouquet",d.styleBouquet,"Rond, aérien, sauvage, couché sur l’avant-bras, sans feuillage…")+'</div>'+ 
+  '<div class="card"><h3 style="margin:0 0 10px;">3. Inspirations et style</h3>'+T("Inspirations reçues / à demander","rdvInspirations",d.inspirations,"Photos Pinterest, bouquet préféré, exemples envoyés…")+mariageRdvMediaHtml(d)+'<div class="inline" style="margin-top:12px;"><div>'+T("Fleurs aimées","rdvFleursAimees",d.fleursAimees,"Pivoine, hortensia, rose stabilisée…")+'</div><div>'+T("À éviter","rdvFleursAEviter",d.fleursAEviter,"Couleurs vives, feuillage vert, rose…")+'</div></div>'+T("Style du bouquet","rdvStyleBouquet",d.styleBouquet,"Rond, aérien, sauvage, couché sur l’avant-bras, sans feuillage…")+'</div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">4. Créations souhaitées</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px;">'+rdvCheck("Bouquet de mariée","rdvBouquet",d.bouquet)+rdvCheck("Mini bouquet à lancer","rdvBouquetLancer",d.bouquetLancer)+rdvCheck("Bouquet enfant / demoiselle","rdvBouquetEnfant",d.bouquetEnfant)+rdvCheck("Couronne fleurie","rdvCouronne",d.couronne)+rdvCheck("Décoration voiture","rdvDecoVoiture",d.decoVoiture)+'</div><div class="inline" style="margin-top:10px;"><div>'+F("Nombre de boutonnières","rdvNbBoutonnieres",d.nbBoutonnieres,"number","")+'</div><div>'+F("Nombre de bracelets","rdvNbBracelets",d.nbBracelets,"number","")+'</div><div>'+F("Nombre de peignes / accessoires cheveux","rdvNbPeignes",d.nbPeignes,"number","")+'</div><div>'+F("Nombre de centres de table","rdvNbCentres",d.nbCentres,"number","")+'</div></div>'+T("Autres prestations souhaitées","rdvAutresPrestations",d.autresPrestations,"Une ligne par création : arche, bouquet de table, marque-places…")+'</div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">5. Points à ne pas oublier</h3>'+T("Contraintes / informations importantes","rdvContraintes",d.contraintes,"Délais, transport, photos à recevoir, budget à respecter, livraison…")+T("Notes internes du rendez-vous","rdvNotes",d.notes,"Ce que tu veux garder pour toi : ressenti, choses à relancer, points à vérifier…")+F("Date de relance prévue","rdvRelance",d.relance,"date","")+'<div class="row-actions"><button class="btn primary" data-action="mar-rdv-create">Créer la fiche mariage</button><button class="btn ghost" data-action="mar-rdv-cancel">Annuler</button></div></div>';
 }
@@ -4269,6 +4282,7 @@ function mariageDetailTabs(active){
     ["resume","Résumé"],
     ["fiche","Fiche"],
     ["creations","Créations"],
+    ["inspirations","Inspirations"],
     ["documents","Documents"],
     ["suivi","Suivi"],
     ["budget","Budget"],
@@ -4358,7 +4372,8 @@ function viewMariageDetail(m){
   if(activeTab==="resume") content=mariageCrmMiniCards(m)+summary+viewMariageWorkflow(m);
   else if(activeTab==="fiche") content=infos;
   else if(activeTab==="creations") content=artsCard+viewMariagePrestationsComplementaires(m);
-  else if(activeTab==="documents") content=viewMariageDocumentsManager(m)+df+medCard;
+  else if(activeTab==="inspirations") content=medCard;
+  else if(activeTab==="documents") content=viewMariageDocumentsManager(m)+df;
   else if(activeTab==="suivi") content=viewMariageWorkflow(m)+viewMariageTodoManager(m);
   else if(activeTab==="budget") content=viewMariageBudgetManager(m);
   else if(activeTab==="historique") content=viewMariageTimeline(m)+histCard+del;
@@ -4374,19 +4389,50 @@ function compressImage2(file,cb){
     cb(c.toDataURL("image/jpeg",0.72)); }; img.src=e.target.result; };
   r.readAsDataURL(file);
 }
-function onMarMedia(file){
-  var m=getMariage(ui.mariageOpen); if(!m||!file) return; captureMariageInputs();
+function mediaItemFromFile(file,cb){
+  if(!file){ cb(null); return; }
   if(/^image\//.test(file.type)){
-    compressImage2(file,function(durl){ m.medias=m.medias||[]; m.medias.push({id:uid(),type:"image",name:file.name,dataUrl:durl,mime:"image/jpeg"}); saveCache(); render(); });
-  } else {
-    if(file.size>2500000){ toast("Fichier trop lourd (>2,5 Mo). Garde-le sur iCloud et note-le dans les besoins."); return; }
-    var rd=new FileReader(); rd.onload=function(e){ m.medias=m.medias||[]; m.medias.push({id:uid(),type:"file",name:file.name,dataUrl:e.target.result,mime:file.type}); saveCache(); render(); }; rd.readAsDataURL(file);
+    compressImage2(file,function(durl){ cb({id:uid(),type:"image",name:file.name,dataUrl:durl,mime:"image/jpeg"}); });
+    return;
   }
+  if(file.size>2500000){ toast("Fichier "+file.name+" trop lourd (>2,5 Mo). Garde-le sur iCloud et note-le dans la fiche."); cb(null); return; }
+  var rd=new FileReader();
+  rd.onload=function(e){ cb({id:uid(),type:"file",name:file.name,dataUrl:e.target.result,mime:file.type}); };
+  rd.onerror=function(){ toast("Impossible de lire le fichier "+file.name+"."); cb(null); };
+  rd.readAsDataURL(file);
 }
-function openMedia(id){
-  var m=getMariage(ui.mariageOpen); if(!m)return; var md=(m.medias||[]).find(function(x){return x.id===id;}); if(!md)return;
+function addMediaFiles(files,target,done){
+  var arr=Array.prototype.slice.call(files||[]);
+  if(!arr.length){ if(done) done(0); return; }
+  var pending=arr.length, added=0, items=new Array(arr.length);
+  arr.forEach(function(file,idx){
+    mediaItemFromFile(file,function(item){
+      items[idx]=item; pending--;
+      if(pending===0){
+        items.forEach(function(x){ if(x){ target.push(x); added++; } });
+        if(done) done(added);
+      }
+    });
+  });
+}
+function onMarMediaFiles(files){
+  var m=getMariage(ui.mariageOpen); if(!m) return; captureMariageInputs(); m.medias=m.medias||[];
+  addMediaFiles(files,m.medias,function(added){ if(added){ m.suiviMariage=m.suiviMariage||{}; m.suiviMariage.inspirations=true; saveCache(); render(); toast(added+" fichier(s) d’inspiration ajouté(s)."); } });
+}
+function onRdvMediaFiles(files){
+  var d=captureMariageRdvDraft(); d.medias=d.medias||[];
+  addMediaFiles(files,d.medias,function(added){ if(added){ render(); toast(added+" fichier(s) ajouté(s) au rendez-vous."); } });
+}
+function openMediaItem(md){
+  if(!md) return;
   if(md.type==="image"){ ui.lightbox=md.dataUrl; renderModal(); }
   else { var a=document.createElement("a"); a.href=md.dataUrl; a.download=md.name||"fichier"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+}
+function openMedia(id){
+  var m=getMariage(ui.mariageOpen); if(!m)return; openMediaItem((m.medias||[]).find(function(x){return x.id===id;}));
+}
+function openRdvMedia(id){
+  var d=mariageRdvDraft(); openMediaItem((d.medias||[]).find(function(x){return x.id===id;}));
 }
 
 
@@ -5398,7 +5444,10 @@ function handleAction(action){
   if(action==="mar-rdv-start"){ mariageRdvStart(); return; }
   if(action==="mar-rdv-cancel"){ ui.mariageRdvDraft=null; ui.mariageView="fiches"; render(); window.scrollTo(0,0); return; }
   if(action==="mar-rdv-create"){ createMariageFromRdv(); return; }
-  if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||""}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
+  if(action==="mar-rdv-media-pick"){ captureMariageRdvDraft(); var ri=document.getElementById("rdvMedia"); if(ri) ri.click(); return; }
+  if(action.indexOf("mar-rdv-media-open-")===0){ openRdvMedia(action.slice(19)); return; }
+  if(action.indexOf("mar-rdv-media-del-")===0){ var rd=mariageRdvDraft(); captureMariageRdvDraft(); var rmid=action.slice(18); rd.medias=(rd.medias||[]).filter(function(x){return x.id!==rmid;}); render(); return; }
+  if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);})}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
   if(action==="mar-filter-avenir"){ ui.mariageFilter="avenir"; render(); return; }
   if(action==="mar-filter-tous"){ ui.mariageFilter="tous"; render(); return; }
   if(action==="mar-view-fiches"){ ui.mariageView="fiches"; render(); return; }
@@ -5421,7 +5470,7 @@ function handleAction(action){
   if(action.indexOf("mar-extra-add-")===0){ var mx=getMariage(ui.mariageOpen); if(mx){ captureMariageInputs(); var mpi=Number(action.slice(14)); var mlist=prestationsActives(); var mpreset=mlist[mpi]||mlist[mlist.length-1]||{label:"Autre / champ libre",type:"bien",qte:1,prix:0}; mx.prestationsComplementaires=mx.prestationsComplementaires||[]; var mptype=mpreset.type==="service"?"service":"bien"; mx.prestationsComplementaires.push({id:uid(),designation:mpreset.label,type:mptype,urssafType:mptype,qte:mpreset.qte||1,prix:num(mpreset.prix)}); syncMariageLinkedDevis(mx,{silent:true}); saveCache(); render(); toast("Ligne ajoutée au devis mariage."); } return; }
   if(action.indexOf("mar-extra-del-")===0){ var mxd=getMariage(ui.mariageOpen); if(mxd){ captureMariageInputs(); var mxid=action.slice(14); mxd.prestationsComplementaires=(mxd.prestationsComplementaires||[]).filter(function(l){return l.id!==mxid;}); syncMariageLinkedDevis(mxd,{silent:true}); saveCache(); render(); toast("Ligne supprimée."); } return; }
   if(action==="mar-createdevis"){ var mc=getMariage(ui.mariageOpen); if(mc){ captureMariageInputs(); saveCache(); newWizard(); ui.wizard.clientMode="nouveau"; ui.wizard.client=devisClientFromMariage(mc); ui.wizard.lignes=mariageLinesForDevis(mc); ui.wizard.step = ui.wizard.lignes.length ? 2 : 1; ui.wizard.notes="Devis créé depuis la fiche mariage"+(mc.dateMariage?" du "+frDate(mc.dateMariage):""); ui.wizardLinkMariage=mc.id; ui.tab="devis"; render(); window.scrollTo(0,0); } return; }
-  if(action==="mar-media-pick"){ document.getElementById("marMedia").click(); return; }
+  if(action==="mar-media-pick"){ var mi=document.getElementById("marMedia"); if(mi) mi.click(); return; }
   if(action.indexOf("mar-media-open-")===0){ openMedia(action.slice(15)); return; }
   if(action.indexOf("mar-media-del-")===0){ var m1=getMariage(ui.mariageOpen); if(m1){ captureMariageInputs(); var rid=action.slice(14); m1.medias=(m1.medias||[]).filter(function(x){return x.id!==rid;}); saveCache(); render(); } return; }
   if(action==="mar-art-add"){ var m2=getMariage(ui.mariageOpen); if(m2){ captureMariageInputs(); var lbl=val("marArtInput"); if(lbl.trim()){ m2.articles=m2.articles||[]; m2.articles.push({id:uid(),label:lbl,fait:false}); syncMariageLinkedDevis(m2,{silent:true}); saveCache(); render(); } } return; }
@@ -5660,7 +5709,8 @@ document.addEventListener("change", function(e){
   if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-pay-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.atelierPaiementType=t.value; captureSiteSaleDraft(); render(); } return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="wz-clientsel"){ if(ui.wizard) ui.wizard.clientId=t.value; return; }
   if(t.id==="logoInput"){ onLogoFile(t.files[0]); t.value=""; return; }
-  if(t.id==="marMedia"){ onMarMedia(t.files[0]); t.value=""; return; }
+  if(t.id==="marMedia"){ onMarMediaFiles(t.files); t.value=""; return; }
+  if(t.id==="rdvMedia"){ onRdvMediaFiles(t.files); t.value=""; return; }
   if(t.id==="encImport"){ onEncImport(t.files[0]); t.value=""; return; }
   if(t.id==="restoreInput"){ onRestoreFile(t.files[0]); t.value=""; return; }
   var act=t.getAttribute&&t.getAttribute("data-action");

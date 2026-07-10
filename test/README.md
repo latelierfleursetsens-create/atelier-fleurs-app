@@ -1,31 +1,27 @@
-# MyBusiness — V3.7.0 TEST
+# MyBusiness — V3.7.1 TEST
 
-## Objet du test
+## Photos d’inspiration mariage
 
-Cette version propose un tableau de bord beaucoup plus simple, pensé comme un espace de travail quotidien.
+Cette version ajoute l’import des photos d’inspiration aux deux moments utiles du dossier :
 
-### Éléments conservés sur le tableau de bord
+- **Pendant la préparation du rendez-vous** : dans l’étape « Inspirations et style », le bouton **Ajouter des photos / fichiers** permet de sélectionner une ou plusieurs images. Elles sont conservées lors de la création de la fiche mariage.
+- **Après la création de la fiche** : un onglet dédié **Inspirations** permet d’ajouter, ouvrir et supprimer les photos ou fichiers à tout moment.
 
-- Version de l’application
-- Bloc **Bonjour Élodie**
-- Accès rapides : préparer un rendez-vous mariage, nouvel atelier, nouveau devis
-- Todo list
-- Centre de notifications
-- Mariages en cours, triés par date de livraison
+### Détails
 
-### Éléments retirés du tableau de bord
+- sélection de plusieurs fichiers en une fois ;
+- aperçu des images avant de créer la fiche ;
+- suppression possible avant et après la création ;
+- images automatiquement compressées pour limiter leur poids ;
+- PDF, DOC et DOCX également acceptés jusqu’à 2,5 Mo par fichier ;
+- l’étape « Inspirations reçues » du suivi mariage est validée lorsqu’une photo est ajoutée.
 
-- Déclaration URSSAF
-- Les deux aperçus Stock
-- Aperçu Clients
-- Aperçu Ventes site internet
-- Cartes À encaisser / Devis en attente / Ateliers à venir / Mariages à venir
-- Calendrier et événements des 7 prochains jours
-- Aperçus achats et ateliers
-- Statistiques de chiffre d’affaires, graphiques et jauges micro-entreprise
+## Test conseillé
 
-Ces données ne sont pas supprimées : elles restent accessibles dans leurs onglets habituels (Finances, Stock, Clients, Calendrier, etc.).
+1. Ouvrir **Mariages > Préparer mon rendez-vous**.
+2. Ajouter deux photos dans l’étape 3.
+3. Compléter le rendez-vous et créer la fiche.
+4. Ouvrir l’onglet **Inspirations** de la fiche créée.
+5. Vérifier que les photos sont présentes, puis en ajouter une autre.
 
-## Installation
-
-Décompresser le ZIP puis remplacer l’ensemble des fichiers du dépôt GitHub de test. Ne pas installer cette version sur la production avant validation.
+Cette version doit rester sur le dépôt GitHub de test avant validation en production.

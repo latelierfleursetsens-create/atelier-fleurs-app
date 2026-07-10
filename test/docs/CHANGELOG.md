@@ -1,5 +1,12 @@
 # Journal des versions
 
+## V3.7.1 TEST — Photos d’inspiration mariage
+- Import multiple de photos et fichiers pendant la préparation du rendez-vous.
+- Les inspirations importées sont transférées automatiquement dans la nouvelle fiche mariage.
+- Ajout d’un onglet **Inspirations** dans le CRM Mariage.
+- Ajout, aperçu et suppression des médias possibles après la création de la fiche.
+- Validation automatique de l’étape « Inspirations reçues » lorsqu’un média est ajouté.
+
 ## V3.7.0 TEST — Tableau de bord simplifié
 - Suppression des aperçus URSSAF, Stock, Clients, ventes site, calendrier et statistiques du tableau de bord.
 - Conservation de Bonjour Élodie, Todo, notifications et mariages en cours.
