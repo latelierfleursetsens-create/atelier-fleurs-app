@@ -1,16 +1,20 @@
-# MyBusiness — V3.8.1 TEST
+# MyBusiness — V3.8.2 TEST
 
-## Simulation du stock pour les ateliers
+## Recettes matériel configurables pour les ateliers
 
-Cette version est conçue pour être testée sans risque sur la base réelle :
+Cette version conserve le **mode simulation** : aucune quantité de stock n’est retirée.
 
-- choix du modèle d’atelier ;
-- calcul des fournitures selon le nombre de personnes ;
-- choix des variantes (couleur, diamètre, peigne, fil macramé) ;
-- affichage du stock actuel et du stock restant théorique ;
-- alertes si le matériel est insuffisant ;
-- **aucun décompte, ajout, association ou restitution automatique du stock**.
+Nouveautés :
 
-Enregistrer, modifier, annuler ou supprimer un atelier ne change aucune quantité du stock réel.
+- ajout manuel libre d’articles dans l’onglet Stock ;
+- bloc **Recettes matériel des ateliers** ;
+- choix d’un atelier prédéfini ;
+- association de chaque ligne à un article réel du stock ;
+- quantité consommée par personne ;
+- conditions facultatives selon la variante choisie (toile blanche/noire, couleur des pailles, diamètre du cercle, couleur du macramé, taille du peigne) ;
+- possibilité d’utiliser le même article dans plusieurs ateliers ;
+- possibilité d’ajouter à tout moment un nouvel élément saisonnier, par exemple une décoration de Noël ;
+- affichage des ateliers associés directement sous chaque article de stock ;
+- blocage de la suppression d’un article encore utilisé dans une recette.
 
-Après validation des calculs, la prochaine étape sera l’ajout d’un bouton **Préparer le matériel**, avec confirmation avant tout décompte et possibilité d’annuler la préparation.
+Les recettes sont enregistrées dans Firebase avec les paramètres de l’application. Elles servent uniquement au calcul théorique des besoins tant que le bouton sécurisé **Préparer le matériel** n’a pas été développé et validé.

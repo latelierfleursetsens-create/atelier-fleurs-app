@@ -1,3 +1,10 @@
+# V3.8.2 TEST
+
+- Recettes matériel modifiables par atelier depuis le stock.
+- Association d’un article à plusieurs ateliers avec quantité par personne.
+- Ajout de fournitures saisonnières ou spécifiques sans modifier le code.
+- Mode simulation conservé : aucune quantité réelle décomptée.
+
 # Journal des versions
 
 ## V3.8.0 TEST — Recettes ateliers et stock automatique
