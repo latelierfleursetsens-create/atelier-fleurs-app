@@ -1,10 +1,10 @@
-/* V3.8.0 TEST MODULAIRE — Ateliers liés au stock par recettes de matériel. */
+/* V3.8.1 TEST MODULAIRE — Simulation des besoins matériel ateliers, sans écriture dans le stock. */
 "use strict";
 
-var APP_VERSION = "TEST V3.8.0 MODULAIRE";
+var APP_VERSION = "TEST V3.8.1 MODULAIRE";
 var APP_VERSION_NOTE = "Test : choix d’un modèle d’atelier et décompte automatique du matériel selon le nombre de participants.";
 var APP_CHANGELOG = [
-  "V3.8.0 TEST — Recettes de matériel ateliers, aperçu des besoins et décompte automatique du stock selon le nombre de participants.",
+  "V3.8.1 TEST — Simulation des besoins matériel des ateliers sans aucune modification du stock réel.",
   "V3.7.2 PROD — Correctif du bouton Ajouter au carnet dans Clients > Encaissements manuels, avec prise en charge des montants saisis avec une virgule.",
   "V3.7.1 PROD — Photos d’inspiration mariage : import multiple pendant le RDV et onglet Inspirations dans la fiche mariage.",
   "V3.7.0 TEST — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
@@ -2169,7 +2169,7 @@ function viewCRMPreview(){
 
 var ATELIER_TYPES=["EVJF","Structure","Anniversaire","Moment entre copine"];
 
-/* ===================== V3.8.0 — Recettes ateliers / stock ===================== */
+/* ===================== V3.8.1 — Recettes ateliers / simulation stock ===================== */
 var ATELIER_MODELES=[
   {id:"mandala_adulte_structure",label:"Mandala végétal adulte",modes:["structure"],materials:[{key:"base_carton_25",label:"Base cartonnée 25 cm",qty:1}]},
   {id:"mandala_enfant_structure",label:"Mandala végétal enfant / ado",modes:["structure"],materials:[{key:"base_carton_20",label:"Base cartonnée 20 cm",qty:1}]},
@@ -2247,23 +2247,43 @@ function atelierRecipe(a){
   var n=Math.max(0,atelierParticipantsCount(a));
   return model.materials.map(function(m){ var key=m.key; if(m.variantKey) key=m.map[atelierVariantValue(a,m.variantKey)]; return {key:key,label:m.label,qty:r2((Number(m.qty)||0)*n)}; }).filter(function(x){return x.key&&x.qty>0;});
 }
-function stockByAtelierKey(key){ return (state.stockItems||[]).find(function(x){return x.atelierStockKey===key;})||null; }
+function atelierStockReference(key){ return ATELIER_STOCK_INITIAL.find(function(x){return x.key===key;})||null; }
+function atelierStockNorm(v){ return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function stockByAtelierKey(key){
+  var items=state.stockItems||[];
+  var linked=items.find(function(x){return x.atelierStockKey===key;});
+  if(linked) return linked;
+  var ref=atelierStockReference(key);
+  if(!ref) return null;
+  var target=atelierStockNorm(ref.nom);
+  return items.find(function(x){return atelierStockNorm(x.nom)===target;})||null;
+}
+function atelierStockForSimulation(key){
+  var actual=stockByAtelierKey(key);
+  if(actual) return {item:actual,isFallback:false};
+  var ref=atelierStockReference(key);
+  return ref?{item:ref,isFallback:true}:null;
+}
 function atelierRecipePreview(a){
   var recipe=atelierRecipe(a), model=atelierModeleById(a&&a.atelierModeleId); if(!model) return '';
-  var h='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin:0;">📦 Matériel calculé automatiquement</h3><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+atelierParticipantsCount(a)+' personne(s)</span></div>';
-  if(!recipe.length) return h+'<p class="muted">Indique le nombre de personnes pour calculer le matériel.</p></div>';
-  recipe.forEach(function(r){ var it=stockByAtelierKey(r.key), ok=it&&Number(it.quantite)>=r.qty; h+='<div class="checkrow"><div style="flex:1;"><b>'+esc(r.label)+'</b><div class="muted">Besoin : '+r.qty+(it?' '+esc(it.unite||'pièce')+' · Disponible : '+r2(Number(it.quantite)||0):' · Article non associé au stock')+'</div></div><span class="badge" style="background:'+(ok?'#e7eee8':'#ffe1d8')+';color:'+(ok?'#384640':'#8a2d1b')+';">'+(ok?'Disponible':'À compléter')+'</span></div>'; });
-  if(a.stockConsumption&&a.stockConsumption.length) h+='<p class="muted" style="margin-bottom:0;">✅ Le stock a déjà été décompté pour cette configuration. Toute modification du nombre de personnes ou du matériel ajuste uniquement la différence.</p>';
-  else h+='<p class="muted" style="margin-bottom:0;">Le décompte sera effectué lors de l’enregistrement de l’atelier, si tout le matériel est disponible.</p>';
+  var h='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin:0;">📦 Simulation du matériel</h3><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+atelierParticipantsCount(a)+' personne(s)</span></div>'+
+    '<p class="muted" style="margin:8px 0 10px;">Aucune quantité n’est retirée du stock dans cette version TEST. Le calcul indique uniquement les besoins et le stock restant théorique.</p>';
+  if(!recipe.length) return h+'<p class="muted">Choisis le type d’atelier et indique le nombre de personnes pour calculer le matériel.</p></div>';
+  recipe.forEach(function(r){
+    var sim=atelierStockForSimulation(r.key), it=sim&&sim.item, available=it?Number(it.quantite)||0:null;
+    var after=available===null?null:r2(available-r.qty), ok=available!==null&&after>=0;
+    var unit=it?esc(it.unite||'pièce'):'pièce';
+    var detail='Besoin : '+r.qty+' '+unit;
+    if(it){ detail+=' · Stock : '+r2(available)+' → '+r2(after); if(sim.isFallback) detail+=' (inventaire communiqué, non associé)'; }
+    else detail+=' · Article absent du stock';
+    h+='<div class="checkrow"><div style="flex:1;"><b>'+esc(r.label)+'</b><div class="muted">'+detail+'</div></div>'+
+      '<span class="badge" style="background:'+(ok?'#e7eee8':'#ffe1d8')+';color:'+(ok?'#384640':'#8a2d1b')+';">'+(ok?'Suffisant':'À compléter')+'</span></div>';
+  });
+  h+='<div class="summary" style="margin:12px 0 0;"><b>🧪 Mode simulation actif</b><div class="muted" style="margin-top:4px;">Enregistrer, modifier, annuler ou supprimer un atelier ne change pas le stock réel. Après validation des calculs, une prochaine version ajoutera le bouton « Préparer le matériel » avec confirmation avant décompte.</div></div>';
   return h+'</div>';
 }
 function atelierApplyStock(a){
-  var previous=a.stockConsumption||[], next=(a.statut==='annule'?[]:atelierRecipe(a));
-  var deltas={}, labels={}; previous.forEach(function(x){deltas[x.key]=(deltas[x.key]||0)-Number(x.qty||0); labels[x.key]=x.label;}); next.forEach(function(x){deltas[x.key]=(deltas[x.key]||0)+Number(x.qty||0); labels[x.key]=x.label;});
-  var missing=[]; Object.keys(deltas).forEach(function(k){ if(deltas[k]>0){ var it=stockByAtelierKey(k); if(!it) missing.push((labels[k]||k)+' non associé au stock'); else if(Number(it.quantite)<deltas[k]) missing.push((labels[k]||it.nom)+' : besoin supplémentaire '+r2(deltas[k])+', disponible '+r2(Number(it.quantite)||0)); }});
-  if(missing.length) return {ok:false,message:'Stock non décompté : '+missing.join(' ; ')};
-  Object.keys(deltas).forEach(function(k){ var d=r2(deltas[k]); if(!d) return; var it=stockByAtelierKey(k); if(it) it.quantite=r2((Number(it.quantite)||0)-d); });
-  a.stockConsumption=next.map(function(x){return {key:x.key,label:x.label,qty:x.qty};}); a.stockUpdatedAt=new Date().toISOString(); return {ok:true,changed:Object.keys(deltas).some(function(k){return Math.abs(deltas[k])>0.0001;})};
+  return {ok:true,changed:false,simulation:true,message:'Mode simulation : le stock réel n’a pas été modifié.'};
 }
 function importAtelierInitialStock(){
   state.stockItems=state.stockItems||[]; var added=0,linked=0;
@@ -2766,7 +2786,7 @@ function viewAtelierDetail(a){
     '<div><label class="field"><span>Thème</span><select id="atType">'+atelierTypeOptions(a.type)+'</select><div class="hint">Choisis un thème existant ou indique un thème libre ci-dessous.</div></label></div></div>'+
     '<div class="inline"><div><label class="field"><span>Thème libre</span><input id="atTypeCustom" value="'+esc((a.type&&ATELIER_TYPES.indexOf(a.type)<0)?a.type:"")+'" placeholder="Ex : Fête des mères, Halloween, Baby shower…"></label></div>'+
     '<div><label class="field"><span>Nom / détails du thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Couronne florale pastel, Bridgerton…"></label></div></div>'+
-    '<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">🧰 Modèle d’atelier et stock</h3><label class="field"><span>Type d’atelier réalisé</span><select id="atAtelierModele" data-action="at-stock-config-change">'+atelierModeleOptions(a.atelierModeleId,mode)+'</select><div class="hint">La liste est filtrée selon Structure / Privé. Le matériel sera calculé par personne.</div></label>'+atelierVariantFields(a,atelierModeleById(a.atelierModeleId))+'</div>'+
+    '<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">🧰 Modèle d’atelier et simulation du stock</h3><label class="field"><span>Type d’atelier réalisé</span><select id="atAtelierModele" data-action="at-stock-config-change">'+atelierModeleOptions(a.atelierModeleId,mode)+'</select><div class="hint">La liste est filtrée selon Structure / Privé. Le matériel est calculé par personne, sans décompte réel dans cette version TEST.</div></label>'+atelierVariantFields(a,atelierModeleById(a.atelierModeleId))+'</div>'+
     '<label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label>';
 
   if(mode==="structure"){
@@ -2911,7 +2931,7 @@ function viewStock(){
   state.stockItems.forEach(function(it){ var c=it.categorie||"Autre"; cats[c]=(cats[c]||0)+stockValue(it); });
   var catHtml=Object.keys(cats).sort().map(function(c){return '<span class="chip">'+esc(c)+' : '+euro(cats[c])+'</span>';}).join(" ");
 
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Stock</h2><div class="row-actions" style="margin-top:0;"><button class="btn small gold" data-action="stock-import-ateliers">Importer / associer le stock ateliers</button><span class="muted">Fleurs, matériel et articles</span></div></div>'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Stock</h2><div class="row-actions" style="margin-top:0;"><button class="btn small soft" type="button" disabled>🧪 Mode simulation — stock non modifié</button><span class="muted">Fleurs, matériel et articles</span></div></div>'+
     '<div class="grid-stats">'+
       stat("Valeur du stock",euro(total),true)+
       stat("Quantité totale",q,false)+
@@ -5252,7 +5272,7 @@ function handleAction(action){
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
   
-  if(action==="stock-import-ateliers"){ importAtelierInitialStock(); return; }
+  if(action==="stock-import-ateliers"){ toast("Mode simulation : aucune référence de stock n’a été ajoutée ou modifiée."); return; }
   if(action==="stock-add"){ addStockItem(); return; }
   if(action.indexOf("stock-adjust-")===0){ adjustStockItem(action.slice(13)); return; }
   if(action.indexOf("stock-del-")===0){
@@ -5323,12 +5343,12 @@ function handleAction(action){
   if(action==="at-new"){ newAtelier(); return; }
   if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.mariageOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
-  if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); var stockRes=atelierApplyStock(as); saveCache(); render(); toast(stockRes.ok?(stockRes.changed?"Atelier enregistré et stock ajusté.":"Atelier enregistré."):stockRes.message); } return; }
+  if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré — mode simulation, stock inchangé."); } return; }
   if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
   if(action==="at-stock-config-change"){ var ac=getAtelier(ui.atelierOpen); if(ac){ captureAtelier(ac); saveCache(); render(); } return; }
   if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var list=prestationsActives(); var preset=list[pi]||list[list.length-1]||{label:"Autre / champ libre",type:"service",qte:1,prix:0}; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; var ptype=preset.type==="bien"?"bien":"service"; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:ptype,urssafType:ptype,qte:preset.qte||1,prix:num(preset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
   if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
-  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } var adel=getAtelier(adid); if(adel&&adel.stockConsumption&&adel.stockConsumption.length){ adel.statut="annule"; atelierApplyStock(adel); } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
+  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé — stock inchangé (simulation)."); return; }
   if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; aa.participants.push({id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}); ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée."); } return; }
   if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); saveCache(); render(); toast("Participante supprimée."); } return; }
   if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }

@@ -1,14 +1,16 @@
-# MyBusiness — V3.8.0 TEST
+# MyBusiness — V3.8.1 TEST
 
-## Recettes de matériel pour les ateliers
+## Simulation du stock pour les ateliers
 
-- choix d’un modèle d’atelier dans les fiches Structure et Privé ;
-- calcul des besoins selon le nombre de participants ;
-- variantes de couleur, diamètre, macramé et peigne ;
-- aperçu disponible / insuffisant avant décompte ;
-- décompte automatique et idempotent lors de l’enregistrement ;
-- ajustement uniquement de la différence si le nombre de personnes change ;
-- restitution du matériel si l’atelier est annulé ou supprimé ;
-- bouton Stock > Importer / associer le stock ateliers.
+Cette version est conçue pour être testée sans risque sur la base réelle :
 
-Les références dont le stock n’a pas été communiqué sont importées à zéro afin d’être complétées manuellement.
+- choix du modèle d’atelier ;
+- calcul des fournitures selon le nombre de personnes ;
+- choix des variantes (couleur, diamètre, peigne, fil macramé) ;
+- affichage du stock actuel et du stock restant théorique ;
+- alertes si le matériel est insuffisant ;
+- **aucun décompte, ajout, association ou restitution automatique du stock**.
+
+Enregistrer, modifier, annuler ou supprimer un atelier ne change aucune quantité du stock réel.
+
+Après validation des calculs, la prochaine étape sera l’ajout d’un bouton **Préparer le matériel**, avec confirmation avant tout décompte et possibilité d’annuler la préparation.
