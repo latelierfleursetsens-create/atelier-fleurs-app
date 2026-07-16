@@ -1,20 +1,21 @@
-# MyBusiness — V3.8.2 TEST
+# MyBusiness — V3.8.3 TEST
 
-## Recettes matériel configurables pour les ateliers
+## Bibliothèque Matériel améliorée
 
-Cette version conserve le **mode simulation** : aucune quantité de stock n’est retirée.
+Cette version conserve le **mode simulation des ateliers** : aucune quantité n’est retirée automatiquement du stock réel.
 
-Nouveautés :
+### Nouveautés
 
-- ajout manuel libre d’articles dans l’onglet Stock ;
-- bloc **Recettes matériel des ateliers** ;
-- choix d’un atelier prédéfini ;
-- association de chaque ligne à un article réel du stock ;
-- quantité consommée par personne ;
-- conditions facultatives selon la variante choisie (toile blanche/noire, couleur des pailles, diamètre du cercle, couleur du macramé, taille du peigne) ;
-- possibilité d’utiliser le même article dans plusieurs ateliers ;
-- possibilité d’ajouter à tout moment un nouvel élément saisonnier, par exemple une décoration de Noël ;
-- affichage des ateliers associés directement sous chaque article de stock ;
-- blocage de la suppression d’un article encore utilisé dans une recette.
+- l’onglet **Stock** est renommé **Matériel** dans la navigation ;
+- liste classée automatiquement par nom, de A à Z ;
+- recherche instantanée par nom, fournisseur, référence, emplacement ou notes ;
+- filtre par catégorie ;
+- indicateurs visuels : Stock OK, À surveiller, Stock bas, Rupture ;
+- bouton **Modifier la fiche** sur chaque article ;
+- double-clic sur une ligne depuis un ordinateur pour ouvrir la modification ;
+- tous les champs sont modifiables : nom, catégorie, quantité, unité, prix unitaire, seuil, fournisseur, référence, emplacement et notes ;
+- historique des dernières modifications ;
+- affichage des recettes ateliers qui utilisent l’article ;
+- ajout des champs Référence et Emplacement lors de la création d’un article.
 
-Les recettes sont enregistrées dans Firebase avec les paramètres de l’application. Elles servent uniquement au calcul théorique des besoins tant que le bouton sécurisé **Préparer le matériel** n’a pas été développé et validé.
+Les associations entre articles et recettes ateliers restent basées sur l’identifiant interne de l’article : renommer un article ne casse donc pas ses associations.

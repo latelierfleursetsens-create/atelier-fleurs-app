@@ -1,3 +1,12 @@
+# V3.8.3 TEST — Bibliothèque Matériel
+
+- Tri alphabétique de la liste.
+- Recherche et filtre par catégorie.
+- Édition complète de tous les champs d’un article.
+- Ajout des références et emplacements.
+- Statuts visuels et historique des modifications.
+- Recettes ateliers et mode simulation conservés.
+
 # V3.8.2 TEST
 
 - Recettes matériel modifiables par atelier depuis le stock.

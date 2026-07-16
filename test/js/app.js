@@ -1,9 +1,10 @@
-/* V3.8.2 TEST MODULAIRE — Recettes ateliers configurables depuis le stock, toujours en simulation. */
+/* V3.8.3 TEST MODULAIRE — Bibliothèque matériel : tri A-Z, recherche, filtres et édition complète. */
 "use strict";
 
-var APP_VERSION = "TEST V3.8.2 MODULAIRE";
-var APP_VERSION_NOTE = "Test : recettes matériel configurables par atelier, sans décompte du stock réel.";
+var APP_VERSION = "TEST V3.8.3 MODULAIRE";
+var APP_VERSION_NOTE = "Test : bibliothèque matériel triée, recherchable et entièrement modifiable, toujours sans décompte automatique.";
 var APP_CHANGELOG = [
+  "V3.8.3 TEST — Bibliothèque matériel : tri alphabétique, recherche, filtres, statuts et édition complète de chaque article.",
   "V3.8.2 TEST — Recettes matériel configurables : ajout libre d’articles stock et association à un ou plusieurs ateliers avec quantité par personne.",
   "V3.8.1 TEST — Simulation des besoins matériel des ateliers sans aucune modification du stock réel.",
   "V3.7.2 PROD — Correctif du bouton Ajouter au carnet dans Clients > Encaissements manuels, avec prise en charge des montants saisis avec une virgule.",
@@ -74,7 +75,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -347,7 +348,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["stock","Stock"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["stock","Matériel"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -552,6 +553,18 @@ function renderModal(){
       if(sel){ try{ sel.focus(); }catch(e){} }
     },80);
     return;
+  }
+
+  if(ui.stockEditId){
+    var stockItem=(state.stockItems||[]).find(function(x){return x.id===ui.stockEditId;});
+    if(stockItem){
+      var sm=document.createElement("div");
+      sm.innerHTML=viewStockEditModal(stockItem);
+      document.body.appendChild(sm.firstElementChild);
+      setTimeout(function(){ var f=document.getElementById("stockEditNom"); if(f){ try{f.focus();}catch(e){} } },60);
+      return;
+    }
+    ui.stockEditId=null;
   }
 
   if(ui.versionNotesModal){
@@ -3028,125 +3041,166 @@ function viewAteliersPreview(){
 }
 
 
-/* ===================== Stock ===================== */
+/* ===================== Matériel / stock ===================== */
 function stockCategoryOptions(selected){
   selected=selected||"Fleurs";
-  var opts=["Fleurs","Feuillages","Matériel","Consommables","Emballage","Rubans","Accessoires","Autre"];
+  var opts=["Fleurs","Feuillages","Matériel","Consommables","Papeterie","Cadres","Cercles","Pailles","Vases","Macramé","Emballage","Rubans","Accessoires","Autre"];
   if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
   return opts.map(function(o){return '<option value="'+esc(o)+'"'+(selected===o?' selected':'')+'>'+esc(o)+'</option>';}).join("");
 }
 function stockUnitOptions(selected){
   selected=selected||"pièce";
-  var opts=["pièce","tige","botte","lot","rouleau","mètre","sachet","boîte","kg","g"];
+  var opts=["pièce","tige","feuille","botte","lot","rouleau","mètre","centimètre","sachet","paquet","boîte","kg","g"];
   if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
   return opts.map(function(o){return '<option value="'+esc(o)+'"'+(selected===o?' selected':'')+'>'+esc(o)+'</option>';}).join("");
 }
-function stockValue(item){
-  return r2((Number(item.quantite)||0)*(Number(item.prixUnitaire)||0));
+function stockNum(v){
+  var n=Number(String(v==null?"":v).replace(",","."));
+  return Number.isFinite(n)?n:0;
 }
-function stockTotalValue(){
-  return r2((state.stockItems||[]).reduce(function(s,it){return s+stockValue(it);},0));
+function stockValue(item){ return r2((Number(item.quantite)||0)*(Number(item.prixUnitaire)||0)); }
+function stockTotalValue(){ return r2((state.stockItems||[]).reduce(function(s,it){return s+stockValue(it);},0)); }
+function stockCount(){ return (state.stockItems||[]).reduce(function(s,it){return s+(Number(it.quantite)||0);},0); }
+function lowStockCount(){ return (state.stockItems||[]).filter(function(it){return stockStatus(it).level==="low"||stockStatus(it).level==="out";}).length; }
+function stockSortName(a,b){
+  return String(a&&a.nom||"").localeCompare(String(b&&b.nom||""),"fr",{sensitivity:"base",numeric:true});
 }
-function stockCount(){
-  return (state.stockItems||[]).reduce(function(s,it){return s+(Number(it.quantite)||0);},0);
+function stockStatus(item){
+  var q=Number(item&&item.quantite)||0, seuil=Number(item&&item.seuil)||0;
+  if(q<=0) return {level:"out",label:"Rupture",bg:"#ffe1d8",fg:"#8a2d1b",icon:"🔴"};
+  if(seuil>0 && q<=seuil) return {level:"low",label:"Stock bas",bg:"#fff0d8",fg:"#8a5a12",icon:"🟠"};
+  if(seuil>0 && q<=seuil*2) return {level:"watch",label:"À surveiller",bg:"#fff8df",fg:"#756014",icon:"🟡"};
+  return {level:"ok",label:"Stock OK",bg:"#e7eee8",fg:"#384640",icon:"🟢"};
 }
-function lowStockCount(){
-  return (state.stockItems||[]).filter(function(it){return Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil);}).length;
+function stockStatusBadge(item){
+  var st=stockStatus(item);
+  return '<span class="badge" style="background:'+st.bg+';color:'+st.fg+';">'+st.icon+' '+esc(st.label)+'</span>';
+}
+function stockDateTime(iso){
+  if(!iso) return "—";
+  try{return new Date(iso).toLocaleString("fr-FR",{dateStyle:"short",timeStyle:"short"});}catch(e){return String(iso);}
+}
+function stockLinkedSummary(item){
+  var links=atelierRecipeLinksForStockItem(item);
+  return links.length?links.map(function(x){return esc(x.model.label)+' ('+esc(x.line.qtyPerPerson)+' / personne)';}).join(' · '):'';
+}
+function stockHistoryLabel(field){
+  return ({nom:"Nom",categorie:"Catégorie",quantite:"Quantité",unite:"Unité",prixUnitaire:"Prix unitaire",seuil:"Seuil d’alerte",fournisseur:"Fournisseur",reference:"Référence",emplacement:"Emplacement",notes:"Notes"})[field]||field;
+}
+function stockRecordHistory(item, changes){
+  if(!changes.length) return;
+  item.historique=item.historique||[];
+  item.historique.unshift({date:new Date().toISOString(),changes:changes});
+  if(item.historique.length>30) item.historique=item.historique.slice(0,30);
+}
+function viewStockEditModal(item){
+  var links=atelierRecipeLinksForStockItem(item), hist=(item.historique||[]).slice(0,8);
+  var h='<div id="modal" class="modal"><div class="modal-inner"><div class="card" style="max-width:760px;margin:2vh auto;">'+
+    '<div class="flexb"><div><h2 style="margin:0;">Modifier l’article</h2><p class="muted" style="margin:4px 0 0;">Tous les champs de la fiche matériel peuvent être corrigés.</p></div>'+stockStatusBadge(item)+'</div>'+
+    (links.length?'<div class="summary" style="margin-top:14px;"><b>🔗 Article utilisé dans '+links.length+' recette(s)</b><div class="muted" style="margin-top:4px;">'+links.map(function(x){return esc(x.model.label)+' · '+esc(x.line.qtyPerPerson)+' / personne';}).join('<br>')+'</div></div>':'')+
+    '<div class="inline"><div><label class="field"><span>Nom</span><input id="stockEditNom" value="'+esc(item.nom||'')+'"></label></div><div><label class="field"><span>Catégorie</span><select id="stockEditCat">'+stockCategoryOptions(item.categorie||'Autre')+'</select></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Quantité</span><input id="stockEditQty" inputmode="decimal" type="number" step="0.01" min="0" value="'+esc(item.quantite==null?'':item.quantite)+'"></label></div><div><label class="field"><span>Unité</span><select id="stockEditUnit">'+stockUnitOptions(item.unite||'pièce')+'</select></label></div><div><label class="field"><span>Prix unitaire (€)</span><input id="stockEditPrice" inputmode="decimal" type="number" step="0.01" min="0" value="'+esc(item.prixUnitaire==null?'':item.prixUnitaire)+'"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Seuil d’alerte</span><input id="stockEditSeuil" inputmode="decimal" type="number" step="0.01" min="0" value="'+esc(item.seuil==null?'':item.seuil)+'"></label></div><div><label class="field"><span>Fournisseur</span><input id="stockEditFournisseur" value="'+esc(item.fournisseur||'')+'"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Référence</span><input id="stockEditReference" value="'+esc(item.reference||'')+'" placeholder="Référence fournisseur ou interne"></label></div><div><label class="field"><span>Emplacement</span><input id="stockEditEmplacement" value="'+esc(item.emplacement||'')+'" placeholder="Ex : étagère A, bac 3"></label></div></div>'+
+    '<label class="field"><span>Notes</span><textarea id="stockEditNotes" placeholder="Couleur, usage, caractéristiques…">'+esc(item.notes||'')+'</textarea></label>'+
+    '<div class="row-actions"><button class="btn primary" type="button" data-action="stock-edit-save">Enregistrer les modifications</button><button class="btn ghost" type="button" data-action="stock-edit-cancel">Annuler</button></div>';
+  if(hist.length){
+    h+='<div style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px;"><h3 style="margin:0 0 8px;">Historique récent</h3>';
+    hist.forEach(function(entry){
+      h+='<div class="cal-listitem"><b>'+esc(stockDateTime(entry.date))+'</b><div class="muted" style="font-size:12px;">'+(entry.changes||[]).map(function(c){return esc(stockHistoryLabel(c.field))+': '+esc(c.from==null?'':c.from)+' → '+esc(c.to==null?'':c.to);}).join('<br>')+'</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='</div></div></div>';
+  return h;
+}
+function openStockEdit(id){
+  var it=(state.stockItems||[]).find(function(x){return x.id===id;});
+  if(!it){toast("Article introuvable.");return;}
+  ui.stockEditId=id; renderModal();
+}
+function saveStockEdit(){
+  var it=(state.stockItems||[]).find(function(x){return x.id===ui.stockEditId;});
+  if(!it){ui.stockEditId=null;renderModal();return;}
+  var next={
+    nom:val("stockEditNom").trim(), categorie:val("stockEditCat")||"Autre", quantite:stockNum(val("stockEditQty")), unite:val("stockEditUnit")||"pièce",
+    prixUnitaire:stockNum(val("stockEditPrice")), seuil:stockNum(val("stockEditSeuil")), fournisseur:val("stockEditFournisseur").trim(),
+    reference:val("stockEditReference").trim(), emplacement:val("stockEditEmplacement").trim(), notes:val("stockEditNotes").trim()
+  };
+  if(!next.nom){toast("Le nom de l’article est obligatoire.");return;}
+  var fields=["nom","categorie","quantite","unite","prixUnitaire","seuil","fournisseur","reference","emplacement","notes"], changes=[];
+  fields.forEach(function(f){
+    var before=it[f]==null?"":it[f], after=next[f]==null?"":next[f];
+    if(String(before)!==String(after)){changes.push({field:f,from:before,to:after});it[f]=after;}
+  });
+  if(!changes.length){ui.stockEditId=null;renderModal();toast("Aucune modification à enregistrer.");return;}
+  it.updatedAt=new Date().toISOString(); stockRecordHistory(it,changes); ui.stockEditId=null; saveCache(); render(); toast("Article mis à jour.");
+}
+function stockFilterRowsFromDOM(){
+  var input=document.getElementById("stockSearch"), select=document.getElementById("stockCategoryFilter");
+  var q=searchNorm(input?input.value:ui.stockSearch), cat=select?select.value:ui.stockCategoryFilter;
+  ui.stockSearch=input?input.value:ui.stockSearch; ui.stockCategoryFilter=cat||"";
+  var rows=document.querySelectorAll("[data-stock-row]"); var visible=0;
+  Array.prototype.forEach.call(rows,function(row){
+    var hay=searchNorm(row.getAttribute("data-stock-search")||""), rc=row.getAttribute("data-stock-category")||"";
+    var show=(!q||hay.indexOf(q)>=0)&&(!cat||rc===cat); row.style.display=show?"":"none"; if(show) visible++;
+  });
+  var count=document.getElementById("stockVisibleCount"); if(count) count.textContent=visible+" article(s) affiché(s)";
 }
 function viewStock(){
   state.stockItems=state.stockItems||[];
-  var total=stockTotalValue(), q=stockCount(), low=lowStockCount();
-  var cats={};
+  var total=stockTotalValue(), q=stockCount(), low=lowStockCount(), cats={};
   state.stockItems.forEach(function(it){ var c=it.categorie||"Autre"; cats[c]=(cats[c]||0)+stockValue(it); });
-  var catHtml=Object.keys(cats).sort().map(function(c){return '<span class="chip">'+esc(c)+' : '+euro(cats[c])+'</span>';}).join(" ");
+  var catHtml=Object.keys(cats).sort(function(a,b){return a.localeCompare(b,"fr",{sensitivity:"base"});}).map(function(c){return '<span class="chip">'+esc(c)+' : '+euro(cats[c])+'</span>';}).join(" ");
+  var catFilter='<option value="">Toutes les catégories</option>'+Object.keys(cats).sort(function(a,b){return a.localeCompare(b,"fr",{sensitivity:"base"});}).map(function(c){return '<option value="'+esc(c)+'"'+(ui.stockCategoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';}).join('');
 
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Stock</h2><div class="row-actions" style="margin-top:0;"><button class="btn small soft" type="button" disabled>🧪 Mode simulation — stock non modifié</button><span class="muted">Fleurs, matériel et articles</span></div></div>'+
-    '<div class="grid-stats">'+
-      stat("Valeur du stock",euro(total),true)+
-      stat("Quantité totale",q,false)+
-      stat("Références",state.stockItems.length,false)+
-      stat("Alertes stock bas",low,false)+
-    '</div>'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Matériel</h2><div class="row-actions" style="margin-top:0;"><button class="btn small soft" type="button" disabled>🧪 Mode simulation — stock non modifié automatiquement</button><span class="muted">Bibliothèque centrale des fleurs, fournitures et consommables</span></div></div>'+
+    '<div class="grid-stats">'+stat("Valeur du matériel",euro(total),true)+stat("Quantité totale",q,false)+stat("Références",state.stockItems.length,false)+stat("Alertes",low,false)+'</div>'+
     '<div class="card"><h3 style="margin-top:0;">Ajouter une fleur ou un article</h3>'+
-      '<div class="inline"><div><label class="field"><span>Nom</span><input id="stockNom" placeholder="Ex : Lagurus naturel, ruban rose, colle chaude…"></label></div>'+
-      '<div><label class="field"><span>Catégorie</span><select id="stockCat">'+stockCategoryOptions("Fleurs")+'</select></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Quantité</span><input id="stockQty" type="number" step="0.01" min="0"></label></div>'+
-      '<div><label class="field"><span>Unité</span><select id="stockUnit">'+stockUnitOptions("pièce")+'</select></label></div>'+
-      '<div><label class="field"><span>Prix unitaire (€)</span><input id="stockPrice" type="number" step="0.01" min="0"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Seuil alerte stock bas</span><input id="stockSeuil" type="number" step="0.01" min="0" placeholder="facultatif"></label></div>'+
-      '<div><label class="field"><span>Fournisseur</span><input id="stockFournisseur" placeholder="Ex : Floristen Center"></label></div></div>'+
-      '<label class="field"><span>Notes</span><textarea id="stockNotes" placeholder="Couleur, usage, emplacement, référence fournisseur…"></textarea></label>'+
-      '<div class="row-actions"><button class="btn primary" data-action="stock-add">+ Ajouter au stock</button></div></div>';
+      '<div class="inline"><div><label class="field"><span>Nom</span><input id="stockNom" placeholder="Ex : Étoile décorative de Noël"></label></div><div><label class="field"><span>Catégorie</span><select id="stockCat">'+stockCategoryOptions("Fleurs")+'</select></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Quantité</span><input id="stockQty" inputmode="decimal" type="number" step="0.01" min="0"></label></div><div><label class="field"><span>Unité</span><select id="stockUnit">'+stockUnitOptions("pièce")+'</select></label></div><div><label class="field"><span>Prix unitaire (€)</span><input id="stockPrice" inputmode="decimal" type="number" step="0.01" min="0"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Seuil alerte stock bas</span><input id="stockSeuil" inputmode="decimal" type="number" step="0.01" min="0" placeholder="facultatif"></label></div><div><label class="field"><span>Fournisseur</span><input id="stockFournisseur" placeholder="Ex : Floristen Center"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Référence</span><input id="stockReference" placeholder="Référence fournisseur ou interne"></label></div><div><label class="field"><span>Emplacement</span><input id="stockEmplacement" placeholder="Ex : étagère A, bac 3"></label></div></div>'+
+      '<label class="field"><span>Notes</span><textarea id="stockNotes" placeholder="Couleur, usage, caractéristiques…"></textarea></label>'+
+      '<div class="row-actions"><button class="btn primary" type="button" data-action="stock-add">+ Ajouter au matériel</button></div></div>';
 
   html+=viewAtelierRecipeManager();
+  if(catHtml) html+='<div class="card"><h3 style="margin-top:0;">Répartition par catégorie</h3><div style="display:flex;flex-wrap:wrap;gap:6px;">'+catHtml+'</div></div>';
 
-  if(catHtml){
-    html+='<div class="card"><h3 style="margin-top:0;">Répartition par catégorie</h3><div style="display:flex;flex-wrap:wrap;gap:6px;">'+catHtml+'</div></div>';
-  }
-
-  html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Liste du stock</h3><span class="muted">'+state.stockItems.length+' référence(s)</span></div>';
+  html+='<div class="card"><div class="flexb"><div><h3 style="margin:0;">Liste du matériel</h3><span id="stockVisibleCount" class="muted">'+state.stockItems.length+' article(s) affiché(s)</span></div><span class="muted">Tri automatique de A à Z</span></div>'+
+    '<div class="inline" style="margin-top:12px;"><div style="flex:2;"><label class="field"><span>Rechercher</span><input id="stockSearch" value="'+esc(ui.stockSearch||'')+'" placeholder="Nom, fournisseur, référence, emplacement…"></label></div><div><label class="field"><span>Filtrer</span><select id="stockCategoryFilter">'+catFilter+'</select></label></div></div>';
   if(!state.stockItems.length){
-    html+='<p class="muted">Aucun article en stock pour le moment.</p>';
+    html+='<p class="muted">Aucun article pour le moment.</p>';
   }else{
-    var list=state.stockItems.slice().sort(function(a,b){return (a.categorie||"").localeCompare(b.categorie||"") || (a.nom||"").localeCompare(b.nom||"");});
+    var list=state.stockItems.slice().sort(stockSortName);
     list.forEach(function(it){
-      var alert=Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil);
-      html+='<div class="checkrow" style="align-items:flex-start;'+(alert?'border-color:#d99;background:#fff7f2;':'')+'">'+
-        '<div style="flex:1;">'+
-          '<div><b style="color:var(--bordeaux);">'+esc(it.nom||"Article")+'</b> '+(alert?'<span class="badge" style="background:#ffe1d8;color:#8a2d1b;">Stock bas</span>':'')+'</div>'+
-          '<div class="muted" style="font-size:12px;">'+esc(it.categorie||"Autre")+' · '+esc(it.quantite||0)+' '+esc(it.unite||"")+' · Prix unitaire : '+euro(it.prixUnitaire||0)+' · Valeur : '+euro(stockValue(it))+'</div>'+
-          (it.fournisseur?'<div class="muted" style="font-size:12px;">Fournisseur : '+esc(it.fournisseur)+'</div>':'')+
-          (it.notes?'<div class="muted" style="font-size:12px;">Notes : '+esc(it.notes)+'</div>':'')+
-          (function(){ var links=atelierRecipeLinksForStockItem(it); return links.length?'<div class="muted" style="font-size:12px;">🔗 '+links.map(function(x){return esc(x.model.label)+' ('+esc(x.line.qtyPerPerson)+' / personne)';}).join(' · ')+'</div>':''; })()+
-        '</div>'+
-        '<div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
-          '<button class="btn small soft" data-action="stock-adjust-'+it.id+'">Modifier quantité</button>'+
-          '<button class="btn small danger" data-action="stock-del-'+it.id+'">Supprimer</button>'+
-        '</div></div>';
+      var linked=stockLinkedSummary(it), updated=it.updatedAt||it.createdAt||"";
+      var search=[it.nom,it.categorie,it.fournisseur,it.reference,it.emplacement,it.notes].filter(Boolean).join(' ');
+      html+='<div class="checkrow" data-stock-row="'+esc(it.id)+'" data-stock-edit-row="'+esc(it.id)+'" data-stock-category="'+esc(it.categorie||'Autre')+'" data-stock-search="'+esc(search)+'" style="align-items:flex-start;">'+
+        '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><b style="color:var(--bordeaux);font-size:15px;">'+esc(it.nom||"Article")+'</b>'+stockStatusBadge(it)+'</div>'+
+        '<div class="muted" style="font-size:12px;margin-top:3px;">'+esc(it.categorie||"Autre")+' · <b>'+esc(it.quantite==null?0:it.quantite)+' '+esc(it.unite||"")+'</b> · Prix unitaire : '+euro(it.prixUnitaire||0)+' · Valeur : '+euro(stockValue(it))+'</div>'+
+        (it.fournisseur?'<div class="muted" style="font-size:12px;">Fournisseur : '+esc(it.fournisseur)+'</div>':'')+
+        ((it.reference||it.emplacement)?'<div class="muted" style="font-size:12px;">'+(it.reference?'Réf. : '+esc(it.reference):'')+(it.reference&&it.emplacement?' · ':'')+(it.emplacement?'Emplacement : '+esc(it.emplacement):'')+'</div>':'')+
+        (it.notes?'<div class="muted" style="font-size:12px;">Notes : '+esc(it.notes)+'</div>':'')+
+        (linked?'<div class="muted" style="font-size:12px;">🔗 '+linked+'</div>':'')+
+        (updated?'<div class="muted" style="font-size:11px;margin-top:3px;">Dernière modification : '+esc(stockDateTime(updated))+'</div>':'')+'</div>'+
+        '<div class="row-actions" style="margin-top:0;justify-content:flex-end;"><button class="btn small soft" type="button" data-action="stock-edit-'+esc(it.id)+'">Modifier la fiche</button><button class="btn small danger" type="button" data-action="stock-del-'+esc(it.id)+'">Supprimer</button></div></div>';
     });
   }
   html+='</div>';
+  setTimeout(stockFilterRowsFromDOM,0);
   return html;
 }
 function addStockItem(){
-  var nom=val("stockNom").trim();
-  if(!nom){ toast("Indique le nom de la fleur ou de l’article."); return; }
-  var item={
-    id:uid(),
-    nom:nom,
-    categorie:val("stockCat")||"Autre",
-    quantite:num(val("stockQty")),
-    unite:val("stockUnit")||"pièce",
-    prixUnitaire:num(val("stockPrice")),
-    seuil:num(val("stockSeuil")),
-    fournisseur:val("stockFournisseur"),
-    notes:val("stockNotes"),
-    createdAt:new Date().toISOString()
-  };
-  state.stockItems=state.stockItems||[];
-  state.stockItems.unshift(item);
-  saveCache();
-  render();
-  toast("Article ajouté au stock.");
+  var nom=val("stockNom").trim(); if(!nom){toast("Indique le nom de la fleur ou de l’article.");return;}
+  var now=new Date().toISOString();
+  var item={id:uid(),nom:nom,categorie:val("stockCat")||"Autre",quantite:stockNum(val("stockQty")),unite:val("stockUnit")||"pièce",prixUnitaire:stockNum(val("stockPrice")),seuil:stockNum(val("stockSeuil")),fournisseur:val("stockFournisseur").trim(),reference:val("stockReference").trim(),emplacement:val("stockEmplacement").trim(),notes:val("stockNotes").trim(),createdAt:now,updatedAt:now,historique:[{date:now,changes:[{field:"création",from:"",to:"Article créé"}]}]};
+  state.stockItems=state.stockItems||[]; state.stockItems.push(item); saveCache(); render(); toast("Article ajouté au matériel.");
 }
-function adjustStockItem(id){
-  var it=(state.stockItems||[]).find(function(x){return x.id===id;});
-  if(!it) return;
-  var q=prompt("Nouvelle quantité pour « "+(it.nom||"article")+" » :", it.quantite||0);
-  if(q===null) return;
-  var p=prompt("Prix unitaire (€) :", it.prixUnitaire||0);
-  if(p===null) return;
-  it.quantite=num(q);
-  it.prixUnitaire=num(p);
-  saveCache();
-  render();
-  toast("Stock mis à jour.");
-}
+function adjustStockItem(id){ openStockEdit(id); }
 function viewStockPreview(){
-  var total=stockTotalValue ? stockTotalValue() : 0;
-  var low=lowStockCount ? lowStockCount() : 0;
-  return '<div class="card"><div class="flexb"><h3 style="margin:0;">📦 Stock</h3><button class="btn small primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;">Valeur estimée : <b style="color:var(--bordeaux);">'+euro(total)+'</b>'+ (low?' · '+low+' alerte(s) stock bas':'')+'</p></div>';
+  var total=stockTotalValue?stockTotalValue():0, low=lowStockCount?lowStockCount():0;
+  return '<div class="card"><div class="flexb"><h3 style="margin:0;">📦 Matériel</h3><button class="btn small primary" data-action="nav-stock">Ouvrir</button></div><p class="muted" style="margin:8px 0 0;">Valeur estimée : <b style="color:var(--bordeaux);">'+euro(total)+'</b>'+(low?' · '+low+' alerte(s)':'')+'</p></div>';
 }
 
 /* ===================== Calendrier ===================== */
@@ -5403,6 +5457,10 @@ function handleAction(action){
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
   
+  if(action==="stock-edit-save"){ saveStockEdit(); return; }
+  if(action==="stock-edit-cancel"){ ui.stockEditId=null; renderModal(); return; }
+  if(action.indexOf("stock-edit-")===0){ openStockEdit(action.slice(11)); return; }
+
   if(action==="stock-recipe-add"){
     if(!captureAtelierRecipeEditor(false)) return;
     var first=(state.stockItems||[])[0];
@@ -5995,6 +6053,12 @@ document.addEventListener("click", function(e){
   addClientFromForm();
 }, true);
 
+document.addEventListener("dblclick", function(e){
+  var row=e.target&&e.target.closest?e.target.closest("[data-stock-edit-row]"):null;
+  if(!row) return;
+  e.preventDefault(); openStockEdit(row.getAttribute("data-stock-edit-row"));
+});
+
 document.addEventListener("click", function(e){
   var el=e.target.closest("[data-action]"); if(!el) return;
   // les <select> et <input> (cases à cocher) avec data-action sont gérés via l'événement "change"
@@ -6004,6 +6068,7 @@ document.addEventListener("click", function(e){
 document.addEventListener("input", function(e){
   var t=e.target;
   if(t && t.id==="globalSearchInput"){ renderGlobalSearchBox(); return; }
+  if(t && t.id==="stockSearch"){ ui.stockSearch=t.value; stockFilterRowsFromDOM(); return; }
   if(isTodoField(t)){ ui.todoEditing=true; saveTodoLocalOnly(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
@@ -6037,6 +6102,7 @@ document.addEventListener("input", function(e){
 document.addEventListener("change", function(e){
   var t=e.target;
   if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
+  if(t.id==="stockCategoryFilter"){ ui.stockCategoryFilter=t.value; stockFilterRowsFromDOM(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="dash-year"){ ui.anneeDash=Number(t.value); ui.monthDetail=null; render(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="treso-year"){ ui.tresoYear=Number(t.value); render(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="treso-month"){ ui.tresoMonth=Number(t.value); render(); return; }
