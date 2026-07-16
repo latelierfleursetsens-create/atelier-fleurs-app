@@ -1,10 +1,12 @@
-/* V3.7.1 TEST MODULAIRE — Import des photos d’inspiration pendant le RDV et depuis la fiche mariage. */
+/* V3.8.0 TEST MODULAIRE — Ateliers liés au stock par recettes de matériel. */
 "use strict";
 
-var APP_VERSION = "TEST V3.7.1 MODULAIRE";
-var APP_VERSION_NOTE = "Test : ajout des photos d’inspiration pendant la préparation du rendez-vous et dans un onglet dédié de la fiche mariage.";
+var APP_VERSION = "TEST V3.8.0 MODULAIRE";
+var APP_VERSION_NOTE = "Test : choix d’un modèle d’atelier et décompte automatique du matériel selon le nombre de participants.";
 var APP_CHANGELOG = [
-  "V3.7.1 TEST — Photos d’inspiration mariage : import multiple pendant le RDV et onglet Inspirations dans la fiche mariage.",
+  "V3.8.0 TEST — Recettes de matériel ateliers, aperçu des besoins et décompte automatique du stock selon le nombre de participants.",
+  "V3.7.2 PROD — Correctif du bouton Ajouter au carnet dans Clients > Encaissements manuels, avec prise en charge des montants saisis avec une virgule.",
+  "V3.7.1 PROD — Photos d’inspiration mariage : import multiple pendant le RDV et onglet Inspirations dans la fiche mariage.",
   "V3.7.0 TEST — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
   "V3.6.6 PROD — Correctif téléphone devis mariage + ajout des canaux Mail et Site internet.",
   "V3.6.5 TEST — Actualisation automatique du devis mariage lié depuis la fiche mariage et la fiche cliente.",
@@ -2164,7 +2166,111 @@ function viewCRMPreview(){
 
 
 /* ===================== Ateliers V1.3 ===================== */
+
 var ATELIER_TYPES=["EVJF","Structure","Anniversaire","Moment entre copine"];
+
+/* ===================== V3.8.0 — Recettes ateliers / stock ===================== */
+var ATELIER_MODELES=[
+  {id:"mandala_adulte_structure",label:"Mandala végétal adulte",modes:["structure"],materials:[{key:"base_carton_25",label:"Base cartonnée 25 cm",qty:1}]},
+  {id:"mandala_enfant_structure",label:"Mandala végétal enfant / ado",modes:["structure"],materials:[{key:"base_carton_20",label:"Base cartonnée 20 cm",qty:1}]},
+  {id:"papillon_vegetal_structure",label:"Papillon végétal adulte / ado",modes:["structure"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"papier_miroir_colore",label:"Papier cartonné miroir coloré A4 250 g",qty:1}]},
+  {id:"portrait_femme_structure",label:"Portrait de femme adulte / ado",modes:["structure"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"papier_miroir_dore",label:"Papier cartonné miroir doré A4 250 g",qty:1}]},
+  {id:"ruban_rose_structure",label:"Ruban Rose adulte / ado",modes:["structure"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"papier_kraft_marron",label:"Papier kraft marron A4 200 g",qty:1},{key:"papier_colore_mot",label:"Papier coloré pour le mot",qty:1}]},
+  {id:"photophore_adulte",label:"Photophore adulte",modes:["structure","prive"],materials:[{key:"vase_cyl_115_20",label:"Vase cylindrique 11,5 × 20 cm",qty:1},{key:"paille_blanche",label:"Pailles blanches",qty:35},{key:"ruban_jute_morceau",label:"Morceau de ruban de jute",qty:1}]},
+  {id:"cadre_fleuri",label:"Cadre fleuri adulte / ado",modes:["structure","prive"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"paille_blanche",label:"Pailles blanches",qty:35}]},
+  {id:"photophore_ado",label:"Photophore ado",modes:["structure","prive"],variants:["strawColor"],materials:[{key:"vase_cyl_115_20",label:"Vase cylindrique 11,5 × 20 cm",qty:1},{variantKey:"strawColor",map:{rose:"paille_rose",violet:"paille_violette",vert:"paille_verte",jaune:"paille_jaune"},label:"Pailles colorées",qty:35},{key:"ruban_jute_morceau",label:"Morceau de ruban de jute",qty:1}]},
+  {id:"couronne_signature",label:"Couronne signature adulte / ado",modes:["structure","prive"],variants:["circleSize","macrameColor"],materials:[{variantKey:"circleSize",map:{"20":"cercle_dore_20","25":"cercle_dore_25"},label:"Cercle doré",qty:1},{variantKey:"macrameColor",map:{beige:"macrame_beige",blanc:"macrame_blanc",vert_sauge:"macrame_vert_sauge",rose:"macrame_rose",marron:"macrame_marron",gris_clair:"macrame_gris_clair",violet:"macrame_violet"},label:"Fil macramé",qty:1}]},
+  {id:"demi_couronne_seche",label:"Demi-couronne sèche adulte / ado",modes:["structure","prive"],variants:["circleSizeDemi"],materials:[{variantKey:"circleSizeDemi",map:{"15":"cercle_dore_15","20":"cercle_dore_20","25":"cercle_dore_25"},label:"Cercle doré",qty:1}]},
+  {id:"arbre_vie_structure",label:"Arbre de vie enfant + 11 ans",modes:["structure"],materials:[{key:"base_carton_20",label:"Base cartonnée 20 cm",qty:1}]},
+  {id:"miroir_fleuri",label:"Miroir fleuri",modes:["structure","prive"],materials:[{key:"miroir_rond",label:"Miroir rond",qty:1}]},
+  {id:"couronne_tete_prive",label:"Couronne de tête",modes:["prive"],materials:[{key:"fil_fer_malleable_1mm",label:"Fil de fer malléable 1 mm",qty:1}]},
+  {id:"peigne_bracelet_prive",label:"Peigne et bracelet",modes:["prive"],variants:["combSize"],materials:[{variantKey:"combSize",map:{"4":"peigne_4_dents","10":"peigne_10_dents"},label:"Peigne",qty:1}]}
+];
+var ATELIER_STOCK_INITIAL=[
+  {key:"papier_miroir_colore",nom:"Feuille papier cartonné miroir coloré A4 250 g",categorie:"Consommables",quantite:60,unite:"pièce",prixUnitaire:0.30,fournisseur:"Amazon",seuil:10},
+  {key:"papier_miroir_dore",nom:"Feuille papier cartonné miroir doré A4 250 g",categorie:"Consommables",quantite:60,unite:"pièce",prixUnitaire:0.30,fournisseur:"Amazon",seuil:10},
+  {key:"papier_kraft_marron",nom:"Feuille papier kraft marron A4 200 g",categorie:"Consommables",quantite:70,unite:"pièce",prixUnitaire:0.17,fournisseur:"Amazon",seuil:10},
+  {key:"macrame_beige",nom:"Fil macramé beige",categorie:"Consommables",quantite:500,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:30},
+  {key:"macrame_blanc",nom:"Fil macramé blanc",categorie:"Consommables",quantite:500,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:30},
+  {key:"macrame_vert_sauge",nom:"Fil macramé vert sauge",categorie:"Consommables",quantite:500,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:30},
+  {key:"macrame_rose",nom:"Fil macramé rose",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"macrame_marron",nom:"Fil macramé marron",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"macrame_gris_clair",nom:"Fil macramé gris clair",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"macrame_violet",nom:"Fil macramé violet",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"toile_24x30_blanche",nom:"Toile / cadre blanc 24 × 30 cm",categorie:"Matériel",quantite:17,unite:"pièce",prixUnitaire:0.99,fournisseur:"Action",seuil:5},
+  {key:"toile_24x30_noire",nom:"Toile / cadre noir 24 × 30 cm",categorie:"Matériel",quantite:15,unite:"pièce",prixUnitaire:0.99,fournisseur:"Action",seuil:5},
+  {key:"cadre_blanc_20x20",nom:"Cadre blanc 20 × 20 cm",categorie:"Matériel",quantite:18,unite:"pièce",prixUnitaire:1.99/2,fournisseur:"Action",seuil:4},
+  {key:"vase_cyl_115_20",nom:"Vase cylindrique 11,5 × 20 cm",categorie:"Matériel",quantite:31,unite:"pièce",prixUnitaire:1.99,fournisseur:"Action",seuil:8},
+  {key:"cercle_dore_30",nom:"Cercle doré 30 cm",categorie:"Matériel",quantite:18,unite:"pièce",prixUnitaire:2.79,fournisseur:"Floralux",seuil:4},
+  {key:"cercle_dore_25",nom:"Cercle doré 25 cm",categorie:"Matériel",quantite:6,unite:"pièce",prixUnitaire:1.20,fournisseur:"SHEIN",seuil:3},
+  {key:"cercle_dore_20",nom:"Cercle doré 20 cm",categorie:"Matériel",quantite:54,unite:"pièce",prixUnitaire:0.96,fournisseur:"SHEIN",seuil:10},
+  {key:"cercle_dore_15",nom:"Cercle doré 15 cm",categorie:"Matériel",quantite:4,unite:"pièce",prixUnitaire:0.70,fournisseur:"SHEIN",seuil:3},
+  {key:"cercle_dore_12",nom:"Cercle doré 12 cm",categorie:"Matériel",quantite:37,unite:"pièce",prixUnitaire:0.70,fournisseur:"SHEIN",seuil:8},
+  {key:"paille_rose",nom:"Paille rose",categorie:"Consommables",quantite:300,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:70},
+  {key:"paille_violette",nom:"Paille violette",categorie:"Consommables",quantite:300,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:70},
+  {key:"paille_verte",nom:"Paille verte",categorie:"Consommables",quantite:100,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:50},
+  {key:"paille_jaune",nom:"Paille jaune",categorie:"Consommables",quantite:100,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:50},
+  {key:"paille_blanche",nom:"Paille blanche",categorie:"Consommables",quantite:350,unite:"pièce",prixUnitaire:38.99/1000,fournisseur:"Amazon",seuil:100},
+  {key:"miroir_rond",nom:"Miroir rond",categorie:"Matériel",quantite:47,unite:"pièce",prixUnitaire:3.33,fournisseur:"B&M",seuil:10},
+  {key:"base_carton_25",nom:"Base cartonnée 25 cm",categorie:"Matériel",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5},
+  {key:"base_carton_20",nom:"Base cartonnée 20 cm",categorie:"Matériel",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5},
+  {key:"papier_colore_mot",nom:"Feuille papier coloré pour mot",categorie:"Consommables",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:10},
+  {key:"ruban_jute_morceau",nom:"Morceau de ruban de jute",categorie:"Rubans",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:10},
+  {key:"fil_fer_malleable_1mm",nom:"Fil de fer malléable 1 mm — portion par personne",categorie:"Consommables",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:10},
+  {key:"peigne_4_dents",nom:"Peigne 4 dents",categorie:"Accessoires",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5},
+  {key:"peigne_10_dents",nom:"Peigne 10 dents",categorie:"Accessoires",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5}
+];
+function atelierModeleById(id){ return ATELIER_MODELES.find(function(x){return x.id===id;})||null; }
+function atelierModeleOptions(selected,mode){
+  var list=ATELIER_MODELES.filter(function(x){return !mode || x.modes.indexOf(mode)>=0;});
+  if(selected && !list.some(function(x){return x.id===selected;})){ var old=atelierModeleById(selected); if(old) list.unshift(old); }
+  return '<option value="">— Choisir un atelier —</option>'+list.map(function(x){return '<option value="'+esc(x.id)+'"'+(selected===x.id?' selected':'')+'>'+esc(x.label)+' — '+x.modes.map(atelierModeLabel).join(' / ')+'</option>';}).join('');
+}
+function atelierVariantValue(a,key){
+  var defaults={supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"};
+  return (a&&a.stockVariants&&a.stockVariants[key])||defaults[key]||"";
+}
+function atelierVariantFields(a,model){
+  if(!model||!model.variants) return '';
+  var h='',v;
+  model.variants.forEach(function(k){ v=atelierVariantValue(a,k);
+    if(k==='supportColor') h+='<label class="field"><span>Couleur de la toile 24 × 30</span><select id="atVarSupportColor"><option value="blanc"'+(v==='blanc'?' selected':'')+'>Blanche</option><option value="noir"'+(v==='noir'?' selected':'')+'>Noire</option></select></label>';
+    if(k==='strawColor') h+='<label class="field"><span>Couleur des pailles</span><select id="atVarStrawColor"><option value="rose"'+(v==='rose'?' selected':'')+'>Rose</option><option value="violet"'+(v==='violet'?' selected':'')+'>Violette</option><option value="vert"'+(v==='vert'?' selected':'')+'>Verte</option><option value="jaune"'+(v==='jaune'?' selected':'')+'>Jaune</option></select></label>';
+    if(k==='circleSize') h+='<label class="field"><span>Diamètre du cercle signature</span><select id="atVarCircleSize"><option value="20"'+(v==='20'?' selected':'')+'>20 cm</option><option value="25"'+(v==='25'?' selected':'')+'>25 cm</option></select></label>';
+    if(k==='circleSizeDemi') h+='<label class="field"><span>Diamètre du cercle demi-couronne</span><select id="atVarCircleSizeDemi"><option value="15"'+(v==='15'?' selected':'')+'>15 cm</option><option value="20"'+(v==='20'?' selected':'')+'>20 cm</option><option value="25"'+(v==='25'?' selected':'')+'>25 cm</option></select></label>';
+    if(k==='macrameColor') h+='<label class="field"><span>Couleur du fil macramé</span><select id="atVarMacrameColor">'+[['beige','Beige'],['blanc','Blanc'],['vert_sauge','Vert sauge'],['rose','Rose'],['marron','Marron'],['gris_clair','Gris clair'],['violet','Violet']].map(function(o){return '<option value="'+o[0]+'"'+(v===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label>';
+    if(k==='combSize') h+='<label class="field"><span>Peigne choisi</span><select id="atVarCombSize"><option value="4"'+(v==='4'?' selected':'')+'>4 dents</option><option value="10"'+(v==='10'?' selected':'')+'>10 dents</option></select></label>';
+  }); return h;
+}
+function atelierRecipe(a){
+  var model=atelierModeleById(a&&a.atelierModeleId); if(!model) return [];
+  var n=Math.max(0,atelierParticipantsCount(a));
+  return model.materials.map(function(m){ var key=m.key; if(m.variantKey) key=m.map[atelierVariantValue(a,m.variantKey)]; return {key:key,label:m.label,qty:r2((Number(m.qty)||0)*n)}; }).filter(function(x){return x.key&&x.qty>0;});
+}
+function stockByAtelierKey(key){ return (state.stockItems||[]).find(function(x){return x.atelierStockKey===key;})||null; }
+function atelierRecipePreview(a){
+  var recipe=atelierRecipe(a), model=atelierModeleById(a&&a.atelierModeleId); if(!model) return '';
+  var h='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin:0;">📦 Matériel calculé automatiquement</h3><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+atelierParticipantsCount(a)+' personne(s)</span></div>';
+  if(!recipe.length) return h+'<p class="muted">Indique le nombre de personnes pour calculer le matériel.</p></div>';
+  recipe.forEach(function(r){ var it=stockByAtelierKey(r.key), ok=it&&Number(it.quantite)>=r.qty; h+='<div class="checkrow"><div style="flex:1;"><b>'+esc(r.label)+'</b><div class="muted">Besoin : '+r.qty+(it?' '+esc(it.unite||'pièce')+' · Disponible : '+r2(Number(it.quantite)||0):' · Article non associé au stock')+'</div></div><span class="badge" style="background:'+(ok?'#e7eee8':'#ffe1d8')+';color:'+(ok?'#384640':'#8a2d1b')+';">'+(ok?'Disponible':'À compléter')+'</span></div>'; });
+  if(a.stockConsumption&&a.stockConsumption.length) h+='<p class="muted" style="margin-bottom:0;">✅ Le stock a déjà été décompté pour cette configuration. Toute modification du nombre de personnes ou du matériel ajuste uniquement la différence.</p>';
+  else h+='<p class="muted" style="margin-bottom:0;">Le décompte sera effectué lors de l’enregistrement de l’atelier, si tout le matériel est disponible.</p>';
+  return h+'</div>';
+}
+function atelierApplyStock(a){
+  var previous=a.stockConsumption||[], next=(a.statut==='annule'?[]:atelierRecipe(a));
+  var deltas={}, labels={}; previous.forEach(function(x){deltas[x.key]=(deltas[x.key]||0)-Number(x.qty||0); labels[x.key]=x.label;}); next.forEach(function(x){deltas[x.key]=(deltas[x.key]||0)+Number(x.qty||0); labels[x.key]=x.label;});
+  var missing=[]; Object.keys(deltas).forEach(function(k){ if(deltas[k]>0){ var it=stockByAtelierKey(k); if(!it) missing.push((labels[k]||k)+' non associé au stock'); else if(Number(it.quantite)<deltas[k]) missing.push((labels[k]||it.nom)+' : besoin supplémentaire '+r2(deltas[k])+', disponible '+r2(Number(it.quantite)||0)); }});
+  if(missing.length) return {ok:false,message:'Stock non décompté : '+missing.join(' ; ')};
+  Object.keys(deltas).forEach(function(k){ var d=r2(deltas[k]); if(!d) return; var it=stockByAtelierKey(k); if(it) it.quantite=r2((Number(it.quantite)||0)-d); });
+  a.stockConsumption=next.map(function(x){return {key:x.key,label:x.label,qty:x.qty};}); a.stockUpdatedAt=new Date().toISOString(); return {ok:true,changed:Object.keys(deltas).some(function(k){return Math.abs(deltas[k])>0.0001;})};
+}
+function importAtelierInitialStock(){
+  state.stockItems=state.stockItems||[]; var added=0,linked=0;
+  ATELIER_STOCK_INITIAL.forEach(function(src){ var found=stockByAtelierKey(src.key); if(found) return; var norm=function(v){return String(v||'').toLowerCase().replace(/[^a-z0-9àâäéèêëîïôöùûüç]+/g,' ').trim();}; found=state.stockItems.find(function(x){return norm(x.nom)===norm(src.nom);}); if(found){found.atelierStockKey=src.key; linked++; return;} var it={id:uid(),createdAt:new Date().toISOString(),notes:'Référence ateliers — stock initial communiqué',atelierStockKey:src.key}; Object.keys(src).forEach(function(k){if(k!=='key') it[k]=src[k];}); state.stockItems.unshift(it); added++; });
+  saveCache(); render(); toast('Stock ateliers importé : '+added+' référence(s) ajoutée(s), '+linked+' associée(s).');
+}
+
 var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",termine:"Terminé",annule:"Annulé"};
 
 
@@ -2530,7 +2636,7 @@ function newAtelier(){
   var a={id:uid(),modeAtelier:"thematique",date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",
     organisatrice:"",structureNom:"",contactEmail:"",contactTel:"",
     nbPersonnes:0,nbParticipantsPrevu:0,montantForfait:0,montantPrestation:0,
-    prestationsComplementaires:[],
+    prestationsComplementaires:[],atelierModeleId:"",stockVariants:{supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"},stockConsumption:[],
     materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
   state.ateliers=state.ateliers||[];
   state.ateliers.unshift(a);
@@ -2626,6 +2732,14 @@ function captureAtelier(a){
   a.nbParticipantsPrevu=num(val("atNbParticipantsPrevu"));
   a.montantForfait=num(val("atMontantForfait"));
   a.montantPrestation=num(val("atMontantPrestation"));
+  a.atelierModeleId=val("atAtelierModele")||"";
+  a.stockVariants=a.stockVariants||{};
+  if(document.getElementById("atVarSupportColor")) a.stockVariants.supportColor=val("atVarSupportColor");
+  if(document.getElementById("atVarStrawColor")) a.stockVariants.strawColor=val("atVarStrawColor");
+  if(document.getElementById("atVarCircleSize")) a.stockVariants.circleSize=val("atVarCircleSize");
+  if(document.getElementById("atVarCircleSizeDemi")) a.stockVariants.circleSizeDemi=val("atVarCircleSizeDemi");
+  if(document.getElementById("atVarMacrameColor")) a.stockVariants.macrameColor=val("atVarMacrameColor");
+  if(document.getElementById("atVarCombSize")) a.stockVariants.combSize=val("atVarCombSize");
   captureAtelierPrestations(a);
   a.materiel=val("atMateriel")||"";
   a.description=val("atDescription")||"";
@@ -2652,6 +2766,7 @@ function viewAtelierDetail(a){
     '<div><label class="field"><span>Thème</span><select id="atType">'+atelierTypeOptions(a.type)+'</select><div class="hint">Choisis un thème existant ou indique un thème libre ci-dessous.</div></label></div></div>'+
     '<div class="inline"><div><label class="field"><span>Thème libre</span><input id="atTypeCustom" value="'+esc((a.type&&ATELIER_TYPES.indexOf(a.type)<0)?a.type:"")+'" placeholder="Ex : Fête des mères, Halloween, Baby shower…"></label></div>'+
     '<div><label class="field"><span>Nom / détails du thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Couronne florale pastel, Bridgerton…"></label></div></div>'+
+    '<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">🧰 Modèle d’atelier et stock</h3><label class="field"><span>Type d’atelier réalisé</span><select id="atAtelierModele" data-action="at-stock-config-change">'+atelierModeleOptions(a.atelierModeleId,mode)+'</select><div class="hint">La liste est filtrée selon Structure / Privé. Le matériel sera calculé par personne.</div></label>'+atelierVariantFields(a,atelierModeleById(a.atelierModeleId))+'</div>'+
     '<label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label>';
 
   if(mode==="structure"){
@@ -2680,7 +2795,9 @@ function viewAtelierDetail(a){
     html+=viewAtelierDocuments(a);
   }
 
-  html+='<label class="field"><span>Matériel nécessaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
+  html+=atelierRecipePreview(a);
+
+  html+='<label class="field"><span>Matériel nécessaire complémentaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
     '<label class="field"><span>Description / mémo</span><textarea id="atDescription" placeholder="Infos organisation, demandes particulières, déroulé de l’atelier…">'+esc(a.description||"")+'</textarea></label>'+
     '<div class="row-actions"><button class="btn primary" data-action="at-save">Enregistrer l’atelier</button></div></div>';
 
@@ -2794,7 +2911,7 @@ function viewStock(){
   state.stockItems.forEach(function(it){ var c=it.categorie||"Autre"; cats[c]=(cats[c]||0)+stockValue(it); });
   var catHtml=Object.keys(cats).sort().map(function(c){return '<span class="chip">'+esc(c)+' : '+euro(cats[c])+'</span>';}).join(" ");
 
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Stock</h2><span class="muted">Fleurs, matériel et articles</span></div>'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Stock</h2><div class="row-actions" style="margin-top:0;"><button class="btn small gold" data-action="stock-import-ateliers">Importer / associer le stock ateliers</button><span class="muted">Fleurs, matériel et articles</span></div></div>'+
     '<div class="grid-stats">'+
       stat("Valeur du stock",euro(total),true)+
       stat("Quantité totale",q,false)+
@@ -2829,6 +2946,7 @@ function viewStock(){
           '<div class="muted" style="font-size:12px;">'+esc(it.categorie||"Autre")+' · '+esc(it.quantite||0)+' '+esc(it.unite||"")+' · Prix unitaire : '+euro(it.prixUnitaire||0)+' · Valeur : '+euro(stockValue(it))+'</div>'+
           (it.fournisseur?'<div class="muted" style="font-size:12px;">Fournisseur : '+esc(it.fournisseur)+'</div>':'')+
           (it.notes?'<div class="muted" style="font-size:12px;">Notes : '+esc(it.notes)+'</div>':'')+
+          (it.atelierStockKey?'<div class="muted" style="font-size:12px;">🔗 Lié aux recettes ateliers</div>':'')+
         '</div>'+
         '<div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
           '<button class="btn small soft" data-action="stock-adjust-'+it.id+'">Modifier quantité</button>'+
@@ -3579,7 +3697,7 @@ function viewEncaissements(){
       '<label class="field"><span>Moyen de paiement</span><select id="encPaiement">'+paymentOptions("")+'</select></label>'+
       '<div class="inline"><div><label class="field"><span>Montant biens (€)</span><input id="encBiens" type="number" min="0" step="0.01" placeholder="0"></label></div>'+
       '<div><label class="field"><span>Montant services (€)</span><input id="encServ" type="number" min="0" step="0.01" placeholder="0"></label></div></div>'+
-      '<button class="btn primary" data-action="enc-add">+ Ajouter au carnet</button></div>';
+      '<button id="encAddBtn" type="button" class="btn primary" data-action="enc-add">+ Ajouter au carnet</button></div>';
   if(list.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucun encaissement saisi. Importe ton historique ou ajoute une vente ci-dessus.</p></div>'; return html; }
   html+='<div class="card"><div class="flexb" style="margin-bottom:0;"><h3 style="margin:0;">'+list.length+' encaissement'+(list.length>1?"s":"")+'</h3><span class="muted">'+euro(totB)+' biens · '+euro(totS)+' services</span></div></div>';
   list.forEach(function(e){
@@ -3588,6 +3706,40 @@ function viewEncaissements(){
       '<button class="btn small danger" data-action="enc-del-'+e.id+'">Supprimer</button></div>';
   });
   return html;
+}
+function addManualEncaissementFromForm(){
+  try{
+    var biens=parseAmountFR(val("encBiens"));
+    var services=parseAmountFR(val("encServ"));
+    if(biens===0 && services===0){
+      toast("Indique un montant dans biens et/ou services.");
+      return false;
+    }
+    if(!Array.isArray(state.encaissements)) state.encaissements=[];
+    if(!Array.isArray(state.clients)) state.clients=[];
+    var client=val("encClient").trim();
+    var libelle=val("encLib").trim() || "Encaissement manuel";
+    state.encaissements.unshift({
+      id:uid(),
+      date:val("encDate")||todayISO(),
+      libelle:libelle,
+      montantBiens:r2(biens),
+      montantServices:r2(services),
+      montant:r2(biens+services),
+      client:client,
+      paiement:val("encPaiement")||"",
+      source:"manuel"
+    });
+    if(client) ensureClients([client]);
+    saveCache();
+    render();
+    toast("Encaissement manuel ajouté au carnet.");
+    return true;
+  }catch(err){
+    console.error("Erreur ajout encaissement manuel",err);
+    toast("Impossible d’ajouter l’encaissement. Recharge la page puis réessaie.");
+    return false;
+  }
 }
 function parseAmountFR(s){
   if(s==null) return 0; s=String(s).replace(/[€\s\u00a0]/g,"");
@@ -5100,6 +5252,7 @@ function handleAction(action){
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
   
+  if(action==="stock-import-ateliers"){ importAtelierInitialStock(); return; }
   if(action==="stock-add"){ addStockItem(); return; }
   if(action.indexOf("stock-adjust-")===0){ adjustStockItem(action.slice(13)); return; }
   if(action.indexOf("stock-del-")===0){
@@ -5170,11 +5323,12 @@ function handleAction(action){
   if(action==="at-new"){ newAtelier(); return; }
   if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.mariageOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
-  if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
+  if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); var stockRes=atelierApplyStock(as); saveCache(); render(); toast(stockRes.ok?(stockRes.changed?"Atelier enregistré et stock ajusté.":"Atelier enregistré."):stockRes.message); } return; }
   if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
+  if(action==="at-stock-config-change"){ var ac=getAtelier(ui.atelierOpen); if(ac){ captureAtelier(ac); saveCache(); render(); } return; }
   if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var list=prestationsActives(); var preset=list[pi]||list[list.length-1]||{label:"Autre / champ libre",type:"service",qte:1,prix:0}; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; var ptype=preset.type==="bien"?"bien":"service"; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:ptype,urssafType:ptype,qte:preset.qte||1,prix:num(preset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
   if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
-  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
+  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } var adel=getAtelier(adid); if(adel&&adel.stockConsumption&&adel.stockConsumption.length){ adel.statut="annule"; atelierApplyStock(adel); } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
   if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; aa.participants.push({id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}); ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée."); } return; }
   if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); saveCache(); render(); toast("Participante supprimée."); } return; }
   if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }
@@ -5433,7 +5587,7 @@ function handleAction(action){
   if(action.indexOf("csv-")===0){ exportCSV(action.slice(4)); return; }
 
   // encaissements
-  if(action==="enc-add"){ var b=num(val("encBiens")), s=num(val("encServ")); if(b===0&&s===0){ toast("Indique un montant (biens et/ou services)."); return; } var cl=val("encClient").trim(); state.encaissements.push({ id:uid(), date:val("encDate")||todayISO(), libelle:val("encLib"), montantBiens:r2(b), montantServices:r2(s), montant:r2(b+s), client:cl, paiement:val("encPaiement"), source:"manuel" }); if(cl) ensureClients([cl]); saveCache(); render(); toast("Encaissement manuel ajouté."); return; }
+  if(action==="enc-add"){ addManualEncaissementFromForm(); return; }
   if(action==="enc-clearimport"){ if(confirm("Supprimer tous les encaissements issus d'un import ? (les ventes saisies à la main sont conservées)")){ state.encaissements=state.encaissements.filter(function(e){return e.source!=="import";}); saveCache(); render(); toast("Encaissements importés supprimés."); } return; }
   if(action.indexOf("enc-del-")===0){ var eid=action.slice(8); if(confirm("Supprimer cet encaissement ?")){ state.encaissements=state.encaissements.filter(function(x){return x.id!==eid;}); saveCache(); render(); } return; }
   if(action==="enc-import"){ document.getElementById("encImport").click(); return; }
@@ -5639,6 +5793,17 @@ function onRestoreFile(file){
 }
 
 /* ===================== Écouteurs ===================== */
+// Correctif V3.7.2 : listener direct et prioritaire pour le bouton "Ajouter au carnet".
+// Utile notamment sur Safari/iPhone lorsque le listener générique ne reçoit pas correctement le clic.
+document.addEventListener("click", function(e){
+  var btn=e.target && e.target.closest ? e.target.closest("#encAddBtn,[data-action='enc-add']") : null;
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+  addManualEncaissementFromForm();
+}, true);
+
 // Correctif V3.0.2 : listener direct et prioritaire pour le bouton "Ajouter le client".
 // Cela évite les cas où le clic était absorbé après le passage en architecture modulaire.
 document.addEventListener("click", function(e){
