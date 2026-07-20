@@ -1,10 +1,26 @@
-# MyBusiness — V3.7.2 PROD
+# MyBusiness — V3.8.4 PROD
 
-## Correctif Encaissements manuels
+## Décompte réel du matériel des ateliers
 
-- Le bouton **+ Ajouter au carnet** fonctionne via un écouteur direct et prioritaire.
-- Les montants avec une virgule (ex. `35,50`) sont acceptés.
-- Un message d’erreur explicite apparaît si aucun montant n’est renseigné.
-- Les fichiers CSS et JavaScript sont versionnés dans `index.html` pour éviter qu’un ancien fichier reste en cache sur Safari/GitHub Pages.
+Cette version active le décompte du stock renseigné dans le module **Matériel**.
 
-Cette version conserve toutes les fonctions de la V3.7.1 PROD, notamment les photos d’inspiration mariage et le tableau de bord simplifié.
+### Fonctionnement
+
+1. Crée ou ouvre un atelier.
+2. Choisis le type d’atelier et vérifie le nombre de personnes.
+3. Clique sur **Préparer le matériel** ou sélectionne le statut **Matériel préparé**.
+4. MyBusiness affiche les quantités qui vont être retirées et demande une confirmation.
+5. Le stock est alors réellement décrémenté.
+
+### Sécurités
+
+- Aucun décompte lors de la simple création d’un atelier.
+- Blocage si le stock disponible est insuffisant.
+- Ajustement proposé si le nombre de participantes ou la recette change après préparation.
+- Réintégration possible avec le bouton **Réintégrer le stock**.
+- En cas d’annulation ou de suppression, MyBusiness demande si le matériel doit être remis en stock.
+- Chaque mouvement est enregistré dans l’historique de l’article.
+
+## Mise en production
+
+Décompresse le ZIP et envoie l’ensemble du contenu du dossier sur le dépôt GitHub Pages de production.

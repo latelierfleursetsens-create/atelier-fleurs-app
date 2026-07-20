@@ -1,4 +1,36 @@
+# V3.8.4 PROD — Décompte réel du matériel
+
+- Ajout du statut **Matériel préparé**.
+- Décompte réel du stock uniquement après confirmation.
+- Contrôle des stocks insuffisants avant validation.
+- Ajustement du stock après modification du nombre de personnes ou de la recette.
+- Réintégration manuelle ou lors de l’annulation/suppression d’un atelier.
+- Historique des mouvements de stock avec le nom de l’atelier.
+
+---
+
+# V3.8.3 PROD — Bibliothèque Matériel
+
+- Tri alphabétique de la liste.
+- Recherche et filtre par catégorie.
+- Édition complète de tous les champs d’un article.
+- Ajout des références et emplacements.
+- Statuts visuels et historique des modifications.
+- Recettes ateliers et mode simulation conservés.
+
+# V3.8.2 TEST
+
+- Recettes matériel modifiables par atelier depuis le stock.
+- Association d’un article à plusieurs ateliers avec quantité par personne.
+- Ajout de fournitures saisonnières ou spécifiques sans modifier le code.
+- Mode simulation conservé : aucune quantité réelle décomptée.
+
 # Journal des versions
+
+## V3.8.0 TEST — Recettes ateliers et stock automatique
+- Calcul du matériel par atelier et par personne.
+- Décompte automatique, ajustement des écarts et restitution en cas d’annulation.
+- Import du stock initial communiqué.
 
 ## V3.7.2 PROD — Correctif Ajouter au carnet
 

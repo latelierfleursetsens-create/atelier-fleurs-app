@@ -1,9 +1,13 @@
-/* V3.7.2 PROD MODULAIRE — Correctif du bouton Ajouter au carnet dans les encaissements manuels. */
+/* V3.8.4 PROD MODULAIRE — Décompte réel du matériel lors de la préparation des ateliers. */
 "use strict";
 
-var APP_VERSION = "PROD V3.7.2 MODULAIRE";
-var APP_VERSION_NOTE = "Correctif : ajout fiable des encaissements manuels depuis le bouton Ajouter au carnet.";
+var APP_VERSION = "PROD V3.8.4 MODULAIRE";
+var APP_VERSION_NOTE = "Décompte réel et sécurisé du matériel lorsque l’atelier passe au statut Matériel préparé.";
 var APP_CHANGELOG = [
+  "V3.8.4 PROD — Décompte réel du stock à la préparation des ateliers, blocage en cas de stock insuffisant, ajustements et réintégration sécurisée.",
+  "V3.8.3 PROD — Bibliothèque matériel : tri alphabétique, recherche, filtres, statuts et édition complète de chaque article.",
+  "V3.8.2 TEST — Recettes matériel configurables : ajout libre d’articles stock et association à un ou plusieurs ateliers avec quantité par personne.",
+  "V3.8.1 TEST — Simulation des besoins matériel des ateliers sans aucune modification du stock réel.",
   "V3.7.2 PROD — Correctif du bouton Ajouter au carnet dans Clients > Encaissements manuels, avec prise en charge des montants saisis avec une virgule.",
   "V3.7.1 PROD — Photos d’inspiration mariage : import multiple pendant le RDV et onglet Inspirations dans la fiche mariage.",
   "V3.7.0 TEST — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
@@ -66,12 +70,13 @@ var DEFAULT_SETTINGS = {
   mailMessageDevis:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>devis</strong> relatif à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance. Si vous avez la moindre question, je reste bien entendu à votre disposition.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
   mailMessageFacture:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>facture</strong> relative à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
   mailMessageRelance:"Bonjour {client},\n\nJe me permets de revenir vers vous concernant le devis {numero}.\nN'hésitez pas à me dire si vous avez des questions ou besoin d'un ajustement.\n\nBien chaleureusement,\nÉlodie",
-  prestationsBibliotheque:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); })
+  prestationsBibliotheque:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); }),
+  atelierRecipes:null
 };
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -344,7 +349,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["stock","Stock"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["stock","Matériel"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -549,6 +554,18 @@ function renderModal(){
       if(sel){ try{ sel.focus(); }catch(e){} }
     },80);
     return;
+  }
+
+  if(ui.stockEditId){
+    var stockItem=(state.stockItems||[]).find(function(x){return x.id===ui.stockEditId;});
+    if(stockItem){
+      var sm=document.createElement("div");
+      sm.innerHTML=viewStockEditModal(stockItem);
+      document.body.appendChild(sm.firstElementChild);
+      setTimeout(function(){ var f=document.getElementById("stockEditNom"); if(f){ try{f.focus();}catch(e){} } },60);
+      return;
+    }
+    ui.stockEditId=null;
   }
 
   if(ui.versionNotesModal){
@@ -2165,8 +2182,343 @@ function viewCRMPreview(){
 
 
 /* ===================== Ateliers V1.3 ===================== */
+
 var ATELIER_TYPES=["EVJF","Structure","Anniversaire","Moment entre copine"];
-var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",termine:"Terminé",annule:"Annulé"};
+
+/* ===================== V3.8.4 — Recettes ateliers et décompte réel sécurisé ===================== */
+var ATELIER_MODELES=[
+  {id:"mandala_adulte_structure",label:"Mandala végétal adulte",modes:["structure"],materials:[{key:"base_carton_25",label:"Base cartonnée 25 cm",qty:1}]},
+  {id:"mandala_enfant_structure",label:"Mandala végétal enfant / ado",modes:["structure"],materials:[{key:"base_carton_20",label:"Base cartonnée 20 cm",qty:1}]},
+  {id:"papillon_vegetal_structure",label:"Papillon végétal adulte / ado",modes:["structure"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"papier_miroir_colore",label:"Papier cartonné miroir coloré A4 250 g",qty:1}]},
+  {id:"portrait_femme_structure",label:"Portrait de femme adulte / ado",modes:["structure"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"papier_miroir_dore",label:"Papier cartonné miroir doré A4 250 g",qty:1}]},
+  {id:"ruban_rose_structure",label:"Ruban Rose adulte / ado",modes:["structure"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"papier_kraft_marron",label:"Papier kraft marron A4 200 g",qty:1},{key:"papier_colore_mot",label:"Papier coloré pour le mot",qty:1}]},
+  {id:"photophore_adulte",label:"Photophore adulte",modes:["structure","prive"],materials:[{key:"vase_cyl_115_20",label:"Vase cylindrique 11,5 × 20 cm",qty:1},{key:"paille_blanche",label:"Pailles blanches",qty:35},{key:"ruban_jute_morceau",label:"Morceau de ruban de jute",qty:1}]},
+  {id:"cadre_fleuri",label:"Cadre fleuri adulte / ado",modes:["structure","prive"],variants:["supportColor"],materials:[{variantKey:"supportColor",map:{blanc:"toile_24x30_blanche",noir:"toile_24x30_noire"},label:"Toile 24 × 30",qty:1},{key:"paille_blanche",label:"Pailles blanches",qty:35}]},
+  {id:"photophore_ado",label:"Photophore ado",modes:["structure","prive"],variants:["strawColor"],materials:[{key:"vase_cyl_115_20",label:"Vase cylindrique 11,5 × 20 cm",qty:1},{variantKey:"strawColor",map:{rose:"paille_rose",violet:"paille_violette",vert:"paille_verte",jaune:"paille_jaune"},label:"Pailles colorées",qty:35},{key:"ruban_jute_morceau",label:"Morceau de ruban de jute",qty:1}]},
+  {id:"couronne_signature",label:"Couronne signature adulte / ado",modes:["structure","prive"],variants:["circleSize","macrameColor"],materials:[{variantKey:"circleSize",map:{"20":"cercle_dore_20","25":"cercle_dore_25"},label:"Cercle doré",qty:1},{variantKey:"macrameColor",map:{beige:"macrame_beige",blanc:"macrame_blanc",vert_sauge:"macrame_vert_sauge",rose:"macrame_rose",marron:"macrame_marron",gris_clair:"macrame_gris_clair",violet:"macrame_violet"},label:"Fil macramé",qty:1}]},
+  {id:"demi_couronne_seche",label:"Demi-couronne sèche adulte / ado",modes:["structure","prive"],variants:["circleSizeDemi"],materials:[{variantKey:"circleSizeDemi",map:{"15":"cercle_dore_15","20":"cercle_dore_20","25":"cercle_dore_25"},label:"Cercle doré",qty:1}]},
+  {id:"arbre_vie_structure",label:"Arbre de vie enfant + 11 ans",modes:["structure"],materials:[{key:"base_carton_20",label:"Base cartonnée 20 cm",qty:1}]},
+  {id:"miroir_fleuri",label:"Miroir fleuri",modes:["structure","prive"],materials:[{key:"miroir_rond",label:"Miroir rond",qty:1}]},
+  {id:"couronne_tete_prive",label:"Couronne de tête",modes:["prive"],materials:[{key:"fil_fer_malleable_1mm",label:"Fil de fer malléable 1 mm",qty:1}]},
+  {id:"peigne_bracelet_prive",label:"Peigne et bracelet",modes:["prive"],variants:["combSize"],materials:[{variantKey:"combSize",map:{"4":"peigne_4_dents","10":"peigne_10_dents"},label:"Peigne",qty:1}]}
+];
+var ATELIER_STOCK_INITIAL=[
+  {key:"papier_miroir_colore",nom:"Feuille papier cartonné miroir coloré A4 250 g",categorie:"Consommables",quantite:60,unite:"pièce",prixUnitaire:0.30,fournisseur:"Amazon",seuil:10},
+  {key:"papier_miroir_dore",nom:"Feuille papier cartonné miroir doré A4 250 g",categorie:"Consommables",quantite:60,unite:"pièce",prixUnitaire:0.30,fournisseur:"Amazon",seuil:10},
+  {key:"papier_kraft_marron",nom:"Feuille papier kraft marron A4 200 g",categorie:"Consommables",quantite:70,unite:"pièce",prixUnitaire:0.17,fournisseur:"Amazon",seuil:10},
+  {key:"macrame_beige",nom:"Fil macramé beige",categorie:"Consommables",quantite:500,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:30},
+  {key:"macrame_blanc",nom:"Fil macramé blanc",categorie:"Consommables",quantite:500,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:30},
+  {key:"macrame_vert_sauge",nom:"Fil macramé vert sauge",categorie:"Consommables",quantite:500,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:30},
+  {key:"macrame_rose",nom:"Fil macramé rose",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"macrame_marron",nom:"Fil macramé marron",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"macrame_gris_clair",nom:"Fil macramé gris clair",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"macrame_violet",nom:"Fil macramé violet",categorie:"Consommables",quantite:100,unite:"mètre",prixUnitaire:2.49/167,fournisseur:"Action",seuil:20},
+  {key:"toile_24x30_blanche",nom:"Toile / cadre blanc 24 × 30 cm",categorie:"Matériel",quantite:17,unite:"pièce",prixUnitaire:0.99,fournisseur:"Action",seuil:5},
+  {key:"toile_24x30_noire",nom:"Toile / cadre noir 24 × 30 cm",categorie:"Matériel",quantite:15,unite:"pièce",prixUnitaire:0.99,fournisseur:"Action",seuil:5},
+  {key:"cadre_blanc_20x20",nom:"Cadre blanc 20 × 20 cm",categorie:"Matériel",quantite:18,unite:"pièce",prixUnitaire:1.99/2,fournisseur:"Action",seuil:4},
+  {key:"vase_cyl_115_20",nom:"Vase cylindrique 11,5 × 20 cm",categorie:"Matériel",quantite:31,unite:"pièce",prixUnitaire:1.99,fournisseur:"Action",seuil:8},
+  {key:"cercle_dore_30",nom:"Cercle doré 30 cm",categorie:"Matériel",quantite:18,unite:"pièce",prixUnitaire:2.79,fournisseur:"Floralux",seuil:4},
+  {key:"cercle_dore_25",nom:"Cercle doré 25 cm",categorie:"Matériel",quantite:6,unite:"pièce",prixUnitaire:1.20,fournisseur:"SHEIN",seuil:3},
+  {key:"cercle_dore_20",nom:"Cercle doré 20 cm",categorie:"Matériel",quantite:54,unite:"pièce",prixUnitaire:0.96,fournisseur:"SHEIN",seuil:10},
+  {key:"cercle_dore_15",nom:"Cercle doré 15 cm",categorie:"Matériel",quantite:4,unite:"pièce",prixUnitaire:0.70,fournisseur:"SHEIN",seuil:3},
+  {key:"cercle_dore_12",nom:"Cercle doré 12 cm",categorie:"Matériel",quantite:37,unite:"pièce",prixUnitaire:0.70,fournisseur:"SHEIN",seuil:8},
+  {key:"paille_rose",nom:"Paille rose",categorie:"Consommables",quantite:300,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:70},
+  {key:"paille_violette",nom:"Paille violette",categorie:"Consommables",quantite:300,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:70},
+  {key:"paille_verte",nom:"Paille verte",categorie:"Consommables",quantite:100,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:50},
+  {key:"paille_jaune",nom:"Paille jaune",categorie:"Consommables",quantite:100,unite:"pièce",prixUnitaire:1.28/100,fournisseur:"Action",seuil:50},
+  {key:"paille_blanche",nom:"Paille blanche",categorie:"Consommables",quantite:350,unite:"pièce",prixUnitaire:38.99/1000,fournisseur:"Amazon",seuil:100},
+  {key:"miroir_rond",nom:"Miroir rond",categorie:"Matériel",quantite:47,unite:"pièce",prixUnitaire:3.33,fournisseur:"B&M",seuil:10},
+  {key:"base_carton_25",nom:"Base cartonnée 25 cm",categorie:"Matériel",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5},
+  {key:"base_carton_20",nom:"Base cartonnée 20 cm",categorie:"Matériel",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5},
+  {key:"papier_colore_mot",nom:"Feuille papier coloré pour mot",categorie:"Consommables",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:10},
+  {key:"ruban_jute_morceau",nom:"Morceau de ruban de jute",categorie:"Rubans",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:10},
+  {key:"fil_fer_malleable_1mm",nom:"Fil de fer malléable 1 mm — portion par personne",categorie:"Consommables",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:10},
+  {key:"peigne_4_dents",nom:"Peigne 4 dents",categorie:"Accessoires",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5},
+  {key:"peigne_10_dents",nom:"Peigne 10 dents",categorie:"Accessoires",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5}
+];
+function atelierModeleById(id){ return ATELIER_MODELES.find(function(x){return x.id===id;})||null; }
+function atelierModeleOptions(selected,mode){
+  var list=ATELIER_MODELES.filter(function(x){return !mode || x.modes.indexOf(mode)>=0;});
+  if(selected && !list.some(function(x){return x.id===selected;})){ var old=atelierModeleById(selected); if(old) list.unshift(old); }
+  return '<option value="">— Choisir un atelier —</option>'+list.map(function(x){return '<option value="'+esc(x.id)+'"'+(selected===x.id?' selected':'')+'>'+esc(x.label)+' — '+x.modes.map(atelierModeLabel).join(' / ')+'</option>';}).join('');
+}
+function atelierVariantValue(a,key){
+  var defaults={supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"};
+  return (a&&a.stockVariants&&a.stockVariants[key])||defaults[key]||"";
+}
+function atelierVariantFields(a,model){
+  if(!model||!model.variants) return '';
+  var h='',v;
+  model.variants.forEach(function(k){ v=atelierVariantValue(a,k);
+    if(k==='supportColor') h+='<label class="field"><span>Couleur de la toile 24 × 30</span><select id="atVarSupportColor"><option value="blanc"'+(v==='blanc'?' selected':'')+'>Blanche</option><option value="noir"'+(v==='noir'?' selected':'')+'>Noire</option></select></label>';
+    if(k==='strawColor') h+='<label class="field"><span>Couleur des pailles</span><select id="atVarStrawColor"><option value="rose"'+(v==='rose'?' selected':'')+'>Rose</option><option value="violet"'+(v==='violet'?' selected':'')+'>Violette</option><option value="vert"'+(v==='vert'?' selected':'')+'>Verte</option><option value="jaune"'+(v==='jaune'?' selected':'')+'>Jaune</option></select></label>';
+    if(k==='circleSize') h+='<label class="field"><span>Diamètre du cercle signature</span><select id="atVarCircleSize"><option value="20"'+(v==='20'?' selected':'')+'>20 cm</option><option value="25"'+(v==='25'?' selected':'')+'>25 cm</option></select></label>';
+    if(k==='circleSizeDemi') h+='<label class="field"><span>Diamètre du cercle demi-couronne</span><select id="atVarCircleSizeDemi"><option value="15"'+(v==='15'?' selected':'')+'>15 cm</option><option value="20"'+(v==='20'?' selected':'')+'>20 cm</option><option value="25"'+(v==='25'?' selected':'')+'>25 cm</option></select></label>';
+    if(k==='macrameColor') h+='<label class="field"><span>Couleur du fil macramé</span><select id="atVarMacrameColor">'+[['beige','Beige'],['blanc','Blanc'],['vert_sauge','Vert sauge'],['rose','Rose'],['marron','Marron'],['gris_clair','Gris clair'],['violet','Violet']].map(function(o){return '<option value="'+o[0]+'"'+(v===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></label>';
+    if(k==='combSize') h+='<label class="field"><span>Peigne choisi</span><select id="atVarCombSize"><option value="4"'+(v==='4'?' selected':'')+'>4 dents</option><option value="10"'+(v==='10'?' selected':'')+'>10 dents</option></select></label>';
+  }); return h;
+}
+function atelierStockReference(key){ return ATELIER_STOCK_INITIAL.find(function(x){return x.key===key;})||null; }
+function atelierStockNorm(v){ return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim(); }
+function stockByAtelierKey(key){
+  var items=state.stockItems||[];
+  var linked=items.find(function(x){return x.atelierStockKey===key;});
+  if(linked) return linked;
+  var ref=atelierStockReference(key);
+  if(!ref) return null;
+  var target=atelierStockNorm(ref.nom);
+  return items.find(function(x){return atelierStockNorm(x.nom)===target;})||null;
+}
+function atelierStockForSimulation(key){
+  var actual=stockByAtelierKey(key);
+  if(actual) return {item:actual,isFallback:false};
+  var ref=atelierStockReference(key);
+  return ref?{item:ref,isFallback:true}:null;
+}
+function atelierVariantLabels(key){
+  var maps={
+    supportColor:{blanc:"Toile blanche",noir:"Toile noire"},
+    strawColor:{rose:"Pailles roses",violet:"Pailles violettes",vert:"Pailles vertes",jaune:"Pailles jaunes"},
+    circleSize:{"20":"Cercle 20 cm","25":"Cercle 25 cm"},
+    circleSizeDemi:{"15":"Cercle 15 cm","20":"Cercle 20 cm","25":"Cercle 25 cm"},
+    macrameColor:{beige:"Macramé beige",blanc:"Macramé blanc",vert_sauge:"Macramé vert sauge",rose:"Macramé rose",marron:"Macramé marron",gris_clair:"Macramé gris clair",violet:"Macramé violet"},
+    combSize:{"4":"Peigne 4 dents","10":"Peigne 10 dents"}
+  };
+  return maps[key]||{};
+}
+function defaultAtelierRecipeLines(model){
+  var out=[];
+  (model&&model.materials||[]).forEach(function(m,idx){
+    if(m.variantKey&&m.map){
+      Object.keys(m.map).forEach(function(v){
+        out.push({id:"preset_"+model.id+"_"+idx+"_"+v,stockItemId:"",stockKey:m.map[v],qtyPerPerson:Number(m.qty)||0,conditionKey:m.variantKey,conditionValue:v,label:m.label||"Matériel"});
+      });
+    }else{
+      out.push({id:"preset_"+model.id+"_"+idx,stockItemId:"",stockKey:m.key||"",qtyPerPerson:Number(m.qty)||0,conditionKey:"",conditionValue:"",label:m.label||"Matériel"});
+    }
+  });
+  return out;
+}
+function ensureAtelierRecipeSettings(){
+  state.settings=state.settings||{};
+  if(!state.settings.atelierRecipes || typeof state.settings.atelierRecipes!=="object" || Array.isArray(state.settings.atelierRecipes)) state.settings.atelierRecipes={};
+  ATELIER_MODELES.forEach(function(model){
+    if(!Array.isArray(state.settings.atelierRecipes[model.id])) state.settings.atelierRecipes[model.id]=defaultAtelierRecipeLines(model);
+  });
+  return state.settings.atelierRecipes;
+}
+function atelierRecipeLines(modelId){
+  var recipes=ensureAtelierRecipeSettings();
+  return recipes[modelId]||[];
+}
+function atelierRecipeConditionMatches(a,line){
+  if(!line.conditionKey) return true;
+  return atelierVariantValue(a,line.conditionKey)===String(line.conditionValue||"");
+}
+function atelierRecipeLineStock(line){
+  if(line.stockItemId){
+    var actual=(state.stockItems||[]).find(function(x){return x.id===line.stockItemId;});
+    if(actual) return {item:actual,isFallback:false};
+  }
+  return line.stockKey?atelierStockForSimulation(line.stockKey):null;
+}
+function atelierRecipe(a){
+  var model=atelierModeleById(a&&a.atelierModeleId); if(!model) return [];
+  var n=Math.max(0,atelierParticipantsCount(a)), grouped={};
+  atelierRecipeLines(model.id).filter(function(line){return atelierRecipeConditionMatches(a,line);}).forEach(function(line){
+    var sim=atelierRecipeLineStock(line), item=sim&&sim.item;
+    var key=line.stockItemId?("item:"+line.stockItemId):(line.stockKey?("key:"+line.stockKey):("line:"+line.id));
+    var qty=r2((Number(line.qtyPerPerson)||0)*n); if(qty<=0) return;
+    if(!grouped[key]) grouped[key]={key:line.stockKey||"",stockItemId:line.stockItemId||"",label:(item&&item.nom)||line.label||"Matériel",qty:0,item:item||null,isFallback:!!(sim&&sim.isFallback)};
+    grouped[key].qty=r2(grouped[key].qty+qty);
+  });
+  return Object.keys(grouped).map(function(k){return grouped[k];});
+}
+function atelierRecipePreview(a){
+  var recipe=atelierRecipe(a), model=atelierModeleById(a&&a.atelierModeleId); if(!model) return '';
+  var prepared=!!a.stockPrepared;
+  var h='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin:0;">📦 Matériel de l’atelier</h3><span class="pill" style="background:'+(prepared?'var(--green-s)':'var(--blush-s)')+';color:'+(prepared?'var(--green)':'var(--bordeaux)')+';">'+(prepared?'Décompté':'À préparer')+'</span></div>'+ 
+    '<p class="muted" style="margin:8px 0 10px;">Recette utilisée : <b>'+esc(model.label)+'</b>. Le stock est retiré uniquement lorsque tu confirmes « Préparer le matériel ».</p>';
+  if(!recipe.length) return h+'<p class="muted">Aucun matériel n’est associé à cet atelier. Configure sa recette depuis l’onglet Matériel.</p></div>';
+  recipe.forEach(function(r){
+    var it=r.item, available=it?Number(it.quantite)||0:null;
+    var after=available===null?null:r2(available-(prepared?0:r.qty)), ok=available!==null&&(prepared||after>=0);
+    var unit=it?esc(it.unite||'pièce'):'pièce';
+    var detail='Besoin : '+r.qty+' '+unit;
+    if(it) detail+=' · Stock actuel : '+r2(available)+(prepared?'':' → '+r2(after));
+    else detail+=' · Article absent ou supprimé du stock';
+    h+='<div class="checkrow"><div style="flex:1;"><b>'+esc(r.label)+'</b><div class="muted">'+detail+'</div></div>'+ 
+      '<span class="badge" style="background:'+(ok?'#e7eee8':'#ffe1d8')+';color:'+(ok?'#384640':'#8a2d1b')+';">'+(prepared?'Décompté':(ok?'Suffisant':'À compléter'))+'</span></div>';
+  });
+  h+='<div class="row-actions">'+(prepared?'<button class="btn ghost" type="button" data-action="at-stock-restore">Réintégrer le stock</button>':'<button class="btn gold" type="button" data-action="at-stock-prepare">Préparer le matériel</button>')+'</div>';
+  if(prepared&&a.stockPreparedAt) h+='<div class="summary" style="margin:12px 0 0;"><b>✓ Matériel préparé</b><div class="muted" style="margin-top:4px;">Décompté le '+esc(stockDateTime(a.stockPreparedAt))+'. Toute modification du nombre de personnes ou de la recette proposera un ajustement du stock.</div></div>';
+  return h+'</div>';
+}
+function atelierRecipeConditionValue(line){ return line.conditionKey?(line.conditionKey+'='+String(line.conditionValue||'')):'always'; }
+function atelierRecipeConditionOptions(model,line){
+  var selected=atelierRecipeConditionValue(line), opts=[['always','Toujours utilisé']];
+  (model&&model.variants||[]).forEach(function(k){
+    var labels=atelierVariantLabels(k);
+    Object.keys(labels).forEach(function(v){opts.push([k+'='+v,'Seulement si : '+labels[v]]);});
+  });
+  return opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(selected===o[0]?' selected':'')+'>'+esc(o[1])+'</option>';}).join('');
+}
+function atelierRecipeStockOptions(line){
+  var actualFromKey=line.stockKey?stockByAtelierKey(line.stockKey):null;
+  var selected=line.stockItemId?('item:'+line.stockItemId):(actualFromKey?('item:'+actualFromKey.id):(line.stockKey?('legacy:'+line.stockKey):''));
+  var opts='<option value="">— Choisir dans le stock —</option>';
+  if(line.stockKey){
+    var ref=atelierStockReference(line.stockKey), actual=actualFromKey;
+    if(!actual) opts+='<option value="legacy:'+esc(line.stockKey)+'"'+(selected==='legacy:'+line.stockKey?' selected':'')+'>⚠ '+esc((ref&&ref.nom)||line.label||line.stockKey)+' — référence non associée</option>';
+  }
+  (state.stockItems||[]).slice().sort(function(a,b){return (a.nom||'').localeCompare(b.nom||'');}).forEach(function(it){
+    opts+='<option value="item:'+esc(it.id)+'"'+(selected==='item:'+it.id?' selected':'')+'>'+esc(it.nom||'Article')+' · '+r2(Number(it.quantite)||0)+' '+esc(it.unite||'')+'</option>';
+  });
+  return opts;
+}
+function captureAtelierRecipeEditor(showErrors){
+  var modelId=ui.stockRecipeModel; if(!modelId) return true;
+  var rows=document.querySelectorAll('[data-recipe-row]'), lines=[], valid=true;
+  rows.forEach(function(row){
+    var id=row.getAttribute('data-recipe-row')||uid();
+    var stock=row.querySelector('[data-recipe-stock]'), qty=row.querySelector('[data-recipe-qty]'), cond=row.querySelector('[data-recipe-condition]');
+    var sv=stock?stock.value:'', q=qty?num(qty.value):0, cv=cond?cond.value:'always';
+    if(!sv || q<=0){valid=false; return;}
+    var line={id:id,stockItemId:'',stockKey:'',qtyPerPerson:r2(q),conditionKey:'',conditionValue:'',label:''};
+    if(sv.indexOf('item:')===0) line.stockItemId=sv.slice(5);
+    if(sv.indexOf('legacy:')===0) line.stockKey=sv.slice(7);
+    if(cv!=='always'&&cv.indexOf('=')>0){ var p=cv.split('='); line.conditionKey=p.shift(); line.conditionValue=p.join('='); }
+    var item=line.stockItemId&&(state.stockItems||[]).find(function(x){return x.id===line.stockItemId;});
+    var ref=line.stockKey&&atelierStockReference(line.stockKey); line.label=(item&&item.nom)||(ref&&ref.nom)||'Matériel';
+    lines.push(line);
+  });
+  if(!valid){ if(showErrors) toast('Chaque ligne doit avoir un article de stock et une quantité supérieure à 0.'); return false; }
+  ensureAtelierRecipeSettings()[modelId]=lines;
+  return true;
+}
+function atelierRecipeLinksForStockItem(item){
+  if(!item) return [];
+  var out=[], recipes=ensureAtelierRecipeSettings();
+  ATELIER_MODELES.forEach(function(model){
+    (recipes[model.id]||[]).forEach(function(line){
+      var resolved=!line.stockItemId&&line.stockKey?stockByAtelierKey(line.stockKey):null;
+      var match=line.stockItemId===item.id || (!!resolved&&resolved.id===item.id);
+      if(match) out.push({model:model,line:line});
+    });
+  });
+  return out;
+}
+function viewAtelierRecipeManager(){
+  ensureAtelierRecipeSettings();
+  if(!ui.stockRecipeModel || !atelierModeleById(ui.stockRecipeModel)) ui.stockRecipeModel=ATELIER_MODELES[0]?ATELIER_MODELES[0].id:'';
+  var model=atelierModeleById(ui.stockRecipeModel), lines=model?atelierRecipeLines(model.id):[];
+  var html='<div class="card" id="atelierRecipeManager"><div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0;">🧰 Recettes matériel des ateliers</h3><p class="muted" style="margin:5px 0 0;">Définis ici le matériel consommé <b>pour une personne</b>. Un même article peut être utilisé dans plusieurs ateliers. Les quantités seront réellement retirées lorsque l’atelier passera à « Matériel préparé ».</p></div><span class="badge" style="background:var(--green-s);color:var(--green);">Décompte actif</span></div>'+ 
+    '<label class="field" style="margin-top:14px;"><span>Atelier à configurer</span><select data-action="stock-recipe-model-change">'+ATELIER_MODELES.map(function(m){return '<option value="'+esc(m.id)+'"'+(m.id===ui.stockRecipeModel?' selected':'')+'>'+esc(m.label)+' · '+m.modes.map(atelierModeLabel).join(' / ')+'</option>';}).join('')+'</select></label>';
+  if(!state.stockItems.length) html+='<div class="summary"><b>Commence par ajouter tes articles dans le stock.</b><div class="muted">Ils apparaîtront ensuite dans les listes ci-dessous.</div></div>';
+  if(!lines.length) html+='<p class="muted">Aucune fourniture configurée pour cet atelier.</p>';
+  lines.forEach(function(line){
+    html+='<div class="checkrow" data-recipe-row="'+esc(line.id)+'" style="align-items:flex-end;gap:8px;flex-wrap:wrap;">'+
+      '<div style="flex:2;min-width:240px;"><label class="field" style="margin:0;"><span>Article du stock</span><select data-recipe-stock>'+atelierRecipeStockOptions(line)+'</select></label></div>'+ 
+      '<div style="flex:0 0 145px;"><label class="field" style="margin:0;"><span>Quantité / personne</span><input data-recipe-qty type="number" min="0.01" step="0.01" value="'+esc(line.qtyPerPerson||1)+'"></label></div>'+ 
+      '<div style="flex:1;min-width:220px;"><label class="field" style="margin:0;"><span>Condition</span><select data-recipe-condition>'+atelierRecipeConditionOptions(model,line)+'</select></label></div>'+ 
+      '<button class="btn small danger" type="button" data-action="stock-recipe-remove-'+esc(line.id)+'">Retirer</button></div>';
+  });
+  html+='<div class="row-actions"><button class="btn soft" type="button" data-action="stock-recipe-add">+ Ajouter du matériel</button><button class="btn primary" type="button" data-action="stock-recipe-save">Enregistrer la recette</button><button class="btn ghost" type="button" data-action="stock-recipe-reset">Rétablir la recette initiale</button></div>'+ 
+    '<div class="summary" style="margin:12px 0 0;"><b>Exemple</b><div class="muted">Pour ajouter une décoration de Noël au Photophore adulte : crée d’abord l’article dans le stock, sélectionne « Photophore adulte », clique sur « Ajouter du matériel », choisis l’article et indique la quantité utilisée par personne.</div></div></div>';
+  return html;
+}
+function atelierStockSnapshotFromRecipe(a){
+  return atelierRecipe(a).map(function(r){
+    return {stockItemId:r.stockItemId||((r.item&&r.item.id)||""),label:r.label||((r.item&&r.item.nom)||"Matériel"),qty:r2(Number(r.qty)||0),unit:(r.item&&r.item.unite)||"pièce"};
+  }).filter(function(x){return x.stockItemId&&x.qty>0;});
+}
+function atelierStockMap(lines){
+  var out={}; (lines||[]).forEach(function(x){if(x&&x.stockItemId) out[x.stockItemId]=x;}); return out;
+}
+function atelierStockShortages(deltas){
+  var miss=[];
+  Object.keys(deltas||{}).forEach(function(id){
+    var d=Number(deltas[id])||0; if(d<=0) return;
+    var it=(state.stockItems||[]).find(function(x){return x.id===id;});
+    if(!it) miss.push({label:"Article supprimé ou introuvable",available:0,needed:r2(d),unit:""});
+    else if((Number(it.quantite)||0)+0.000001<d) miss.push({label:it.nom||"Article",available:r2(Number(it.quantite)||0),needed:r2(d),unit:it.unite||"pièce"});
+  });
+  return miss;
+}
+function atelierStockDelta(current,next){
+  var a=atelierStockMap(current), b=atelierStockMap(next), ids={}, out={};
+  Object.keys(a).forEach(function(k){ids[k]=true;}); Object.keys(b).forEach(function(k){ids[k]=true;});
+  Object.keys(ids).forEach(function(id){out[id]=r2(((b[id]&&Number(b[id].qty))||0)-((a[id]&&Number(a[id].qty))||0));});
+  return out;
+}
+function atelierStockSummary(lines,title){
+  var h=(title?title+"\n\n":"");
+  (lines||[]).forEach(function(x){h+="• "+(x.label||"Matériel")+" : "+r2(x.qty)+" "+(x.unit||"")+"\n";});
+  return h;
+}
+function atelierStockRecord(item,from,to,context){
+  item.quantite=r2(to); item.updatedAt=new Date().toISOString();
+  item.historique=item.historique||[];
+  item.historique.unshift({date:new Date().toISOString(),context:context||"Atelier",changes:[{field:"quantite",from:r2(from),to:r2(to)}]});
+  if(item.historique.length>30) item.historique=item.historique.slice(0,30);
+}
+function atelierApplyStockDelta(a,deltas,context){
+  var shortages=atelierStockShortages(deltas);
+  if(shortages.length) return {ok:false,shortages:shortages};
+  Object.keys(deltas||{}).forEach(function(id){
+    var d=Number(deltas[id])||0; if(!d) return;
+    var it=(state.stockItems||[]).find(function(x){return x.id===id;}); if(!it) return;
+    var from=Number(it.quantite)||0, to=r2(from-d);
+    atelierStockRecord(it,from,to,context||("Atelier "+(a.theme||a.type||"")));
+  });
+  return {ok:true};
+}
+function atelierPrepareStock(a,askConfirm){
+  var next=atelierStockSnapshotFromRecipe(a);
+  if(!a.atelierModeleId) return {ok:false,message:"Choisis d’abord un type d’atelier."};
+  if(!next.length) return {ok:false,message:"Aucun matériel n’est associé à cet atelier. Configure sa recette dans Matériel."};
+  var deltas=atelierStockDelta([],next), shortages=atelierStockShortages(deltas);
+  if(shortages.length){
+    return {ok:false,message:"Stock insuffisant :\n\n"+shortages.map(function(x){return "• "+x.label+" : disponible "+x.available+" "+x.unit+", nécessaire "+x.needed+" "+x.unit;}).join("\n")};
+  }
+  if(askConfirm!==false && !confirm(atelierStockSummary(next,"Vous allez retirer du stock pour "+atelierParticipantsCount(a)+" personne(s) :")+"\nConfirmer la préparation du matériel ?")) return {ok:false,cancelled:true};
+  var applied=atelierApplyStockDelta(a,deltas,"Préparation atelier · "+(a.theme||a.type||"Atelier")); if(!applied.ok) return applied;
+  a.stockConsumption=next; a.stockPrepared=true; a.stockPreparedAt=new Date().toISOString(); a.statut="materiel_prepare";
+  return {ok:true,changed:true};
+}
+function atelierReconcilePreparedStock(a,askConfirm){
+  var current=a.stockConsumption||[], next=atelierStockSnapshotFromRecipe(a), deltas=atelierStockDelta(current,next);
+  var changed=Object.keys(deltas).some(function(k){return Math.abs(Number(deltas[k])||0)>0.000001;});
+  if(!changed) return {ok:true,changed:false};
+  var shortages=atelierStockShortages(deltas);
+  if(shortages.length) return {ok:false,message:"Impossible d’ajuster le matériel :\n\n"+shortages.map(function(x){return "• "+x.label+" : disponible "+x.available+" "+x.unit+", supplément nécessaire "+x.needed+" "+x.unit;}).join("\n")};
+  if(askConfirm!==false){
+    var txt="Le nombre de personnes ou la recette a changé. Le stock va être ajusté :\n\n";
+    var cm=atelierStockMap(current), nm=atelierStockMap(next);
+    Object.keys(deltas).forEach(function(id){var d=Number(deltas[id])||0;if(!d)return;var x=nm[id]||cm[id]||{};txt+="• "+(x.label||"Matériel")+" : "+(d>0?"-":"+")+r2(Math.abs(d))+" "+(x.unit||"")+"\n";});
+    if(!confirm(txt+"\nConfirmer l’ajustement ?")) return {ok:false,cancelled:true};
+  }
+  var applied=atelierApplyStockDelta(a,deltas,"Ajustement atelier · "+(a.theme||a.type||"Atelier")); if(!applied.ok) return applied;
+  a.stockConsumption=next; return {ok:true,changed:true};
+}
+function atelierRestoreStock(a,askConfirm){
+  var current=a.stockConsumption||[];
+  if(!a.stockPrepared||!current.length){a.stockPrepared=false;a.stockPreparedAt="";a.stockConsumption=[];return {ok:true,changed:false};}
+  if(askConfirm!==false && !confirm(atelierStockSummary(current,"Le matériel suivant va être réintégré au stock :")+"\nConfirmer ?")) return {ok:false,cancelled:true};
+  var deltas={}; current.forEach(function(x){deltas[x.stockItemId]=r2(-(Number(x.qty)||0));});
+  atelierApplyStockDelta(a,deltas,"Réintégration atelier · "+(a.theme||a.type||"Atelier"));
+  a.stockPrepared=false; a.stockPreparedAt=""; a.stockConsumption=[];
+  if(a.statut==="materiel_prepare") a.statut="preparation";
+  return {ok:true,changed:true};
+}
+function atelierApplyStock(a){ return atelierPrepareStock(a,true); }
+function importAtelierInitialStock(){
+  state.stockItems=state.stockItems||[]; var added=0,linked=0;
+  ATELIER_STOCK_INITIAL.forEach(function(src){ var found=stockByAtelierKey(src.key); if(found) return; var norm=function(v){return String(v||'').toLowerCase().replace(/[^a-z0-9àâäéèêëîïôöùûüç]+/g,' ').trim();}; found=state.stockItems.find(function(x){return norm(x.nom)===norm(src.nom);}); if(found){found.atelierStockKey=src.key; linked++; return;} var it={id:uid(),createdAt:new Date().toISOString(),notes:'Référence ateliers — stock initial communiqué',atelierStockKey:src.key}; Object.keys(src).forEach(function(k){if(k!=='key') it[k]=src[k];}); state.stockItems.unshift(it); added++; });
+  saveCache(); render(); toast('Stock ateliers importé : '+added+' référence(s) ajoutée(s), '+linked+' associée(s).');
+}
+
+var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",materiel_prepare:"Matériel préparé",termine:"Terminé",annule:"Annulé"};
 
 
 /* ===================== Documents ateliers structure / privé ===================== */
@@ -2531,7 +2883,7 @@ function newAtelier(){
   var a={id:uid(),modeAtelier:"thematique",date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",
     organisatrice:"",structureNom:"",contactEmail:"",contactTel:"",
     nbPersonnes:0,nbParticipantsPrevu:0,montantForfait:0,montantPrestation:0,
-    prestationsComplementaires:[],
+    prestationsComplementaires:[],atelierModeleId:"",stockVariants:{supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"},stockConsumption:[],stockPrepared:false,stockPreparedAt:"",
     materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
   state.ateliers=state.ateliers||[];
   state.ateliers.unshift(a);
@@ -2627,6 +2979,14 @@ function captureAtelier(a){
   a.nbParticipantsPrevu=num(val("atNbParticipantsPrevu"));
   a.montantForfait=num(val("atMontantForfait"));
   a.montantPrestation=num(val("atMontantPrestation"));
+  a.atelierModeleId=val("atAtelierModele")||"";
+  a.stockVariants=a.stockVariants||{};
+  if(document.getElementById("atVarSupportColor")) a.stockVariants.supportColor=val("atVarSupportColor");
+  if(document.getElementById("atVarStrawColor")) a.stockVariants.strawColor=val("atVarStrawColor");
+  if(document.getElementById("atVarCircleSize")) a.stockVariants.circleSize=val("atVarCircleSize");
+  if(document.getElementById("atVarCircleSizeDemi")) a.stockVariants.circleSizeDemi=val("atVarCircleSizeDemi");
+  if(document.getElementById("atVarMacrameColor")) a.stockVariants.macrameColor=val("atVarMacrameColor");
+  if(document.getElementById("atVarCombSize")) a.stockVariants.combSize=val("atVarCombSize");
   captureAtelierPrestations(a);
   a.materiel=val("atMateriel")||"";
   a.description=val("atDescription")||"";
@@ -2653,6 +3013,7 @@ function viewAtelierDetail(a){
     '<div><label class="field"><span>Thème</span><select id="atType">'+atelierTypeOptions(a.type)+'</select><div class="hint">Choisis un thème existant ou indique un thème libre ci-dessous.</div></label></div></div>'+
     '<div class="inline"><div><label class="field"><span>Thème libre</span><input id="atTypeCustom" value="'+esc((a.type&&ATELIER_TYPES.indexOf(a.type)<0)?a.type:"")+'" placeholder="Ex : Fête des mères, Halloween, Baby shower…"></label></div>'+
     '<div><label class="field"><span>Nom / détails du thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Couronne florale pastel, Bridgerton…"></label></div></div>'+
+    '<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">🧰 Modèle d’atelier et gestion du stock</h3><label class="field"><span>Type d’atelier réalisé</span><select id="atAtelierModele" data-action="at-stock-config-change">'+atelierModeleOptions(a.atelierModeleId,mode)+'</select><div class="hint">La liste est filtrée selon Structure / Privé. Le matériel est calculé par personne et sera décompté après confirmation lorsque tu le prépares.</div></label>'+atelierVariantFields(a,atelierModeleById(a.atelierModeleId))+'</div>'+
     '<label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label>';
 
   if(mode==="structure"){
@@ -2681,7 +3042,9 @@ function viewAtelierDetail(a){
     html+=viewAtelierDocuments(a);
   }
 
-  html+='<label class="field"><span>Matériel nécessaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
+  html+=atelierRecipePreview(a);
+
+  html+='<label class="field"><span>Matériel nécessaire complémentaire</span><textarea id="atMateriel" placeholder="Fleurs, cercles, fil de fer, pistolets à colle, rubans…">'+esc(a.materiel||"")+'</textarea></label>'+
     '<label class="field"><span>Description / mémo</span><textarea id="atDescription" placeholder="Infos organisation, demandes particulières, déroulé de l’atelier…">'+esc(a.description||"")+'</textarea></label>'+
     '<div class="row-actions"><button class="btn primary" data-action="at-save">Enregistrer l’atelier</button></div></div>';
 
@@ -2763,122 +3126,166 @@ function viewAteliersPreview(){
 }
 
 
-/* ===================== Stock ===================== */
+/* ===================== Matériel / stock ===================== */
 function stockCategoryOptions(selected){
   selected=selected||"Fleurs";
-  var opts=["Fleurs","Feuillages","Matériel","Consommables","Emballage","Rubans","Accessoires","Autre"];
+  var opts=["Fleurs","Feuillages","Matériel","Consommables","Papeterie","Cadres","Cercles","Pailles","Vases","Macramé","Emballage","Rubans","Accessoires","Autre"];
   if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
   return opts.map(function(o){return '<option value="'+esc(o)+'"'+(selected===o?' selected':'')+'>'+esc(o)+'</option>';}).join("");
 }
 function stockUnitOptions(selected){
   selected=selected||"pièce";
-  var opts=["pièce","tige","botte","lot","rouleau","mètre","sachet","boîte","kg","g"];
+  var opts=["pièce","tige","feuille","botte","lot","rouleau","mètre","centimètre","sachet","paquet","boîte","kg","g"];
   if(selected && opts.indexOf(selected)<0) opts.unshift(selected);
   return opts.map(function(o){return '<option value="'+esc(o)+'"'+(selected===o?' selected':'')+'>'+esc(o)+'</option>';}).join("");
 }
-function stockValue(item){
-  return r2((Number(item.quantite)||0)*(Number(item.prixUnitaire)||0));
+function stockNum(v){
+  var n=Number(String(v==null?"":v).replace(",","."));
+  return Number.isFinite(n)?n:0;
 }
-function stockTotalValue(){
-  return r2((state.stockItems||[]).reduce(function(s,it){return s+stockValue(it);},0));
+function stockValue(item){ return r2((Number(item.quantite)||0)*(Number(item.prixUnitaire)||0)); }
+function stockTotalValue(){ return r2((state.stockItems||[]).reduce(function(s,it){return s+stockValue(it);},0)); }
+function stockCount(){ return (state.stockItems||[]).reduce(function(s,it){return s+(Number(it.quantite)||0);},0); }
+function lowStockCount(){ return (state.stockItems||[]).filter(function(it){return stockStatus(it).level==="low"||stockStatus(it).level==="out";}).length; }
+function stockSortName(a,b){
+  return String(a&&a.nom||"").localeCompare(String(b&&b.nom||""),"fr",{sensitivity:"base",numeric:true});
 }
-function stockCount(){
-  return (state.stockItems||[]).reduce(function(s,it){return s+(Number(it.quantite)||0);},0);
+function stockStatus(item){
+  var q=Number(item&&item.quantite)||0, seuil=Number(item&&item.seuil)||0;
+  if(q<=0) return {level:"out",label:"Rupture",bg:"#ffe1d8",fg:"#8a2d1b",icon:"🔴"};
+  if(seuil>0 && q<=seuil) return {level:"low",label:"Stock bas",bg:"#fff0d8",fg:"#8a5a12",icon:"🟠"};
+  if(seuil>0 && q<=seuil*2) return {level:"watch",label:"À surveiller",bg:"#fff8df",fg:"#756014",icon:"🟡"};
+  return {level:"ok",label:"Stock OK",bg:"#e7eee8",fg:"#384640",icon:"🟢"};
 }
-function lowStockCount(){
-  return (state.stockItems||[]).filter(function(it){return Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil);}).length;
+function stockStatusBadge(item){
+  var st=stockStatus(item);
+  return '<span class="badge" style="background:'+st.bg+';color:'+st.fg+';">'+st.icon+' '+esc(st.label)+'</span>';
+}
+function stockDateTime(iso){
+  if(!iso) return "—";
+  try{return new Date(iso).toLocaleString("fr-FR",{dateStyle:"short",timeStyle:"short"});}catch(e){return String(iso);}
+}
+function stockLinkedSummary(item){
+  var links=atelierRecipeLinksForStockItem(item);
+  return links.length?links.map(function(x){return esc(x.model.label)+' ('+esc(x.line.qtyPerPerson)+' / personne)';}).join(' · '):'';
+}
+function stockHistoryLabel(field){
+  return ({nom:"Nom",categorie:"Catégorie",quantite:"Quantité",unite:"Unité",prixUnitaire:"Prix unitaire",seuil:"Seuil d’alerte",fournisseur:"Fournisseur",reference:"Référence",emplacement:"Emplacement",notes:"Notes"})[field]||field;
+}
+function stockRecordHistory(item, changes){
+  if(!changes.length) return;
+  item.historique=item.historique||[];
+  item.historique.unshift({date:new Date().toISOString(),changes:changes});
+  if(item.historique.length>30) item.historique=item.historique.slice(0,30);
+}
+function viewStockEditModal(item){
+  var links=atelierRecipeLinksForStockItem(item), hist=(item.historique||[]).slice(0,8);
+  var h='<div id="modal" class="modal"><div class="modal-inner"><div class="card" style="max-width:760px;margin:2vh auto;">'+
+    '<div class="flexb"><div><h2 style="margin:0;">Modifier l’article</h2><p class="muted" style="margin:4px 0 0;">Tous les champs de la fiche matériel peuvent être corrigés.</p></div>'+stockStatusBadge(item)+'</div>'+
+    (links.length?'<div class="summary" style="margin-top:14px;"><b>🔗 Article utilisé dans '+links.length+' recette(s)</b><div class="muted" style="margin-top:4px;">'+links.map(function(x){return esc(x.model.label)+' · '+esc(x.line.qtyPerPerson)+' / personne';}).join('<br>')+'</div></div>':'')+
+    '<div class="inline"><div><label class="field"><span>Nom</span><input id="stockEditNom" value="'+esc(item.nom||'')+'"></label></div><div><label class="field"><span>Catégorie</span><select id="stockEditCat">'+stockCategoryOptions(item.categorie||'Autre')+'</select></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Quantité</span><input id="stockEditQty" inputmode="decimal" type="number" step="0.01" min="0" value="'+esc(item.quantite==null?'':item.quantite)+'"></label></div><div><label class="field"><span>Unité</span><select id="stockEditUnit">'+stockUnitOptions(item.unite||'pièce')+'</select></label></div><div><label class="field"><span>Prix unitaire (€)</span><input id="stockEditPrice" inputmode="decimal" type="number" step="0.01" min="0" value="'+esc(item.prixUnitaire==null?'':item.prixUnitaire)+'"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Seuil d’alerte</span><input id="stockEditSeuil" inputmode="decimal" type="number" step="0.01" min="0" value="'+esc(item.seuil==null?'':item.seuil)+'"></label></div><div><label class="field"><span>Fournisseur</span><input id="stockEditFournisseur" value="'+esc(item.fournisseur||'')+'"></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Référence</span><input id="stockEditReference" value="'+esc(item.reference||'')+'" placeholder="Référence fournisseur ou interne"></label></div><div><label class="field"><span>Emplacement</span><input id="stockEditEmplacement" value="'+esc(item.emplacement||'')+'" placeholder="Ex : étagère A, bac 3"></label></div></div>'+
+    '<label class="field"><span>Notes</span><textarea id="stockEditNotes" placeholder="Couleur, usage, caractéristiques…">'+esc(item.notes||'')+'</textarea></label>'+
+    '<div class="row-actions"><button class="btn primary" type="button" data-action="stock-edit-save">Enregistrer les modifications</button><button class="btn ghost" type="button" data-action="stock-edit-cancel">Annuler</button></div>';
+  if(hist.length){
+    h+='<div style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px;"><h3 style="margin:0 0 8px;">Historique récent</h3>';
+    hist.forEach(function(entry){
+      h+='<div class="cal-listitem"><b>'+esc(stockDateTime(entry.date))+'</b>'+(entry.context?'<div style="font-size:12px;font-weight:700;">'+esc(entry.context)+'</div>':'')+'<div class="muted" style="font-size:12px;">'+(entry.changes||[]).map(function(c){return esc(stockHistoryLabel(c.field))+': '+esc(c.from==null?'':c.from)+' → '+esc(c.to==null?'':c.to);}).join('<br>')+'</div></div>';
+    });
+    h+='</div>';
+  }
+  h+='</div></div></div>';
+  return h;
+}
+function openStockEdit(id){
+  var it=(state.stockItems||[]).find(function(x){return x.id===id;});
+  if(!it){toast("Article introuvable.");return;}
+  ui.stockEditId=id; renderModal();
+}
+function saveStockEdit(){
+  var it=(state.stockItems||[]).find(function(x){return x.id===ui.stockEditId;});
+  if(!it){ui.stockEditId=null;renderModal();return;}
+  var next={
+    nom:val("stockEditNom").trim(), categorie:val("stockEditCat")||"Autre", quantite:stockNum(val("stockEditQty")), unite:val("stockEditUnit")||"pièce",
+    prixUnitaire:stockNum(val("stockEditPrice")), seuil:stockNum(val("stockEditSeuil")), fournisseur:val("stockEditFournisseur").trim(),
+    reference:val("stockEditReference").trim(), emplacement:val("stockEditEmplacement").trim(), notes:val("stockEditNotes").trim()
+  };
+  if(!next.nom){toast("Le nom de l’article est obligatoire.");return;}
+  var fields=["nom","categorie","quantite","unite","prixUnitaire","seuil","fournisseur","reference","emplacement","notes"], changes=[];
+  fields.forEach(function(f){
+    var before=it[f]==null?"":it[f], after=next[f]==null?"":next[f];
+    if(String(before)!==String(after)){changes.push({field:f,from:before,to:after});it[f]=after;}
+  });
+  if(!changes.length){ui.stockEditId=null;renderModal();toast("Aucune modification à enregistrer.");return;}
+  it.updatedAt=new Date().toISOString(); stockRecordHistory(it,changes); ui.stockEditId=null; saveCache(); render(); toast("Article mis à jour.");
+}
+function stockFilterRowsFromDOM(){
+  var input=document.getElementById("stockSearch"), select=document.getElementById("stockCategoryFilter");
+  var q=searchNorm(input?input.value:ui.stockSearch), cat=select?select.value:ui.stockCategoryFilter;
+  ui.stockSearch=input?input.value:ui.stockSearch; ui.stockCategoryFilter=cat||"";
+  var rows=document.querySelectorAll("[data-stock-row]"); var visible=0;
+  Array.prototype.forEach.call(rows,function(row){
+    var hay=searchNorm(row.getAttribute("data-stock-search")||""), rc=row.getAttribute("data-stock-category")||"";
+    var show=(!q||hay.indexOf(q)>=0)&&(!cat||rc===cat); row.style.display=show?"":"none"; if(show) visible++;
+  });
+  var count=document.getElementById("stockVisibleCount"); if(count) count.textContent=visible+" article(s) affiché(s)";
 }
 function viewStock(){
   state.stockItems=state.stockItems||[];
-  var total=stockTotalValue(), q=stockCount(), low=lowStockCount();
-  var cats={};
+  var total=stockTotalValue(), q=stockCount(), low=lowStockCount(), cats={};
   state.stockItems.forEach(function(it){ var c=it.categorie||"Autre"; cats[c]=(cats[c]||0)+stockValue(it); });
-  var catHtml=Object.keys(cats).sort().map(function(c){return '<span class="chip">'+esc(c)+' : '+euro(cats[c])+'</span>';}).join(" ");
+  var catHtml=Object.keys(cats).sort(function(a,b){return a.localeCompare(b,"fr",{sensitivity:"base"});}).map(function(c){return '<span class="chip">'+esc(c)+' : '+euro(cats[c])+'</span>';}).join(" ");
+  var catFilter='<option value="">Toutes les catégories</option>'+Object.keys(cats).sort(function(a,b){return a.localeCompare(b,"fr",{sensitivity:"base"});}).map(function(c){return '<option value="'+esc(c)+'"'+(ui.stockCategoryFilter===c?' selected':'')+'>'+esc(c)+'</option>';}).join('');
 
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Stock</h2><span class="muted">Fleurs, matériel et articles</span></div>'+
-    '<div class="grid-stats">'+
-      stat("Valeur du stock",euro(total),true)+
-      stat("Quantité totale",q,false)+
-      stat("Références",state.stockItems.length,false)+
-      stat("Alertes stock bas",low,false)+
-    '</div>'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Matériel</h2><div class="row-actions" style="margin-top:0;"><span class="badge" style="background:var(--green-s);color:var(--green);">✓ Décompte ateliers actif</span><span class="muted">Bibliothèque centrale des fleurs, fournitures et consommables</span></div></div>'+
+    '<div class="grid-stats">'+stat("Valeur du matériel",euro(total),true)+stat("Quantité totale",q,false)+stat("Références",state.stockItems.length,false)+stat("Alertes",low,false)+'</div>'+
     '<div class="card"><h3 style="margin-top:0;">Ajouter une fleur ou un article</h3>'+
-      '<div class="inline"><div><label class="field"><span>Nom</span><input id="stockNom" placeholder="Ex : Lagurus naturel, ruban rose, colle chaude…"></label></div>'+
-      '<div><label class="field"><span>Catégorie</span><select id="stockCat">'+stockCategoryOptions("Fleurs")+'</select></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Quantité</span><input id="stockQty" type="number" step="0.01" min="0"></label></div>'+
-      '<div><label class="field"><span>Unité</span><select id="stockUnit">'+stockUnitOptions("pièce")+'</select></label></div>'+
-      '<div><label class="field"><span>Prix unitaire (€)</span><input id="stockPrice" type="number" step="0.01" min="0"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Seuil alerte stock bas</span><input id="stockSeuil" type="number" step="0.01" min="0" placeholder="facultatif"></label></div>'+
-      '<div><label class="field"><span>Fournisseur</span><input id="stockFournisseur" placeholder="Ex : Floristen Center"></label></div></div>'+
-      '<label class="field"><span>Notes</span><textarea id="stockNotes" placeholder="Couleur, usage, emplacement, référence fournisseur…"></textarea></label>'+
-      '<div class="row-actions"><button class="btn primary" data-action="stock-add">+ Ajouter au stock</button></div></div>';
+      '<div class="inline"><div><label class="field"><span>Nom</span><input id="stockNom" placeholder="Ex : Étoile décorative de Noël"></label></div><div><label class="field"><span>Catégorie</span><select id="stockCat">'+stockCategoryOptions("Fleurs")+'</select></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Quantité</span><input id="stockQty" inputmode="decimal" type="number" step="0.01" min="0"></label></div><div><label class="field"><span>Unité</span><select id="stockUnit">'+stockUnitOptions("pièce")+'</select></label></div><div><label class="field"><span>Prix unitaire (€)</span><input id="stockPrice" inputmode="decimal" type="number" step="0.01" min="0"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Seuil alerte stock bas</span><input id="stockSeuil" inputmode="decimal" type="number" step="0.01" min="0" placeholder="facultatif"></label></div><div><label class="field"><span>Fournisseur</span><input id="stockFournisseur" placeholder="Ex : Floristen Center"></label></div></div>'+
+      '<div class="inline"><div><label class="field"><span>Référence</span><input id="stockReference" placeholder="Référence fournisseur ou interne"></label></div><div><label class="field"><span>Emplacement</span><input id="stockEmplacement" placeholder="Ex : étagère A, bac 3"></label></div></div>'+
+      '<label class="field"><span>Notes</span><textarea id="stockNotes" placeholder="Couleur, usage, caractéristiques…"></textarea></label>'+
+      '<div class="row-actions"><button class="btn primary" type="button" data-action="stock-add">+ Ajouter au matériel</button></div></div>';
 
-  if(catHtml){
-    html+='<div class="card"><h3 style="margin-top:0;">Répartition par catégorie</h3><div style="display:flex;flex-wrap:wrap;gap:6px;">'+catHtml+'</div></div>';
-  }
+  html+=viewAtelierRecipeManager();
+  if(catHtml) html+='<div class="card"><h3 style="margin-top:0;">Répartition par catégorie</h3><div style="display:flex;flex-wrap:wrap;gap:6px;">'+catHtml+'</div></div>';
 
-  html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Liste du stock</h3><span class="muted">'+state.stockItems.length+' référence(s)</span></div>';
+  html+='<div class="card"><div class="flexb"><div><h3 style="margin:0;">Liste du matériel</h3><span id="stockVisibleCount" class="muted">'+state.stockItems.length+' article(s) affiché(s)</span></div><span class="muted">Tri automatique de A à Z</span></div>'+
+    '<div class="inline" style="margin-top:12px;"><div style="flex:2;"><label class="field"><span>Rechercher</span><input id="stockSearch" value="'+esc(ui.stockSearch||'')+'" placeholder="Nom, fournisseur, référence, emplacement…"></label></div><div><label class="field"><span>Filtrer</span><select id="stockCategoryFilter">'+catFilter+'</select></label></div></div>';
   if(!state.stockItems.length){
-    html+='<p class="muted">Aucun article en stock pour le moment.</p>';
+    html+='<p class="muted">Aucun article pour le moment.</p>';
   }else{
-    var list=state.stockItems.slice().sort(function(a,b){return (a.categorie||"").localeCompare(b.categorie||"") || (a.nom||"").localeCompare(b.nom||"");});
+    var list=state.stockItems.slice().sort(stockSortName);
     list.forEach(function(it){
-      var alert=Number(it.seuil)>0 && Number(it.quantite)<=Number(it.seuil);
-      html+='<div class="checkrow" style="align-items:flex-start;'+(alert?'border-color:#d99;background:#fff7f2;':'')+'">'+
-        '<div style="flex:1;">'+
-          '<div><b style="color:var(--bordeaux);">'+esc(it.nom||"Article")+'</b> '+(alert?'<span class="badge" style="background:#ffe1d8;color:#8a2d1b;">Stock bas</span>':'')+'</div>'+
-          '<div class="muted" style="font-size:12px;">'+esc(it.categorie||"Autre")+' · '+esc(it.quantite||0)+' '+esc(it.unite||"")+' · Prix unitaire : '+euro(it.prixUnitaire||0)+' · Valeur : '+euro(stockValue(it))+'</div>'+
-          (it.fournisseur?'<div class="muted" style="font-size:12px;">Fournisseur : '+esc(it.fournisseur)+'</div>':'')+
-          (it.notes?'<div class="muted" style="font-size:12px;">Notes : '+esc(it.notes)+'</div>':'')+
-        '</div>'+
-        '<div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
-          '<button class="btn small soft" data-action="stock-adjust-'+it.id+'">Modifier quantité</button>'+
-          '<button class="btn small danger" data-action="stock-del-'+it.id+'">Supprimer</button>'+
-        '</div></div>';
+      var linked=stockLinkedSummary(it), updated=it.updatedAt||it.createdAt||"";
+      var search=[it.nom,it.categorie,it.fournisseur,it.reference,it.emplacement,it.notes].filter(Boolean).join(' ');
+      html+='<div class="checkrow" data-stock-row="'+esc(it.id)+'" data-stock-edit-row="'+esc(it.id)+'" data-stock-category="'+esc(it.categorie||'Autre')+'" data-stock-search="'+esc(search)+'" style="align-items:flex-start;">'+
+        '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><b style="color:var(--bordeaux);font-size:15px;">'+esc(it.nom||"Article")+'</b>'+stockStatusBadge(it)+'</div>'+
+        '<div class="muted" style="font-size:12px;margin-top:3px;">'+esc(it.categorie||"Autre")+' · <b>'+esc(it.quantite==null?0:it.quantite)+' '+esc(it.unite||"")+'</b> · Prix unitaire : '+euro(it.prixUnitaire||0)+' · Valeur : '+euro(stockValue(it))+'</div>'+
+        (it.fournisseur?'<div class="muted" style="font-size:12px;">Fournisseur : '+esc(it.fournisseur)+'</div>':'')+
+        ((it.reference||it.emplacement)?'<div class="muted" style="font-size:12px;">'+(it.reference?'Réf. : '+esc(it.reference):'')+(it.reference&&it.emplacement?' · ':'')+(it.emplacement?'Emplacement : '+esc(it.emplacement):'')+'</div>':'')+
+        (it.notes?'<div class="muted" style="font-size:12px;">Notes : '+esc(it.notes)+'</div>':'')+
+        (linked?'<div class="muted" style="font-size:12px;">🔗 '+linked+'</div>':'')+
+        (updated?'<div class="muted" style="font-size:11px;margin-top:3px;">Dernière modification : '+esc(stockDateTime(updated))+'</div>':'')+'</div>'+
+        '<div class="row-actions" style="margin-top:0;justify-content:flex-end;"><button class="btn small soft" type="button" data-action="stock-edit-'+esc(it.id)+'">Modifier la fiche</button><button class="btn small danger" type="button" data-action="stock-del-'+esc(it.id)+'">Supprimer</button></div></div>';
     });
   }
   html+='</div>';
+  setTimeout(stockFilterRowsFromDOM,0);
   return html;
 }
 function addStockItem(){
-  var nom=val("stockNom").trim();
-  if(!nom){ toast("Indique le nom de la fleur ou de l’article."); return; }
-  var item={
-    id:uid(),
-    nom:nom,
-    categorie:val("stockCat")||"Autre",
-    quantite:num(val("stockQty")),
-    unite:val("stockUnit")||"pièce",
-    prixUnitaire:num(val("stockPrice")),
-    seuil:num(val("stockSeuil")),
-    fournisseur:val("stockFournisseur"),
-    notes:val("stockNotes"),
-    createdAt:new Date().toISOString()
-  };
-  state.stockItems=state.stockItems||[];
-  state.stockItems.unshift(item);
-  saveCache();
-  render();
-  toast("Article ajouté au stock.");
+  var nom=val("stockNom").trim(); if(!nom){toast("Indique le nom de la fleur ou de l’article.");return;}
+  var now=new Date().toISOString();
+  var item={id:uid(),nom:nom,categorie:val("stockCat")||"Autre",quantite:stockNum(val("stockQty")),unite:val("stockUnit")||"pièce",prixUnitaire:stockNum(val("stockPrice")),seuil:stockNum(val("stockSeuil")),fournisseur:val("stockFournisseur").trim(),reference:val("stockReference").trim(),emplacement:val("stockEmplacement").trim(),notes:val("stockNotes").trim(),createdAt:now,updatedAt:now,historique:[{date:now,changes:[{field:"création",from:"",to:"Article créé"}]}]};
+  state.stockItems=state.stockItems||[]; state.stockItems.push(item); saveCache(); render(); toast("Article ajouté au matériel.");
 }
-function adjustStockItem(id){
-  var it=(state.stockItems||[]).find(function(x){return x.id===id;});
-  if(!it) return;
-  var q=prompt("Nouvelle quantité pour « "+(it.nom||"article")+" » :", it.quantite||0);
-  if(q===null) return;
-  var p=prompt("Prix unitaire (€) :", it.prixUnitaire||0);
-  if(p===null) return;
-  it.quantite=num(q);
-  it.prixUnitaire=num(p);
-  saveCache();
-  render();
-  toast("Stock mis à jour.");
-}
+function adjustStockItem(id){ openStockEdit(id); }
 function viewStockPreview(){
-  var total=stockTotalValue ? stockTotalValue() : 0;
-  var low=lowStockCount ? lowStockCount() : 0;
-  return '<div class="card"><div class="flexb"><h3 style="margin:0;">📦 Stock</h3><button class="btn small primary" data-action="nav-stock">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 0;">Valeur estimée : <b style="color:var(--bordeaux);">'+euro(total)+'</b>'+ (low?' · '+low+' alerte(s) stock bas':'')+'</p></div>';
+  var total=stockTotalValue?stockTotalValue():0, low=lowStockCount?lowStockCount():0;
+  return '<div class="card"><div class="flexb"><h3 style="margin:0;">📦 Matériel</h3><button class="btn small primary" data-action="nav-stock">Ouvrir</button></div><p class="muted" style="margin:8px 0 0;">Valeur estimée : <b style="color:var(--bordeaux);">'+euro(total)+'</b>'+(low?' · '+low+' alerte(s)':'')+'</p></div>';
 }
 
 /* ===================== Calendrier ===================== */
@@ -5135,10 +5542,44 @@ function handleAction(action){
   if(action==="dash-todo-save"){ saveTodoFromFields(); ui.todoEditing=false; saveCache(); toast("Todo list enregistrée."); return; }
 
   
+  if(action==="stock-edit-save"){ saveStockEdit(); return; }
+  if(action==="stock-edit-cancel"){ ui.stockEditId=null; renderModal(); return; }
+  if(action.indexOf("stock-edit-")===0){ openStockEdit(action.slice(11)); return; }
+
+  if(action==="stock-recipe-add"){
+    if(!captureAtelierRecipeEditor(false)) return;
+    var first=(state.stockItems||[])[0];
+    ensureAtelierRecipeSettings()[ui.stockRecipeModel].push({id:uid(),stockItemId:first?first.id:"",stockKey:"",qtyPerPerson:1,conditionKey:"",conditionValue:"",label:first?first.nom:"Matériel"});
+    render();
+    setTimeout(function(){var el=document.getElementById('atelierRecipeManager'); if(el) el.scrollIntoView({block:'start'});},0);
+    return;
+  }
+  if(action==="stock-recipe-save"){
+    if(!captureAtelierRecipeEditor(true)) return;
+    saveCache(); render(); toast("Recette atelier enregistrée."); return;
+  }
+  if(action.indexOf("stock-recipe-remove-")===0){
+    captureAtelierRecipeEditor(false);
+    var rid=action.slice(20);
+    ensureAtelierRecipeSettings()[ui.stockRecipeModel]=(atelierRecipeLines(ui.stockRecipeModel)||[]).filter(function(x){return x.id!==rid;});
+    render(); return;
+  }
+  if(action==="stock-recipe-reset"){
+    var rkey="recipe-reset:"+ui.stockRecipeModel;
+    if(ui.confirmDelete!==rkey){ui.confirmDelete=rkey; toast("Retouche Rétablir pour confirmer la remise à zéro de cette recette."); return;}
+    var rm=atelierModeleById(ui.stockRecipeModel); ensureAtelierRecipeSettings()[ui.stockRecipeModel]=defaultAtelierRecipeLines(rm); ui.confirmDelete=null; saveCache(); render(); toast("Recette initiale rétablie."); return;
+  }
+  if(action==="stock-import-ateliers"){
+    if(!confirm("Ajouter ou associer les références de stock initiales communiquées ? Les quantités existantes ne seront pas remplacées.")) return;
+    importAtelierInitialStock(); return;
+  }
   if(action==="stock-add"){ addStockItem(); return; }
   if(action.indexOf("stock-adjust-")===0){ adjustStockItem(action.slice(13)); return; }
   if(action.indexOf("stock-del-")===0){
     var sid=action.slice(10), key="stock:"+sid;
+    var linkedItem=(state.stockItems||[]).find(function(it){return it.id===sid;});
+    var usages=atelierRecipeLinksForStockItem(linkedItem);
+    if(usages.length){ toast("Cet article est utilisé dans "+usages.length+" recette(s) atelier. Retire d’abord ses associations."); return; }
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; toast("Retouche Supprimer pour confirmer."); return; }
     state.stockItems=(state.stockItems||[]).filter(function(it){return it.id!==sid;});
     ui.confirmDelete=null;
@@ -5205,13 +5646,38 @@ function handleAction(action){
   if(action==="at-new"){ newAtelier(); return; }
   if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.mariageOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
-  if(action==="at-save"){ var as=getAtelier(ui.atelierOpen); if(as){ captureAtelier(as); saveCache(); render(); toast("Atelier enregistré."); } return; }
-  if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
+  if(action==="at-stock-prepare"){
+    var asp=getAtelier(ui.atelierOpen); if(asp){ captureAtelier(asp); var pr=atelierPrepareStock(asp,true); if(!pr.ok){if(pr.message) alert(pr.message);return;} saveCache();render();toast("Matériel préparé · stock décompté."); } return;
+  }
+  if(action==="at-stock-restore"){
+    var asr=getAtelier(ui.atelierOpen); if(asr){ var rr=atelierRestoreStock(asr,true); if(!rr.ok)return; saveCache();render();toast("Matériel réintégré au stock."); } return;
+  }
+  if(action==="at-save"){
+    var as=getAtelier(ui.atelierOpen); if(as){
+      var wasPrepared=!!as.stockPrepared, oldStatus=as.statut;
+      captureAtelier(as);
+      if(wasPrepared){
+        if(as.statut==="annule"){
+          if(confirm("Le matériel de cet atelier a déjà été décompté.\n\nSouhaites-tu le réintégrer au stock ?")) atelierRestoreStock(as,false);
+        }else{
+          var rec=atelierReconcilePreparedStock(as,true);
+          if(!rec.ok&&!rec.cancelled){ alert(rec.message||"Impossible d’ajuster le stock."); as.statut=oldStatus; render(); return; }
+          if(rec.cancelled){ as.statut=oldStatus; render(); return; }
+        }
+      }else if(as.statut==="materiel_prepare"){
+        var prep=atelierPrepareStock(as,true);
+        if(!prep.ok){ if(prep.message) alert(prep.message); as.statut=oldStatus; render(); return; }
+      }
+      saveCache(); render(); toast("Atelier enregistré"+(as.stockPrepared?" · stock mis à jour.":"."));
+    } return;
+  }
+  if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); if(am.stockPrepared){var ar=atelierReconcilePreparedStock(am,true);if(!ar.ok){if(ar.message)alert(ar.message);render();return;}} saveCache(); render(); } return; }
+  if(action==="at-stock-config-change"){ var ac=getAtelier(ui.atelierOpen); if(ac){ captureAtelier(ac); if(ac.stockPrepared){var acr=atelierReconcilePreparedStock(ac,true);if(!acr.ok){if(acr.message)alert(acr.message);render();return;}} saveCache(); render(); } return; }
   if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var list=prestationsActives(); var preset=list[pi]||list[list.length-1]||{label:"Autre / champ libre",type:"service",qte:1,prix:0}; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; var ptype=preset.type==="bien"?"bien":"service"; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:ptype,urssafType:ptype,qte:preset.qte||1,prix:num(preset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
   if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
-  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
-  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; aa.participants.push({id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}); ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée."); } return; }
-  if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); saveCache(); render(); toast("Participante supprimée."); } return; }
+  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } var adel=getAtelier(adid); if(adel&&adel.stockPrepared){ if(confirm("Le matériel a déjà été décompté.\n\nLe réintégrer au stock avant de supprimer l’atelier ?")) atelierRestoreStock(adel,false); } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
+  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; var np={id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}; aa.participants.push(np); if(aa.stockPrepared){var apr=atelierReconcilePreparedStock(aa,true);if(!apr.ok){aa.participants=aa.participants.filter(function(p){return p.id!==np.id;});if(apr.message)alert(apr.message);render();return;}} ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée"+(aa.stockPrepared?" · stock ajusté.":".")); } return; }
+  if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ var oldParts=(at.participants||[]).slice(); at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); if(at.stockPrepared){var adr=atelierReconcilePreparedStock(at,true);if(!adr.ok){at.participants=oldParts;if(adr.message)alert(adr.message);render();return;}} saveCache(); render(); toast("Participante supprimée"+(at.stockPrepared?" · stock ajusté.":".")); } return; }
   if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }
 
   
@@ -5696,6 +6162,12 @@ document.addEventListener("click", function(e){
   addClientFromForm();
 }, true);
 
+document.addEventListener("dblclick", function(e){
+  var row=e.target&&e.target.closest?e.target.closest("[data-stock-edit-row]"):null;
+  if(!row) return;
+  e.preventDefault(); openStockEdit(row.getAttribute("data-stock-edit-row"));
+});
+
 document.addEventListener("click", function(e){
   var el=e.target.closest("[data-action]"); if(!el) return;
   // les <select> et <input> (cases à cocher) avec data-action sont gérés via l'événement "change"
@@ -5705,6 +6177,7 @@ document.addEventListener("click", function(e){
 document.addEventListener("input", function(e){
   var t=e.target;
   if(t && t.id==="globalSearchInput"){ renderGlobalSearchBox(); return; }
+  if(t && t.id==="stockSearch"){ ui.stockSearch=t.value; stockFilterRowsFromDOM(); return; }
   if(isTodoField(t)){ ui.todoEditing=true; saveTodoLocalOnly(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
@@ -5738,6 +6211,7 @@ document.addEventListener("input", function(e){
 document.addEventListener("change", function(e){
   var t=e.target;
   if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
+  if(t.id==="stockCategoryFilter"){ ui.stockCategoryFilter=t.value; stockFilterRowsFromDOM(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="dash-year"){ ui.anneeDash=Number(t.value); ui.monthDetail=null; render(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="treso-year"){ ui.tresoYear=Number(t.value); render(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="treso-month"){ ui.tresoMonth=Number(t.value); render(); return; }
@@ -5761,6 +6235,7 @@ document.addEventListener("change", function(e){
   if(t.id==="restoreInput"){ onRestoreFile(t.files[0]); t.value=""; return; }
   var act=t.getAttribute&&t.getAttribute("data-action");
   if(act==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
+  if(act==="stock-recipe-model-change"){ captureAtelierRecipeEditor(false); ui.stockRecipeModel=t.value; render(); setTimeout(function(){var el=document.getElementById('atelierRecipeManager'); if(el) el.scrollIntoView({block:'start'});},0); return; }
   if(act==="mar-statut"){ var ms=getMariage(ui.mariageOpen); if(ms){ captureMariageInputs(); ms.statut=t.value; saveCache(); render(); } return; }
   if(act==="mar-link"){ var ml=getMariage(ui.mariageOpen); if(ml){ captureMariageInputs(); ml.devisLie=t.value; saveCache(); render(); } return; }
   if(act==="mar-devis-toggle"){ var md=getMariage(ui.mariageOpen); if(md){ captureMariageInputs(); md.devisEnvoye=t.checked; if(t.checked&&!md.devisDate) md.devisDate=todayISO(); if(md.statut==="contact"&&t.checked) md.statut="devis_envoye"; saveCache(); render(); } return; }
