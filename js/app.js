@@ -1,9 +1,14 @@
-/* V4.0.3 PROD MODULAIRE — réservation automatique du stock dès l’enregistrement d’un atelier. */
+/* V4.0.9 PROD MODULAIRE — Tarif par personne pour les ateliers thématiques site. */
 "use strict";
 
-var APP_VERSION = "PROD V4.0.3 MODULAIRE";
-var APP_VERSION_NOTE = "Stock réservé automatiquement dès l’enregistrement d’un atelier, ajusté à chaque modification et réintégré automatiquement en cas d’annulation ou de suppression.";
+var APP_VERSION = "PROD V4.0.9 MODULAIRE";
+var APP_VERSION_NOTE = "Les ateliers thématiques site disposent désormais d’un tarif par personne, utilisé avec le nombre de participants prévu pour alimenter les calculs financiers.";
 var APP_CHANGELOG = [
+  "V4.0.9 PROD — Ajout d’un tarif par personne pour les ateliers thématiques site et calcul automatique du montant de référence à partir du nombre de participants prévu.",
+  "V4.0.8 PROD — Finances devient la source unique des montants à encaisser ; retrait des synthèses financières dans Ateliers et exclusion des devis en attente de validation.",
+  "V4.0.7 PROD — Ajout dans Finances des montants à encaisser Ateliers, Mariages et Total, avec tableau détaillé des dossiers.",
+  "V4.0.5 PROD — Nouveau statut « En attente de validation du devis », sélectionné par défaut lors de la création d’un atelier.",
+  "V4.0.4 PROD — Affichage immédiat du champ participants pour chaque création sélectionnée, sans devoir enregistrer puis rouvrir l’atelier.",
   "V4.0.3 PROD — Réservation automatique du stock dès l’enregistrement d’un atelier, ajustement automatique après modification et réintégration à l’annulation ou à la suppression.",
   "V4.0.2 PROD — Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle du total et calcul précis du stock.",
   "V4.0.2 PROD — Bibliothèque des ateliers dynamique renforcée : recherche, classement actifs/archivés, contrôles de doublons et accès direct aux recettes matériel.",
@@ -1985,6 +1990,76 @@ function tresoMonthOptions(sel){
 function tresoYearOptions(years, sel){
   return (years||[]).map(function(y){ return '<option value="'+esc(y)+'"'+(String(y)===String(sel)?' selected':'')+'>'+esc(y)+'</option>'; }).join("");
 }
+function atelierCompteDansFinance(a,t){
+  if(!a || a.statut==="annule") return false;
+  // Un atelier en attente de validation n'est pas compté tant qu'aucune facture
+  // ni aucun paiement ne prouve que la vente est réellement engagée.
+  if(a.statut==="attente_validation_devis") return !!(t && ((Number(t.facture)||0)>0 || (Number(t.paye)||0)>0));
+  // Un atelier terminé reste dû tant que son solde n'est pas encaissé.
+  return true;
+}
+function mariageCompteDansFinance(m){
+  if(!m || m.statut==="perdu" || m.statut==="annule") return false;
+  // Une facture liée, un devis accepté, un paiement ou un statut confirmé
+  // suffit pour considérer la vente comme engagée, même après réalisation.
+  return mariageDevisAccepte(m) || mariageFacturesLiees(m).length>0 || mariageMontantPaye(m)>0 ||
+    m.statut==="acompte" || m.statut==="confirme" || m.statut==="realise";
+}
+function financePendingOverview(){
+  var items=[];
+  (state.ateliers||[]).forEach(function(a){
+    var t=atelierTotals(a);
+    if(!atelierCompteDansFinance(a,t)) return;
+    // Source unique : montant contractuel de l'atelier moins les paiements réellement encaissés.
+    // Cette formule inclut les factures non payées et les montants restant à facturer.
+    var reste=r2(Math.max(0,(Number(t.total)||0)-(Number(t.paye)||0)));
+    if(reste<=0) return;
+    items.push({
+      kind:"atelier", id:a.id, date:a.date||"9999-12-31",
+      client:a.structureNom||a.organisatrice||"Atelier",
+      label:(a.theme||a.type||"Atelier"), montant:reste,
+      statut:ATELIER_STATUTS[a.statut]||a.statut||"À encaisser",
+      action:"pending-atelier-"+a.id
+    });
+  });
+  (state.mariages||[]).forEach(function(m){
+    if(!mariageCompteDansFinance(m)) return;
+    var b=mariageBudgetData(m);
+    var reste=r2(Math.max(0,Number(b.reste)||0));
+    if(reste<=0) return;
+    items.push({
+      kind:"mariage", id:m.id, date:m.dateLivraison||m.dateMariage||"9999-12-31",
+      client:m.nom||"Mariage", label:m.lieu||"Projet mariage", montant:reste,
+      statut:"À encaisser", action:"mar-open-"+m.id
+    });
+  });
+  items.sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999") || (a.client||"").localeCompare(b.client||"","fr");});
+  var ateliers=r2(items.filter(function(i){return i.kind==="atelier";}).reduce(function(s,i){return s+i.montant;},0));
+  var mariages=r2(items.filter(function(i){return i.kind==="mariage";}).reduce(function(s,i){return s+i.montant;},0));
+  return {items:items,ateliers:ateliers,mariages:mariages,total:r2(ateliers+mariages)};
+}
+function financePendingBlock(data){
+  var html='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="align-items:flex-start;gap:12px;"><div><h3 style="margin:0;">💰 Argent restant à encaisser</h3><p class="muted" style="margin:4px 0 0;">Source unique des montants restant dus sur les ventes engagées, après déduction des paiements encaissés. Les devis simplement en attente de validation sont exclus, mais un dossier terminé reste affiché tant que son solde n’est pas payé.</p></div><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">mise à jour automatique</span></div>'+ 
+    '<div class="grid-stats" style="margin-top:14px;margin-bottom:14px;">'+
+      stat('🌸 Ateliers à encaisser',euro(data.ateliers),false,'var(--green-s)')+
+      stat('💍 Mariages à encaisser',euro(data.mariages),false,'var(--blush-s)')+
+      stat('💰 Total à encaisser',euro(data.total),true,'#fff')+
+    '</div>'+
+    '<div class="flexb"><h3 style="margin:0 0 8px;">Détail des prochains encaissements</h3><span class="muted">'+data.items.length+' dossier(s)</span></div>';
+  if(!data.items.length){
+    html+='<p class="muted" style="margin:8px 0 0;">Aucun montant restant à encaisser sur les ventes engagées.</p>';
+  }else{
+    data.items.forEach(function(i){
+      var icon=i.kind==="mariage"?'💍':'🌸';
+      html+='<div class="checkrow" style="align-items:flex-start;">'+
+        '<div style="flex:1;"><b style="color:var(--bordeaux);">'+icon+' '+esc(i.client)+'</b><div class="muted" style="font-size:12px;">'+esc(i.label||'')+' · '+(i.date&&i.date!=="9999-12-31"?frDate(i.date):'date non renseignée')+' · '+esc(i.statut||'')+'</div></div>'+ 
+        '<div style="text-align:right;min-width:130px;"><b style="color:var(--bordeaux);font-size:16px;">'+euro(i.montant)+'</b><div style="margin-top:6px;"><button class="btn small ghost" data-action="'+esc(i.action)+'">Ouvrir</button></div></div>'+ 
+      '</div>';
+    });
+  }
+  return html+'</div>';
+}
 function viewTresorerie(){
   var period=tresoSelectedPeriod();
   var list=encaissementsTresorerie();
@@ -2004,6 +2079,7 @@ function viewTresorerie(){
   var byPay=groupTresorerieBy(function(e){return e.paiement;}, listYear);
   var byAct=groupTresorerieBy(function(e){return e.activite;}, listYear);
   var label=tresoPeriodLabel(period);
+  var pendingFinance=financePendingOverview();
   var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+ 
     '<div class="row-actions" style="margin:0;align-items:flex-end;">'+
       '<label class="field" style="margin:0;min-width:150px;"><span>Mois</span><select data-action="treso-month">'+tresoMonthOptions(period.month)+'</select></label>'+ 
@@ -2011,6 +2087,7 @@ function viewTresorerie(){
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
     '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
+    financePendingBlock(pendingFinance)+
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
       stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
@@ -2649,7 +2726,7 @@ function importAtelierInitialStock(){
   saveCache(); render(); toast('Stock ateliers importé : '+added+' référence(s) ajoutée(s), '+linked+' associée(s).');
 }
 
-var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",materiel_prepare:"Stock réservé",termine:"Terminé",annule:"Annulé"};
+var ATELIER_STATUTS={attente_validation_devis:"En attente de validation du devis",booke:"Booké",preparation:"En préparation",materiel_prepare:"Stock réservé",termine:"Terminé",annule:"Annulé"};
 
 
 /* ===================== Documents ateliers structure / privé ===================== */
@@ -3006,16 +3083,16 @@ function atelierTypeOptions(selected){
     opts.map(function(t){return '<option value="'+esc(t)+'"'+(selected===t?' selected':'')+'>'+esc(t)+'</option>';}).join("");
 }
 function atelierStatutOptions(selected){
-  selected=selected||"booke";
+  selected=selected||"attente_validation_devis";
   return Object.keys(ATELIER_STATUTS).map(function(k){return '<option value="'+esc(k)+'"'+(selected===k?' selected':'')+'>'+esc(ATELIER_STATUTS[k])+'</option>';}).join("");
 }
 function getAtelier(id){ return (state.ateliers||[]).find(function(a){return a.id===id;}); }
 function newAtelier(){
   var a={id:uid(),modeAtelier:"thematique",date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",
     organisatrice:"",structureNom:"",contactEmail:"",contactTel:"",
-    nbPersonnes:0,nbParticipantsPrevu:0,montantForfait:0,montantPrestation:0,
+    nbPersonnes:0,nbParticipantsPrevu:0,tarifParPersonne:0,montantForfait:0,montantPrestation:0,
     prestationsComplementaires:[],atelierModeleId:"",atelierModeleIds:[],atelierModelParticipantCounts:{},stockVariants:{supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"},stockConsumption:[],stockPrepared:false,stockPreparedAt:"",
-    materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
+    materiel:"",description:"",statut:"attente_validation_devis",participants:[],createdAt:new Date().toISOString()};
   state.ateliers=state.ateliers||[];
   state.ateliers.unshift(a);
   ui.tab="clientsModule";
@@ -3028,7 +3105,9 @@ function atelierTotals(a){
   var mode=atelierMode(a);
   var parts=(a&&a.participants)||[];
   var participantTotal=parts.reduce(function(s,p){return s+(Number(p.montant)||0);},0);
-  var total=participantTotal;
+  var tarifThematique=Number(a.tarifParPersonne)||0;
+  var totalThematique=(Number(a.nbParticipantsPrevu)||0)*tarifThematique;
+  var total=(mode==="thematique" && tarifThematique>0)?totalThematique:participantTotal;
   if(mode==="structure") total=Number(a.montantPrestation)||0;
   if(mode==="prive") total=Number(a.montantForfait)||0;
   if(mode!=="thematique") total+=atelierPrestationsTotal(a);
@@ -3050,12 +3129,6 @@ function atelierTotals(a){
   var couvert=r2(facture+sitePaye+siteSolde);
   return {participants:atelierParticipantsCount(a),total:r2(total),facture:r2(facture),sitePaye:r2(sitePaye),siteSolde:r2(siteSolde),couvert:couvert,paye:paye,attente:attente,resteNonFacture:r2(Math.max(0,total-couvert))};
 }
-function atelierPrevisionTotal(){
-  return (state.ateliers||[]).filter(function(a){return a.statut!=="annule";}).reduce(function(s,a){return s+atelierTotals(a).total;},0);
-}
-function atelierPrevisionNonFacturee(){
-  return (state.ateliers||[]).filter(function(a){return a.statut!=="annule";}).reduce(function(s,a){return s+atelierTotals(a).resteNonFacture;},0);
-}
 function atelierUpcoming(){
   var today=todayISO();
   return (state.ateliers||[]).filter(function(a){return a.date>=today&&a.statut!=="annule"&&a.statut!=="termine";}).sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
@@ -3063,20 +3136,17 @@ function atelierUpcoming(){
 function viewAteliers(){
   if(ui.atelierOpen) return viewAtelierDetail(getAtelier(ui.atelierOpen));
   var list=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
-  var prevision=atelierPrevisionTotal(), nonFacture=atelierPrevisionNonFacturee();
   var totalParticipants=list.reduce(function(s,a){return s+atelierParticipantsCount(a);},0);
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Nouvel atelier</button></div>'+
-    '<p class="muted" style="margin-top:-6px;">Distingue les ateliers en structure, les ateliers thématiques vendus sur le site et les ateliers privés.</p>'+
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ateliers</h2><button class="btn primary" data-action="at-new">+ Nouvel atelier</button></div>'+ 
+    '<p class="muted" style="margin-top:-6px;">Distingue les ateliers en structure, les ateliers thématiques vendus sur le site et les ateliers privés. Les montants à encaisser sont centralisés dans Finances.</p>'+ 
     '<div class="grid-stats">'+
       stat("Ateliers à venir",atelierUpcoming().length,false)+
-      stat("Prévisionnel ateliers",euro(prevision),false)+
-      stat("À facturer",euro(nonFacture),false)+
       stat("Participants / invités",totalParticipants,false)+
     '</div>';
   if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucun atelier enregistré pour le moment.</p></div>';
-  var statusOrder=["booke","preparation","materiel_prepare","termine","annule"];
+  var statusOrder=["attente_validation_devis","booke","preparation","materiel_prepare","termine","annule"];
   statusOrder.forEach(function(status){
-    var group=list.filter(function(a){return (a.statut||"booke")===status;});
+    var group=list.filter(function(a){return (a.statut||"attente_validation_devis")===status;});
     if(!group.length) return;
     html+='<div class="flexb" style="margin:22px 0 8px;"><h3 style="margin:0;color:var(--bordeaux);">'+esc(ATELIER_STATUTS[status]||status)+'</h3><span class="badge">'+group.length+' atelier(s)</span></div>';
     group.forEach(function(a){
@@ -3086,12 +3156,8 @@ function viewAteliers(){
       '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+(contact?' · '+esc(contact):'')+'</div></div>'+
       '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(st)+'</span></div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+
-        '<span class="chip">🏷️ '+esc(atelierModeLabel(mode))+'</span>'+
-        '<span class="chip">👥 '+t.participants+' '+(mode==="thematique"?'participant(s)':'personne(s) prévue(s)')+'</span>'+
-        '<span class="chip">Prévu : '+euro(t.total)+'</span>'+
-        '<span class="chip">Facturé : '+euro(t.facture)+'</span>'+
-        (mode==="thematique"?'<span class="chip">Site : '+euro(t.sitePaye||0)+'</span><span class="chip">Solde jour J : '+euro(t.siteSolde||0)+'</span>':'')+
-        '<span class="chip">À facturer : '+euro(t.resteNonFacture)+'</span>'+
+        '<span class="chip">🏷️ '+esc(atelierModeLabel(mode))+'</span>'+ 
+        '<span class="chip">👥 '+t.participants+' '+(mode==="thematique"?'participant(s)':'personne(s) prévue(s)')+'</span>'+ 
       '</div>'+
       '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
     });
@@ -3107,13 +3173,14 @@ function captureAtelier(a){
   a.theme=val("atTheme")||"";
   var typeCustom=(val("atTypeCustom")||"").trim();
   a.type=typeCustom || val("atType") || "";
-  a.statut=val("atStatut")||"booke";
+  a.statut=val("atStatut")||"attente_validation_devis";
   a.organisatrice=val("atOrganisatrice")||"";
   a.structureNom=val("atStructureNom")||"";
   a.contactEmail=val("atContactEmail")||"";
   a.contactTel=val("atContactTel")||"";
   a.nbPersonnes=num(val("atNbPersonnes"));
   a.nbParticipantsPrevu=num(val("atNbParticipantsPrevu"));
+  a.tarifParPersonne=num(val("atTarifParPersonne"));
   a.montantForfait=num(val("atMontantForfait"));
   a.montantPrestation=num(val("atMontantPrestation"));
   var modelChecks=document.querySelectorAll("[data-atelier-model-id]");
@@ -3141,17 +3208,9 @@ function viewAtelierDetail(a){
   if(!a){ ui.atelierOpen=null; return viewAteliers(); }
   a.participants=a.participants||[];
   a.modeAtelier=a.modeAtelier||"thematique";
-  var mode=atelierMode(a), t=atelierTotals(a);
-  var html='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h2 style="margin:0;">Atelier · '+esc(atelierModeLabel(mode))+'</h2><button class="btn small ghost" data-action="at-back">← Liste</button></div>'+
-    '<p class="muted" style="margin-top:0;">'+esc(atelierModeHelp(mode))+'</p>'+
-    '<div class="grid-stats">'+
-      stat("Budget prévu",euro(t.total),false)+
-      stat("Déjà facturé",euro(t.facture),false)+
-      (mode==="thematique"?stat("Payé site internet",euro(t.sitePaye||0),false):'')+
-      (mode==="thematique"?stat("Soldes jour J",euro(t.siteSolde||0),false):'')+
-      stat("À encaisser",euro(t.attente),false)+
-      stat("À facturer",euro(t.resteNonFacture),false)+
-    '</div>'+
+  var mode=atelierMode(a);
+  var html='<div class="card"><div class="flexb" style="margin-bottom:10px;"><h2 style="margin:0;">Atelier · '+esc(atelierModeLabel(mode))+'</h2><button class="btn small ghost" data-action="at-back">← Liste</button></div>'+ 
+    '<p class="muted" style="margin-top:0;">'+esc(atelierModeHelp(mode))+' Les synthèses financières de cet atelier sont disponibles dans Finances.</p>'+
     '<label class="field"><span>Catégorie d’atelier</span><select id="atModeAtelier" data-action="at-mode-change">'+atelierModeOptions(mode)+'</select></label>'+
     '<div class="inline"><div><label class="field"><span>Date</span><input id="atDate" type="date" value="'+esc(a.date||"")+'"></label></div>'+
     '<div><label class="field"><span>Heure</span><input id="atHeure" value="'+esc(a.heure||"")+'" placeholder="Ex : 14h-16h"></label></div></div>'+
@@ -3163,7 +3222,10 @@ function viewAtelierDetail(a){
     '<label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label>';
 
   if(mode==="thematique"){
-    html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier thématique</h3><label class="field"><span>Nombre de participants prévu <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||'')+'" placeholder="Obligatoire pour calculer le stock"><div class="hint">Ce nombre pilote le calcul et le décompte du matériel. La liste nominative des participantes reste gérée plus bas.</div></label></div>';
+    html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier thématique</h3>'+ 
+      '<div class="inline"><div><label class="field"><span>Nombre de participants prévu <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||'')+'" placeholder="Obligatoire pour calculer le stock"><div class="hint">Ce nombre pilote le calcul et le décompte du matériel.</div></label></div>'+ 
+      '<div><label class="field"><span>Tarif par personne (€)</span><input id="atTarifParPersonne" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'" placeholder="Ex : 35"><div class="hint">Le montant de référence est calculé automatiquement et reste visible uniquement dans Finances.</div></label></div></div>'+ 
+      '</div>';
   }
 
   if(mode==="structure"){
@@ -3205,7 +3267,7 @@ function viewAtelierDetail(a){
       '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+
       '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+
       '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01"></label></div>'+
+      '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'"><div class="hint">Prérempli avec le tarif par personne de l’atelier.</div></label></div>'+
       '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+
       '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
 
@@ -3267,11 +3329,11 @@ function atelierCreateFacture(a,p,mode){
   return f;
 }
 function viewAteliersPreview(){
-  var upcoming=atelierUpcoming().slice(0,3), nonFact=atelierPrevisionNonFacturee();
-  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🎨 Ateliers</h3><button class="btn small primary" data-action="nav-ateliers">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 10px;">À facturer : <b style="color:var(--bordeaux);">'+euro(nonFact)+'</b> · Soldes jour J inclus dans les ateliers</p>';
+  var upcoming=atelierUpcoming().slice(0,3);
+  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🎨 Ateliers</h3><button class="btn small primary" data-action="nav-ateliers">Ouvrir</button></div>'+ 
+    '<p class="muted" style="margin:8px 0 10px;">Prochains ateliers programmés. Le suivi des montants est centralisé dans Finances.</p>';
   if(!upcoming.length) return html+'<p class="muted" style="margin:0;">Aucun atelier à venir.</p></div>';
-  upcoming.forEach(function(a){ var t=atelierTotals(a); html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(a.type||"")+' · '+esc(a.theme||"")+'</b><div class="muted" style="font-size:12px;">'+frDate(a.date)+(a.lieu?' · '+esc(a.lieu):'')+' · '+euro(t.total)+'</div></div>'; });
+  upcoming.forEach(function(a){ html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(a.type||"")+' · '+esc(a.theme||"")+'</b><div class="muted" style="font-size:12px;">'+frDate(a.date)+(a.lieu?' · '+esc(a.lieu):'')+'</div></div>'; });
   return html+'</div>';
 }
 
@@ -6415,6 +6477,17 @@ document.addEventListener("change", function(e){
   if(t.id==="restoreInput"){ onRestoreFile(t.files[0]); t.value=""; return; }
   var act=t.getAttribute&&t.getAttribute("data-action");
   if(act==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); saveCache(); render(); } return; }
+  if(act==="at-stock-config-change"){
+    var ac=getAtelier(ui.atelierOpen);
+    if(ac){
+      // Mise à jour immédiate du formulaire : dès qu’une création est cochée,
+      // son champ « Participants pour cette création » apparaît sans premier enregistrement.
+      // Le stock réel reste ajusté uniquement par le bouton Enregistrer.
+      captureAtelier(ac);
+      render();
+    }
+    return;
+  }
   if(act==="stock-recipe-model-change"){ captureAtelierRecipeEditor(false); ui.stockRecipeModel=t.value; render(); setTimeout(function(){var el=document.getElementById('atelierRecipeManager'); if(el) el.scrollIntoView({block:'start'});},0); return; }
   if(act==="mar-statut"){ var ms=getMariage(ui.mariageOpen); if(ms){ captureMariageInputs(); ms.statut=t.value; saveCache(); render(); } return; }
   if(act==="mar-link"){ var ml=getMariage(ui.mariageOpen); if(ml){ captureMariageInputs(); ml.devisLie=t.value; saveCache(); render(); } return; }
