@@ -1,4 +1,37 @@
-# V3.8.3 TEST — Bibliothèque Matériel
+# Changelog
+
+## V3.9.0 TEST
+
+- Ajout d’un onglet dédié **Bibliothèque des ateliers** dans le module Matériel.
+- Bouton visible **Créer un nouveau thème**.
+- Liste alphabétique des thèmes actifs et archivés.
+- Modification, duplication, archivage et réactivation.
+- Accès direct à la recette via **Matériel nécessaire**.
+- Séparation claire entre articles de stock, bibliothèque et recettes.
+
+# V3.8.5 PROD — Bibliothèque dynamique des ateliers
+
+- Création libre de nouveaux thèmes d’atelier depuis le module Matériel.
+- Modification des informations d’un atelier : nom, catégorie, durée, tarif, nombre mini/maxi, description et contextes.
+- Duplication d’un atelier avec copie automatique de sa recette matériel.
+- Archivage et réactivation des ateliers saisonniers.
+- Suppression sécurisée des ateliers personnalisés non utilisés.
+- Affichage automatique des ateliers actifs lors de la création d’un atelier.
+- Association de chaque atelier à un ou plusieurs articles du stock avec quantité par personne.
+- Conservation du décompte réel sécurisé au statut Matériel préparé.
+
+# V3.8.4 PROD — Décompte réel du matériel
+
+- Ajout du statut **Matériel préparé**.
+- Décompte réel du stock uniquement après confirmation.
+- Contrôle des stocks insuffisants avant validation.
+- Ajustement du stock après modification du nombre de personnes ou de la recette.
+- Réintégration manuelle ou lors de l’annulation/suppression d’un atelier.
+- Historique des mouvements de stock avec le nom de l’atelier.
+
+---
+
+# V3.8.3 PROD — Bibliothèque Matériel
 
 - Tri alphabétique de la liste.
 - Recherche et filtre par catégorie.
