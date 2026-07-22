@@ -1,44 +1,45 @@
-/* V4.0.2 PROD MODULAIRE — recettes et répartition multi-ateliers. */
+/* V4.0.3 PROD MODULAIRE — réservation automatique du stock dès l’enregistrement d’un atelier. */
 "use strict";
 
-var APP_VERSION = "PROD V4.0.2 MODULAIRE";
-var APP_VERSION_NOTE = "Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle des totaux et calcul de stock précis.";
+var APP_VERSION = "PROD V4.0.3 MODULAIRE";
+var APP_VERSION_NOTE = "Stock réservé automatiquement dès l’enregistrement d’un atelier, ajusté à chaque modification et réintégré automatiquement en cas d’annulation ou de suppression.";
 var APP_CHANGELOG = [
+  "V4.0.3 PROD — Réservation automatique du stock dès l’enregistrement d’un atelier, ajustement automatique après modification et réintégration à l’annulation ou à la suppression.",
   "V4.0.2 PROD — Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle du total et calcul précis du stock.",
   "V4.0.2 PROD — Bibliothèque des ateliers dynamique renforcée : recherche, classement actifs/archivés, contrôles de doublons et accès direct aux recettes matériel.",
   "V3.8.5 PROD — Décompte réel du stock à la préparation des ateliers, blocage en cas de stock insuffisant, ajustements et réintégration sécurisée.",
   "V3.8.3 PROD — Bibliothèque matériel : tri alphabétique, recherche, filtres, statuts et édition complète de chaque article.",
-  "V3.8.2 TEST — Recettes matériel configurables : ajout libre d’articles stock et association à un ou plusieurs ateliers avec quantité par personne.",
-  "V3.8.1 TEST — Simulation des besoins matériel des ateliers sans aucune modification du stock réel.",
+  "V3.8.2 PROD — Recettes matériel configurables : ajout libre d’articles stock et association à un ou plusieurs ateliers avec quantité par personne.",
+  "V3.8.1 PROD — Simulation des besoins matériel des ateliers sans aucune modification du stock réel.",
   "V3.7.2 PROD — Correctif du bouton Ajouter au carnet dans Clients > Encaissements manuels, avec prise en charge des montants saisis avec une virgule.",
   "V3.7.1 PROD — Photos d’inspiration mariage : import multiple pendant le RDV et onglet Inspirations dans la fiche mariage.",
-  "V3.7.0 TEST — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
+  "V3.7.0 PROD — Tableau de bord simplifié : retrait des statistiques et aperçus secondaires, ajout d’accès rapides.",
   "V3.6.6 PROD — Correctif téléphone devis mariage + ajout des canaux Mail et Site internet.",
-  "V3.6.5 TEST — Actualisation automatique du devis mariage lié depuis la fiche mariage et la fiche cliente.",
+  "V3.6.5 PROD — Actualisation automatique du devis mariage lié depuis la fiche mariage et la fiche cliente.",
   "V3.6.4 PROD — Correctif téléphone devis mariage : priorité à la fiche cliente à jour lors de la création/recréation du devis.",
   "V3.6.3 PROD — Correctif devis mariage : canal de communication masqué côté client + coordonnées client à jour lors de la création/recréation du devis.",
   "V3.6.1 PROD — CRM Mariage : retrait du bouton Nouvelle cliente, création désormais guidée par Préparer mon rendez-vous.",
-  "V3.6.0 TEST — CRM Mariage : fiche mariage réorganisée en onglets Résumé, Fiche, Créations, Documents, Suivi, Budget et Historique.",
-  "V3.5.3 TEST — Wedding Manager : retrait du bloc Jalons J- jugé inutile.",
-  "V3.5.2 TEST — Bouton Retour à la liste ajouté en haut des fiches mariage.",
-  "V3.5.1 TEST — Bouton Préparer mon rendez-vous : formulaire guidé pour les appels mariage et création automatique de la fiche.",
-  "V3.5.0 TEST — Wedding Manager : bandeau mariage, timeline, todo, documents et budget.",
-  "V3.4.1 TEST — Suivi mariages : les étapes automatiques peuvent être cochées manuellement pour les anciens dossiers sans devis/facture liés.",
-  "V3.4.0 TEST — Centre de suivi des mariages : checklist métier, progression sur le tableau de bord et chronologie automatique.",
-  "V3.3.1 TEST — Prestations complémentaires proposées aussi dans les fiches mariage + affichage version corrigé.",
-  "V3.3.0 TEST — Module Paramètres enrichi : déplacements, modèles de mails, coordonnées, URSSAF et prestations centralisées.",
+  "V3.6.0 PROD — CRM Mariage : fiche mariage réorganisée en onglets Résumé, Fiche, Créations, Documents, Suivi, Budget et Historique.",
+  "V3.5.3 PROD — Wedding Manager : retrait du bloc Jalons J- jugé inutile.",
+  "V3.5.2 PROD — Bouton Retour à la liste ajouté en haut des fiches mariage.",
+  "V3.5.1 PROD — Bouton Préparer mon rendez-vous : formulaire guidé pour les appels mariage et création automatique de la fiche.",
+  "V3.5.0 PROD — Wedding Manager : bandeau mariage, timeline, todo, documents et budget.",
+  "V3.4.1 PROD — Suivi mariages : les étapes automatiques peuvent être cochées manuellement pour les anciens dossiers sans devis/facture liés.",
+  "V3.4.0 PROD — Centre de suivi des mariages : checklist métier, progression sur le tableau de bord et chronologie automatique.",
+  "V3.3.1 PROD — Prestations complémentaires proposées aussi dans les fiches mariage + affichage version corrigé.",
+  "V3.3.0 PROD — Module Paramètres enrichi : déplacements, modèles de mails, coordonnées, URSSAF et prestations centralisées.",
   "V3.2.1 PROD — Todo list déplacée juste entre Bonjour Elodie et le centre de notifications.",
-  "V3.2.0 TEST — Nouveau tableau de bord orienté actions : version discrète, indicateurs clés et journal déplacé dans Paramètres > À propos de l’application.",
-  "V3.1.2 TEST — Ajout du centre de notifications prioritaires sur le tableau de bord.",
-  "V3.1.1 TEST — Correctif encaissements ateliers avec devis/factures liés.",
-  "V3.1.0 TEST — Ajout d’une bibliothèque de prestations réutilisables dans Paramètres.",
+  "V3.2.0 PROD — Nouveau tableau de bord orienté actions : version discrète, indicateurs clés et journal déplacé dans Paramètres > À propos de l’application.",
+  "V3.1.2 PROD — Ajout du centre de notifications prioritaires sur le tableau de bord.",
+  "V3.1.1 PROD — Correctif encaissements ateliers avec devis/factures liés.",
+  "V3.1.0 PROD — Ajout d’une bibliothèque de prestations réutilisables dans Paramètres.",
   "V3.0.4 PROD — Correctif du double comptage des ateliers dans À encaisser prochainement.",
   "V3.0.3 PROD — Architecture modulaire validée et mise en production.",
-  "V3.0.3 TEST — Ajout du journal des modifications visible sur le tableau de bord.",
-  "V3.0.2 TEST — Correction renforcée du bouton Ajouter le client dans Fiches clientes.",
-  "V3.0.1 TEST — Premier correctif sur l’ajout client après passage en architecture modulaire.",
-  "V3.0.0 TEST — Mise en place de l’architecture en plusieurs fichiers.",
-  "V2.1.1 TEST — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
+  "V3.0.3 PROD — Ajout du journal des modifications visible sur le tableau de bord.",
+  "V3.0.2 PROD — Correction renforcée du bouton Ajouter le client dans Fiches clientes.",
+  "V3.0.1 PROD — Premier correctif sur l’ajout client après passage en architecture modulaire.",
+  "V3.0.0 PROD — Mise en place de l’architecture en plusieurs fichiers.",
+  "V2.1.1 PROD — Prestations complémentaires ateliers, sans mentions internes bien/service côté client."
 ];
 var APP_ROADMAP = [
   "Tester le module Paramètres enrichi",
@@ -743,9 +744,9 @@ function viewPendingPaymentsModal(){
 
 
 function viewVersionDashboard(){
-  var env = APP_VERSION.indexOf("TEST")>=0 ? "TEST" : "PROD";
-  var bg = env==="TEST" ? "#fffaf5" : "#eef7f1";
-  var border = env==="TEST" ? "var(--gold-s)" : "#9fc9ab";
+  var env = APP_VERSION.indexOf("PROD")>=0 ? "PROD" : "PROD";
+  var bg = env==="PROD" ? "#fffaf5" : "#eef7f1";
+  var border = env==="PROD" ? "var(--gold-s)" : "#9fc9ab";
   return '<div class="card" style="background:'+bg+';border-color:'+border+';margin-bottom:12px;padding:10px 14px;">'+
     '<div class="flexb" style="gap:8px;">'+
       '<div><b style="color:var(--green);">✅ Version : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:2px;">☁ Synchronisation active · '+esc(APP_VERSION_NOTE)+'</div></div>'+ 
@@ -2440,22 +2441,22 @@ function atelierRecipe(a){
 }
 function atelierRecipePreview(a){
   var recipe=atelierRecipe(a), models=atelierSelectedModels(a); if(!models.length) return '';
-  var prepared=!!a.stockPrepared;
-  var h='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin:0;">📦 Matériel de l’atelier</h3><span class="pill" style="background:'+(prepared?'var(--green-s)':'var(--blush-s)')+';color:'+(prepared?'var(--green)':'var(--bordeaux)')+';">'+(prepared?'Décompté':'À préparer')+'</span></div>'+ 
-    '<p class="muted" style="margin:8px 0 10px;">Répartition utilisée : <b>'+models.map(function(m){return esc(m.label)+' × '+(atelierModelParticipantCounts(a)[m.id]||0);}).join(' + ')+'</b>. Chaque recette est calculée uniquement pour le nombre de participants affecté à cette création.</p>';
+  var reserved=!!a.stockPrepared;
+  var h='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin:0;">📦 Matériel réservé pour l’atelier</h3><span class="pill" style="background:'+(reserved?'var(--green-s)':'var(--blush-s)')+';color:'+(reserved?'var(--green)':'var(--bordeaux)')+';">'+(reserved?'Stock réservé':'En attente d’enregistrement')+'</span></div>'+ 
+    '<p class="muted" style="margin:8px 0 10px;">Répartition utilisée : <b>'+models.map(function(m){return esc(m.label)+' × '+(atelierModelParticipantCounts(a)[m.id]||0);}).join(' + ')+'</b>. Le stock est automatiquement déduit lorsque tu enregistres l’atelier.</p>';
   if(!recipe.length) return h+'<p class="muted">Aucun matériel n’est associé à cet atelier. Configure sa recette depuis l’onglet Matériel.</p></div>';
   recipe.forEach(function(r){
     var it=r.item, available=it?Number(it.quantite)||0:null;
-    var after=available===null?null:r2(available-(prepared?0:r.qty)), ok=available!==null&&(prepared||after>=0);
+    var after=available===null?null:r2(available-(reserved?0:r.qty));
+    var ok=available!==null&&(reserved?available>=0:after>=0);
     var unit=it?esc(it.unite||'pièce'):'pièce';
-    var detail='Besoin : '+r.qty+' '+unit;
-    if(it) detail+=' · Stock actuel : '+r2(available)+(prepared?'':' → '+r2(after));
+    var detail='Besoin réservé : '+r.qty+' '+unit;
+    if(it) detail+=' · Stock disponible : '+r2(available)+(reserved?'':' → '+r2(after));
     else detail+=' · Article absent ou supprimé du stock';
     h+='<div class="checkrow"><div style="flex:1;"><b>'+esc(r.label)+'</b><div class="muted">'+detail+'</div></div>'+ 
-      '<span class="badge" style="background:'+(ok?'#e7eee8':'#ffe1d8')+';color:'+(ok?'#384640':'#8a2d1b')+';">'+(prepared?'Décompté':(ok?'Suffisant':'À compléter'))+'</span></div>';
+      '<span class="badge" style="background:'+(ok?'#e7eee8':'#ffe1d8')+';color:'+(ok?'#384640':'#8a2d1b')+';">'+(reserved?(ok?'Réservé':'À commander'):(ok?'Disponible':'À commander'))+'</span></div>';
   });
-  h+='<div class="row-actions">'+(prepared?'<button class="btn ghost" type="button" data-action="at-stock-restore">Réintégrer le stock</button>':'<button class="btn gold" type="button" data-action="at-stock-prepare">Préparer le matériel</button>')+'</div>';
-  if(prepared&&a.stockPreparedAt) h+='<div class="summary" style="margin:12px 0 0;"><b>✓ Matériel préparé</b><div class="muted" style="margin-top:4px;">Décompté le '+esc(stockDateTime(a.stockPreparedAt))+'. Toute modification du nombre de personnes ou de la recette proposera un ajustement du stock.</div></div>';
+  if(reserved&&a.stockPreparedAt) h+='<div class="summary" style="margin:12px 0 0;"><b>✓ Stock réservé automatiquement</b><div class="muted" style="margin-top:4px;">Déduit le '+esc(stockDateTime(a.stockPreparedAt))+'. Toute modification de la répartition ajuste automatiquement le stock. Une annulation ou une suppression le réintègre.</div></div>';
   return h+'</div>';
 }
 function atelierRecipeConditionValue(line){ return line.conditionKey?(line.conditionKey+'='+String(line.conditionValue||'')):'always'; }
@@ -2603,9 +2604,9 @@ function atelierStockRecord(item,from,to,context){
   item.historique.unshift({date:new Date().toISOString(),context:context||"Atelier",changes:[{field:"quantite",from:r2(from),to:r2(to)}]});
   if(item.historique.length>30) item.historique=item.historique.slice(0,30);
 }
-function atelierApplyStockDelta(a,deltas,context){
+function atelierApplyStockDelta(a,deltas,context,allowNegative){
   var shortages=atelierStockShortages(deltas);
-  if(shortages.length) return {ok:false,shortages:shortages};
+  if(shortages.length && !allowNegative) return {ok:false,shortages:shortages};
   Object.keys(deltas||{}).forEach(function(id){
     var d=Number(deltas[id])||0; if(!d) return;
     var it=(state.stockItems||[]).find(function(x){return x.id===id;}); if(!it) return;
@@ -2620,37 +2621,25 @@ function atelierPrepareStock(a,askConfirm){
   if(!allocation.ok) return allocation;
   if(!next.length) return {ok:false,message:"Aucun matériel n’est associé à cet atelier. Configure sa recette dans Matériel."};
   var deltas=atelierStockDelta([],next), shortages=atelierStockShortages(deltas);
-  if(shortages.length){
-    return {ok:false,message:"Stock insuffisant :\n\n"+shortages.map(function(x){return "• "+x.label+" : disponible "+x.available+" "+x.unit+", nécessaire "+x.needed+" "+x.unit;}).join("\n")};
-  }
-  if(askConfirm!==false && !confirm(atelierStockSummary(next,"Vous allez retirer du stock pour "+atelierParticipantsCount(a)+" personne(s) :")+"\nConfirmer la préparation du matériel ?")) return {ok:false,cancelled:true};
-  var applied=atelierApplyStockDelta(a,deltas,"Préparation atelier · "+(a.theme||a.type||"Atelier")); if(!applied.ok) return applied;
-  a.stockConsumption=next; a.stockPrepared=true; a.stockPreparedAt=new Date().toISOString(); a.statut="materiel_prepare";
-  return {ok:true,changed:true};
+  var applied=atelierApplyStockDelta(a,deltas,"Réservation automatique atelier · "+(a.theme||a.type||"Atelier"),true); if(!applied.ok) return applied;
+  a.stockConsumption=next; a.stockPrepared=true; a.stockPreparedAt=new Date().toISOString();
+  return {ok:true,changed:true,shortages:shortages};
 }
 function atelierReconcilePreparedStock(a,askConfirm){
   var current=a.stockConsumption||[], next=atelierStockSnapshotFromRecipe(a), deltas=atelierStockDelta(current,next);
   var changed=Object.keys(deltas).some(function(k){return Math.abs(Number(deltas[k])||0)>0.000001;});
   if(!changed) return {ok:true,changed:false};
   var shortages=atelierStockShortages(deltas);
-  if(shortages.length) return {ok:false,message:"Impossible d’ajuster le matériel :\n\n"+shortages.map(function(x){return "• "+x.label+" : disponible "+x.available+" "+x.unit+", supplément nécessaire "+x.needed+" "+x.unit;}).join("\n")};
-  if(askConfirm!==false){
-    var txt="Le nombre de personnes ou la recette a changé. Le stock va être ajusté :\n\n";
-    var cm=atelierStockMap(current), nm=atelierStockMap(next);
-    Object.keys(deltas).forEach(function(id){var d=Number(deltas[id])||0;if(!d)return;var x=nm[id]||cm[id]||{};txt+="• "+(x.label||"Matériel")+" : "+(d>0?"-":"+")+r2(Math.abs(d))+" "+(x.unit||"")+"\n";});
-    if(!confirm(txt+"\nConfirmer l’ajustement ?")) return {ok:false,cancelled:true};
-  }
-  var applied=atelierApplyStockDelta(a,deltas,"Ajustement atelier · "+(a.theme||a.type||"Atelier")); if(!applied.ok) return applied;
-  a.stockConsumption=next; return {ok:true,changed:true};
+  var applied=atelierApplyStockDelta(a,deltas,"Ajustement automatique atelier · "+(a.theme||a.type||"Atelier"),true); if(!applied.ok) return applied;
+  a.stockConsumption=next; return {ok:true,changed:true,shortages:shortages};
 }
 function atelierRestoreStock(a,askConfirm){
   var current=a.stockConsumption||[];
   if(!a.stockPrepared||!current.length){a.stockPrepared=false;a.stockPreparedAt="";a.stockConsumption=[];return {ok:true,changed:false};}
   if(askConfirm!==false && !confirm(atelierStockSummary(current,"Le matériel suivant va être réintégré au stock :")+"\nConfirmer ?")) return {ok:false,cancelled:true};
   var deltas={}; current.forEach(function(x){deltas[x.stockItemId]=r2(-(Number(x.qty)||0));});
-  atelierApplyStockDelta(a,deltas,"Réintégration atelier · "+(a.theme||a.type||"Atelier"));
+  atelierApplyStockDelta(a,deltas,"Réintégration automatique atelier · "+(a.theme||a.type||"Atelier"),true);
   a.stockPrepared=false; a.stockPreparedAt=""; a.stockConsumption=[];
-  if(a.statut==="materiel_prepare") a.statut="preparation";
   return {ok:true,changed:true};
 }
 function atelierApplyStock(a){ return atelierPrepareStock(a,true); }
@@ -2660,7 +2649,7 @@ function importAtelierInitialStock(){
   saveCache(); render(); toast('Stock ateliers importé : '+added+' référence(s) ajoutée(s), '+linked+' associée(s).');
 }
 
-var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",materiel_prepare:"Matériel préparé",termine:"Terminé",annule:"Annulé"};
+var ATELIER_STATUTS={booke:"Booké",preparation:"En préparation",materiel_prepare:"Stock réservé",termine:"Terminé",annule:"Annulé"};
 
 
 /* ===================== Documents ateliers structure / privé ===================== */
@@ -3989,7 +3978,7 @@ function viewParams(){
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
   return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
-  '<div class="summary"><b>V3.4.1 TEST</b> — Suivi mariages amélioré : étapes semi-automatiques et validation manuelle possible pour les anciens dossiers.</div>'+
+  '<div class="summary"><b>V3.4.1 PROD</b> — Suivi mariages amélioré : étapes semi-automatiques et validation manuelle possible pour les anciens dossiers.</div>'+
   viewAboutAppSettings()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
@@ -5840,40 +5829,33 @@ function handleAction(action){
   if(action==="at-new"){ newAtelier(); return; }
   if(action.indexOf("at-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="ateliers"; ui.atelierOpen=action.slice(8); ui.mariageOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action==="at-back"){ ui.atelierOpen=null; render(); return; }
-  if(action==="at-stock-prepare"){
-    var asp=getAtelier(ui.atelierOpen); if(asp){ captureAtelier(asp); var pr=atelierPrepareStock(asp,true); if(!pr.ok){if(pr.message) alert(pr.message);return;} saveCache();render();toast("Matériel préparé · stock décompté."); } return;
-  }
-  if(action==="at-stock-restore"){
-    var asr=getAtelier(ui.atelierOpen); if(asr){ var rr=atelierRestoreStock(asr,true); if(!rr.ok)return; saveCache();render();toast("Matériel réintégré au stock."); } return;
-  }
   if(action==="at-save"){
     var as=getAtelier(ui.atelierOpen); if(as){
-      var wasPrepared=!!as.stockPrepared, oldStatus=as.statut;
+      var wasReserved=!!as.stockPrepared;
       captureAtelier(as);
       var allocationCheck=atelierAllocationValidation(as);
       if(!allocationCheck.ok){ alert(allocationCheck.message); render(); return; }
-      if(wasPrepared){
-        if(as.statut==="annule"){
-          if(confirm("Le matériel de cet atelier a déjà été décompté.\n\nSouhaites-tu le réintégrer au stock ?")) atelierRestoreStock(as,false);
-        }else{
-          var rec=atelierReconcilePreparedStock(as,true);
-          if(!rec.ok&&!rec.cancelled){ alert(rec.message||"Impossible d’ajuster le stock."); as.statut=oldStatus; render(); return; }
-          if(rec.cancelled){ as.statut=oldStatus; render(); return; }
-        }
-      }else if(as.statut==="materiel_prepare"){
-        var prep=atelierPrepareStock(as,true);
-        if(!prep.ok){ if(prep.message) alert(prep.message); as.statut=oldStatus; render(); return; }
+      var stockResult={ok:true,shortages:[]};
+      if(as.statut==="annule"){
+        if(wasReserved) stockResult=atelierRestoreStock(as,false);
+      }else if(wasReserved){
+        stockResult=atelierReconcilePreparedStock(as,false);
+      }else{
+        stockResult=atelierPrepareStock(as,false);
       }
-      saveCache(); render(); toast("Atelier enregistré"+(as.stockPrepared?" · stock mis à jour.":"."));
+      if(!stockResult.ok){ alert(stockResult.message||"Impossible de mettre à jour le stock de l’atelier."); render(); return; }
+      saveCache(); render();
+      var warning=(stockResult.shortages||[]).length;
+      toast("Atelier enregistré · stock "+(as.statut==="annule"?"réintégré":"réservé automatiquement")+(warning?" · achats à prévoir.":"."));
     } return;
   }
-  if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); if(am.stockPrepared){var ar=atelierReconcilePreparedStock(am,true);if(!ar.ok){if(ar.message)alert(ar.message);render();return;}} saveCache(); render(); } return; }
-  if(action==="at-stock-config-change"){ var ac=getAtelier(ui.atelierOpen); if(ac){ captureAtelier(ac); if(ac.stockPrepared){var acr=atelierReconcilePreparedStock(ac,true);if(!acr.ok){if(acr.message)alert(acr.message);render();return;}} saveCache(); render(); } return; }
+  if(action==="at-mode-change"){ var am=getAtelier(ui.atelierOpen); if(am){ captureAtelier(am); if(am.stockPrepared){var ar=atelierReconcilePreparedStock(am,false);if(!ar.ok){if(ar.message)alert(ar.message);render();return;}} saveCache(); render(); } return; }
+  if(action==="at-stock-config-change"){ var ac=getAtelier(ui.atelierOpen); if(ac){ captureAtelier(ac); if(ac.stockPrepared){var acr=atelierReconcilePreparedStock(ac,false);if(!acr.ok){if(acr.message)alert(acr.message);render();return;}} saveCache(); render(); } return; }
   if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var list=prestationsActives(); var preset=list[pi]||list[list.length-1]||{label:"Autre / champ libre",type:"service",qte:1,prix:0}; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; var ptype=preset.type==="bien"?"bien":"service"; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:ptype,urssafType:ptype,qte:preset.qte||1,prix:num(preset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
   if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
-  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } var adel=getAtelier(adid); if(adel&&adel.stockPrepared){ if(confirm("Le matériel a déjà été décompté.\n\nLe réintégrer au stock avant de supprimer l’atelier ?")) atelierRestoreStock(adel,false); } state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé."); return; }
-  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; var np={id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}; aa.participants.push(np); if(aa.stockPrepared){var apr=atelierReconcilePreparedStock(aa,true);if(!apr.ok){aa.participants=aa.participants.filter(function(p){return p.id!==np.id;});if(apr.message)alert(apr.message);render();return;}} ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée"+(aa.stockPrepared?" · stock ajusté.":".")); } return; }
-  if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ var oldParts=(at.participants||[]).slice(); at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); if(at.stockPrepared){var adr=atelierReconcilePreparedStock(at,true);if(!adr.ok){at.participants=oldParts;if(adr.message)alert(adr.message);render();return;}} saveCache(); render(); toast("Participante supprimée"+(at.stockPrepared?" · stock ajusté.":".")); } return; }
+  if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } var adel=getAtelier(adid); if(adel&&adel.stockPrepared) atelierRestoreStock(adel,false); state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé · stock réintégré automatiquement."); return; }
+  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; var np={id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}; aa.participants.push(np); if(aa.stockPrepared){var apr=atelierReconcilePreparedStock(aa,false);if(!apr.ok){aa.participants=aa.participants.filter(function(p){return p.id!==np.id;});if(apr.message)alert(apr.message);render();return;}} ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée"+(aa.stockPrepared?" · stock ajusté.":".")); } return; }
+  if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ var oldParts=(at.participants||[]).slice(); at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); if(at.stockPrepared){var adr=atelierReconcilePreparedStock(at,false);if(!adr.ok){at.participants=oldParts;if(adr.message)alert(adr.message);render();return;}} saveCache(); render(); toast("Participante supprimée"+(at.stockPrepared?" · stock ajusté.":".")); } return; }
   if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }
 
   

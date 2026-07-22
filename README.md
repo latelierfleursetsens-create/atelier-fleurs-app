@@ -1,27 +1,22 @@
-# MyBusiness — V4.0.2 PROD
+# MyBusiness — V4.0.3 PROD
 
-## Bibliothèque des ateliers dynamique
+## Stock automatique à l’enregistrement
 
-Cette version de production a été validée à partir de la V4.0.2 TEST.
+Cette version réserve le matériel dès l’enregistrement d’un atelier programmé.
 
-- Création et modification des thèmes d’atelier.
-- Association d’un thème à plusieurs contextes : thématique, structure et privé/EVJF.
-- Recherche par nom, catégorie, description ou contexte.
-- Classement séparé des ateliers actifs et archivés.
-- Duplication et archivage.
-- Accès direct à la recette de matériel de chaque thème.
-- Contrôle des noms en double.
-- Vérification des participants minimum et maximum.
-- Les recettes restent exprimées en quantité par personne et alimentent le calcul de stock existant.
+- Le nombre total de participants reste obligatoire.
+- Plusieurs créations peuvent être associées au même atelier.
+- La somme des participants répartis par création doit correspondre au total.
+- Le stock est déduit automatiquement lors de l’enregistrement.
+- Une modification ajuste automatiquement les quantités déjà réservées.
+- Une annulation ou une suppression réintègre automatiquement le stock.
+- Le stock peut devenir négatif afin de faire apparaître immédiatement les achats à prévoir.
 
-## Vérifications recommandées après déploiement
+## Test conseillé
 
-1. Ouvrir Matériel > Bibliothèque des ateliers.
-2. Créer un thème « TEST Noël ».
-3. Cocher au moins deux contextes.
-4. Enregistrer puis cliquer sur Configurer le matériel.
-5. Ajouter deux articles avec une quantité par personne.
-6. Vérifier que le thème apparaît dans les formulaires concernés.
-7. Archiver le thème et vérifier son classement.
-
-Conserve une sauvegarde JSON avant chaque mise à jour importante.
+1. Créer un atelier avec plusieurs créations.
+2. Répartir les participants et enregistrer.
+3. Vérifier la diminution immédiate des articles concernés dans Matériel.
+4. Modifier le nombre de participants et vérifier l’ajustement.
+5. Annuler l’atelier et vérifier la réintégration complète.
+6. Refaire le test en supprimant un atelier.

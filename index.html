@@ -4,14 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>MyBusiness — PROD V4.0.2 MODULAIRE</title>
-<!-- Version PROD V4.0.2 MODULAIRE : recettes matériel et ateliers multiples validés en production -->
+<title>MyBusiness — PROD V4.0.3 MODULAIRE</title>
+<!-- Version PROD V4.0.3 MODULAIRE : réservation automatique du stock dès l’enregistrement des ateliers -->
 <!-- Version PROD V3.7.1 MODULAIRE : photos d’inspiration pendant le RDV et dans la fiche mariage -->
 <!-- Version PROD V3.6.3 MODULAIRE : CRM Mariage en onglets + retrait du bouton Nouvelle cliente -->
-<!-- Version TEST V3.4.2 MODULAIRE : tri du bloc Mariages en cours par date de livraison -->
-<!-- Version TEST V3.4.1 MODULAIRE : suivi mariages semi-automatique avec validation manuelle pour anciens dossiers -->
-<!-- Version TEST V3.4.0 MODULAIRE : centre de suivi des mariages, checklist métier et chronologie -->
-<!-- Version TEST V3.3.1 MODULAIRE : module Paramètres enrichi : déplacements, modèles de mails et bibliothèque de prestations -->
+<!-- Version PROD V3.4.2 MODULAIRE : tri du bloc Mariages en cours par date de livraison -->
+<!-- Version PROD V3.4.1 MODULAIRE : suivi mariages semi-automatique avec validation manuelle pour anciens dossiers -->
+<!-- Version PROD V3.4.0 MODULAIRE : centre de suivi des mariages, checklist métier et chronologie -->
+<!-- Version PROD V3.3.1 MODULAIRE : module Paramètres enrichi : déplacements, modèles de mails et bibliothèque de prestations -->
 <!-- Version PROD V3.2.1 MODULAIRE : tableau de bord premium + Todo avant notifications -->
 <!-- Version PROD V3.0.4 MODULAIRE : correctif double comptage À encaisser prochainement pour les ateliers liés à devis/factures -->
 <!-- Version PROD V3.0.3 MODULAIRE : architecture V3 validée en production + journal des modifications -->
@@ -24,8 +24,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-<link rel="stylesheet" href="css/style.css?v=4.0.2">
-<!-- V3.7.1 TEST : import des photos d’inspiration pendant le RDV et depuis la fiche mariage. -->
+<link rel="stylesheet" href="css/style.css?v=4.0.3">
+<!-- V3.7.1 PROD : import des photos d’inspiration pendant le RDV et depuis la fiche mariage. -->
 </head>
 <body>
 <div id="login" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px;">
@@ -77,6 +77,6 @@
 <input type="file" id="encImport" accept=".csv,text/csv" style="display:none" />
 <input type="file" id="restoreInput" accept=".json,application/json" style="display:none" />
 
-<script src="js/app.js?v=4.0.2" defer></script>
+<script src="js/app.js?v=4.0.3" defer></script>
 </body>
 </html>

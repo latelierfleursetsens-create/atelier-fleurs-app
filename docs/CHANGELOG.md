@@ -1,3 +1,12 @@
+# V4.0.3 PROD — Réservation automatique du stock
+
+- Déduction du matériel dès l’enregistrement d’un atelier programmé.
+- Ajustement automatique après modification des créations ou des participants.
+- Réintégration automatique lors de l’annulation ou de la suppression.
+- Maintien de la sélection multi-ateliers et de la répartition obligatoire des participants.
+- Stock négatif autorisé pour visualiser immédiatement les achats à prévoir.
+- Suppression du bouton manuel « Préparer le matériel ».
+
 # V4.0.2 PROD
 
 - Bibliothèque des ateliers dynamique renforcée.
@@ -18,7 +27,7 @@
 
 # Changelog
 
-## V3.9.1 TEST
+## V3.9.1 PROD
 
 - Classement des ateliers par statut.
 - Sélection de plusieurs types de créations pour un même atelier client.
@@ -29,7 +38,7 @@
 - Contrôle bloquant avant enregistrement et préparation du matériel.
 - Compatibilité conservée avec les anciens ateliers utilisant un seul modèle.
 
-## V3.9.0 TEST
+## V3.9.0 PROD
 
 - Ajout d’un onglet dédié **Bibliothèque des ateliers** dans le module Matériel.
 - Bouton visible **Créer un nouveau thème**.
@@ -69,7 +78,7 @@
 - Statuts visuels et historique des modifications.
 - Recettes ateliers et mode simulation conservés.
 
-# V3.8.2 TEST
+# V3.8.2 PROD
 
 - Recettes matériel modifiables par atelier depuis le stock.
 - Association d’un article à plusieurs ateliers avec quantité par personne.
@@ -78,7 +87,7 @@
 
 # Journal des versions
 
-## V3.8.0 TEST — Recettes ateliers et stock automatique
+## V3.8.0 PROD — Recettes ateliers et stock automatique
 - Calcul du matériel par atelier et par personne.
 - Décompte automatique, ajustement des écarts et restitution en cas d’annulation.
 - Import du stock initial communiqué.
@@ -98,7 +107,7 @@
 - Ajout, aperçu et suppression des médias possibles après la création de la fiche.
 - Validation automatique de l’étape « Inspirations reçues » lorsqu’un média est ajouté.
 
-## V3.7.0 TEST — Tableau de bord simplifié
+## V3.7.0 PROD — Tableau de bord simplifié
 - Suppression des aperçus URSSAF, Stock, Clients, ventes site, calendrier et statistiques du tableau de bord.
 - Conservation de Bonjour Élodie, Todo, notifications et mariages en cours.
 - Ajout de trois accès rapides : rendez-vous mariage, atelier et devis.
@@ -120,12 +129,12 @@
 - CRM Mariage avec fiche en onglets.
 - Retrait du bouton + Nouvelle cliente au profit de Préparer mon rendez-vous.
 
-## TEST V3.6.1 — CRM Mariage sans bouton Nouvelle cliente
+## PROD V3.6.1 — CRM Mariage sans bouton Nouvelle cliente
 
 - Retrait du bouton **+ Nouvelle cliente** dans le suivi mariages.
 - La création d’un nouveau dossier mariage passe maintenant par **🎯 Préparer mon rendez-vous**.
 
-## TEST V3.6.0 — CRM Mariage
+## PROD V3.6.0 — CRM Mariage
 
 - Réorganisation de la fiche mariage en onglets.
 - Onglets ajoutés : Résumé, Fiche, Créations, Documents, Suivi, Budget, Historique.
@@ -133,31 +142,31 @@
 - Conservation du bouton retour à la liste en haut.
 - Objectif : rendre les fiches mariage plus lisibles et moins longues.
 
-## TEST V3.5.3 — Wedding Manager sans jalons J-
+## PROD V3.5.3 — Wedding Manager sans jalons J-
 - Retrait du bloc Jalons J- de la fiche mariage.
 - Conservation du bandeau, de la timeline, de la todo mariage, des documents et du budget.
 
 # Journal des modifications
 
-## TEST V3.5.3
+## PROD V3.5.3
 - Ajout d’un bouton **Retour à la liste des mariages** en haut des fiches mariage.
 - Le bouton reste dans une barre supérieure discrète pour éviter de devoir descendre dans toute la fiche ouverte.
 
 
-## TEST V3.5.1 MODULAIRE
+## PROD V3.5.1 MODULAIRE
 - Ajout du bouton **Préparer mon rendez-vous** dans le module Mariages.
 - Ajout d’un assistant de rendez-vous téléphonique mariage.
 - Création automatique d’une fiche mariage complète depuis les réponses du rendez-vous.
 - Génération automatique des articles, de la synthèse, des notes et des tâches de suivi.
 
 
-## TEST V3.4.2 MODULAIRE
+## PROD V3.4.2 MODULAIRE
 - Tri du bloc “Mariages en cours” par date de livraison, du plus proche au plus éloigné.
 - Les dossiers sans date de livraison sont placés en bas de liste.
 
 # CHANGELOG
 
-## V3.4.1 TEST — Suivi mariages semi-automatique
+## V3.4.1 PROD — Suivi mariages semi-automatique
 
 - Les étapes devis/factures/livraison/photos/mariage terminé peuvent être validées manuellement pour les anciens dossiers.
 - Les étapes restent validées automatiquement quand un document lié est détecté.
@@ -166,7 +175,7 @@
 - Pas de modification du module ateliers.
 
 
-## V3.4.0 TEST — Centre de suivi des mariages
+## V3.4.0 PROD — Centre de suivi des mariages
 
 ### Nouveautés
 - Ajout du bloc **Mariages en cours** sur le tableau de bord.
@@ -177,7 +186,7 @@
 - Ajout d’une chronologie automatique dans la fiche mariage.
 - Les notes internes ajoutées depuis la fiche mariage sont intégrées à la chronologie.
 
-### Conservé depuis V3.3.1 TEST
+### Conservé depuis V3.3.1 PROD
 - Prestations complémentaires disponibles dans les ateliers et les mariages.
 - Module Paramètres enrichi.
 - Tableau de bord V3.2.1 validé.
