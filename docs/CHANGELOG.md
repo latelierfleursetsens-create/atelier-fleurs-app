@@ -1,3 +1,43 @@
+# V4.0.2 TEST
+
+- Bibliothèque des ateliers dynamique renforcée.
+- Recherche et filtre Actifs / Archivés.
+- Classement visuel par statut.
+- Contrôle des noms en double.
+- Validation participants minimum / maximum.
+- Accès direct à la configuration du matériel.
+
+## V3.9.2 PROD
+
+- Passage en production de la version V3.9.1 validée.
+- Bibliothèque des ateliers visible dans Matériel.
+- Sélection de plusieurs types de créations pour un atelier.
+- Classement des ateliers par statut.
+- Liste des thèmes disponible pour les ateliers thématiques, structures et privés.
+- Nombre de participants obligatoire pour le calcul et le décompte du matériel.
+
+# Changelog
+
+## V3.9.1 TEST
+
+- Classement des ateliers par statut.
+- Sélection de plusieurs types de créations pour un même atelier client.
+- Addition automatique des recettes matériel correspondantes.
+- Bibliothèque des ateliers disponible également pour les ateliers thématiques du site.
+- Ajout du contexte « Thématique / site » lors de la création ou modification d’un modèle.
+- Nombre de participants obligatoire pour les ateliers thématiques, en structure et privés.
+- Contrôle bloquant avant enregistrement et préparation du matériel.
+- Compatibilité conservée avec les anciens ateliers utilisant un seul modèle.
+
+## V3.9.0 TEST
+
+- Ajout d’un onglet dédié **Bibliothèque des ateliers** dans le module Matériel.
+- Bouton visible **Créer un nouveau thème**.
+- Liste alphabétique des thèmes actifs et archivés.
+- Modification, duplication, archivage et réactivation.
+- Accès direct à la recette via **Matériel nécessaire**.
+- Séparation claire entre articles de stock, bibliothèque et recettes.
+
 # V3.8.5 PROD — Bibliothèque dynamique des ateliers
 
 - Création libre de nouveaux thèmes d’atelier depuis le module Matériel.
@@ -144,3 +184,13 @@
 - To-Do list placée entre Bonjour Elodie et le centre de notifications.
 - Centre de notifications.
 - Correctifs encaissements ateliers.
+
+## V4.0.2 TEST — Recettes et répartition multi-ateliers
+
+- Sélection de plusieurs créations dans un même atelier programmé.
+- Nombre total de participants obligatoire.
+- Répartition obligatoire des participants pour chaque création sélectionnée.
+- Blocage de l’enregistrement et de la préparation si la somme répartie ne correspond pas au total.
+- Calcul des recettes selon le nombre réellement affecté à chaque création.
+- Aperçu du matériel avec la répartition utilisée.
+- Conservation du décompte, des ajustements et de la réintégration sécurisée du stock.
