@@ -1,9 +1,11 @@
-/* V3.9.0 TEST MODULAIRE — Bibliothèque des ateliers visible et configurable. */
+/* V4.0.2 TEST MODULAIRE — recettes et répartition multi-ateliers. */
 "use strict";
 
-var APP_VERSION = "TEST V3.9.0 MODULAIRE";
-var APP_VERSION_NOTE = "Bibliothèque des ateliers accessible directement depuis Matériel, avec création, modification, duplication, archivage et recettes configurables.";
+var APP_VERSION = "TEST V4.0.2 MODULAIRE";
+var APP_VERSION_NOTE = "Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle des totaux et calcul de stock précis.";
 var APP_CHANGELOG = [
+  "V4.0.2 TEST — Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle du total et calcul précis du stock.",
+  "V4.0.2 TEST — Bibliothèque des ateliers dynamique renforcée : recherche, classement actifs/archivés, contrôles de doublons et accès direct aux recettes matériel.",
   "V3.8.5 PROD — Décompte réel du stock à la préparation des ateliers, blocage en cas de stock insuffisant, ajustements et réintégration sécurisée.",
   "V3.8.3 PROD — Bibliothèque matériel : tri alphabétique, recherche, filtres, statuts et édition complète de chaque article.",
   "V3.8.2 TEST — Recettes matériel configurables : ajout libre d’articles stock et association à un ou plusieurs ateliers avec quantité par personne.",
@@ -76,7 +78,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, stockSub:"articles" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles" };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -2215,7 +2217,7 @@ function atelierModelsAll(includeArchived){
   });
   saved.forEach(function(m){
     if(!m||!m.id||ATELIER_MODELES.some(function(b){return b.id===m.id;})) return;
-    out.push(Object.assign({label:'Nouvel atelier',modes:['structure','prive'],materials:[],variants:[],active:true,custom:true},m));
+    out.push(Object.assign({label:'Nouvel atelier',modes:['thematique','structure','prive'],materials:[],variants:[],active:true,custom:true},m));
   });
   out.sort(function(a,b){return (a.label||'').localeCompare(b.label||'','fr',{sensitivity:'base'});});
   return includeArchived?out:out.filter(function(m){return m.active!==false;});
@@ -2223,7 +2225,7 @@ function atelierModelsAll(includeArchived){
 function atelierModelSaved(id){ return ensureAtelierModelsSettings().find(function(m){return m.id===id;})||null; }
 function atelierLibraryEditor(){
   var id=ui.atelierLibraryEditId; if(!id) return '';
-  var m=atelierModeleById(id)||{id:id,label:'',modes:['structure'],active:true,description:'',duree:'',tarif:'',minParticipants:'',maxParticipants:''};
+  var m=atelierModeleById(id)||{id:id,label:'',modes:['thematique','structure','prive'],active:true,description:'',duree:'',tarif:'',minParticipants:'',maxParticipants:''};
   return '<div class="card" style="margin-top:12px;background:#fffaf7;"><h4 style="margin-top:0;">'+(atelierModelSaved(id)||ATELIER_MODELES.some(function(x){return x.id===id;})?'Modifier l’atelier':'Créer un atelier')+'</h4><div class="grid2">'+
     '<label class="field"><span>Nom de l’atelier</span><input id="atelierLibLabel" value="'+esc(m.label||'')+'"></label>'+
     '<label class="field"><span>Catégorie</span><input id="atelierLibCategory" value="'+esc(m.category||'')+'" placeholder="Noël, Octobre Rose, EVJF…"></label>'+
@@ -2232,17 +2234,21 @@ function atelierLibraryEditor(){
     '<label class="field"><span>Participants minimum</span><input id="atelierLibMin" type="number" min="0" step="1" value="'+esc(m.minParticipants||'')+'"></label>'+
     '<label class="field"><span>Participants maximum</span><input id="atelierLibMax" type="number" min="0" step="1" value="'+esc(m.maxParticipants||'')+'"></label></div>'+
     '<label class="field"><span>Description</span><textarea id="atelierLibDescription" rows="3">'+esc(m.description||'')+'</textarea></label>'+
-    '<div class="checkrow"><label><input id="atelierLibStructure" type="checkbox" '+((m.modes||[]).indexOf('structure')>=0?'checked':'')+'> Structure</label><label><input id="atelierLibPrive" type="checkbox" '+((m.modes||[]).indexOf('prive')>=0?'checked':'')+'> Privé / EVJF</label><label><input id="atelierLibActive" type="checkbox" '+(m.active!==false?'checked':'')+'> Actif</label></div>'+
+    '<div class="checkrow"><label><input id="atelierLibThematique" type="checkbox" '+((m.modes||[]).indexOf('thematique')>=0?'checked':'')+'> Thématique / site</label><label><input id="atelierLibStructure" type="checkbox" '+((m.modes||[]).indexOf('structure')>=0?'checked':'')+'> Structure</label><label><input id="atelierLibPrive" type="checkbox" '+((m.modes||[]).indexOf('prive')>=0?'checked':'')+'> Privé / EVJF</label><label><input id="atelierLibActive" type="checkbox" '+(m.active!==false?'checked':'')+'> Actif</label></div>'+
     '<div class="row-actions"><button class="btn primary" type="button" data-action="atelier-library-save">Enregistrer</button><button class="btn ghost" type="button" data-action="atelier-library-cancel">Annuler</button></div></div>';
 }
 function saveAtelierLibraryEditor(){
   var id=ui.atelierLibraryEditId; if(!id) return;
   var label=(document.getElementById('atelierLibLabel')||{}).value||''; label=label.trim();
   if(!label){toast('Indique le nom de l’atelier.');return;}
-  var modes=[]; if(document.getElementById('atelierLibStructure').checked)modes.push('structure'); if(document.getElementById('atelierLibPrive').checked)modes.push('prive');
-  if(!modes.length){toast('Choisis au moins un contexte : Structure ou Privé.');return;}
+  var modes=[]; if(document.getElementById('atelierLibThematique').checked)modes.push('thematique'); if(document.getElementById('atelierLibStructure').checked)modes.push('structure'); if(document.getElementById('atelierLibPrive').checked)modes.push('prive');
+  if(!modes.length){toast('Choisis au moins un contexte : Thématique, Structure ou Privé.');return;}
+  var duplicate=atelierModelsAll(true).some(function(x){return x.id!==id && (x.label||'').trim().toLocaleLowerCase('fr')===label.toLocaleLowerCase('fr');});
+  if(duplicate){toast('Un atelier portant ce nom existe déjà. Modifie le nom ou duplique la fiche existante.');return;}
+  var minP=num(document.getElementById('atelierLibMin').value)||0, maxP=num(document.getElementById('atelierLibMax').value)||0;
+  if(minP>0 && maxP>0 && minP>maxP){toast('Le nombre minimum de participants ne peut pas dépasser le maximum.');return;}
   var original=atelierModeleById(id)||{};
-  var rec={id:id,label:label,category:(document.getElementById('atelierLibCategory').value||'').trim(),duree:(document.getElementById('atelierLibDuration').value||'').trim(),tarif:num(document.getElementById('atelierLibPrice').value)||'',minParticipants:num(document.getElementById('atelierLibMin').value)||'',maxParticipants:num(document.getElementById('atelierLibMax').value)||'',description:(document.getElementById('atelierLibDescription').value||'').trim(),modes:modes,active:!!document.getElementById('atelierLibActive').checked,custom:!ATELIER_MODELES.some(function(x){return x.id===id;})};
+  var rec={id:id,label:label,category:(document.getElementById('atelierLibCategory').value||'').trim(),duree:(document.getElementById('atelierLibDuration').value||'').trim(),tarif:num(document.getElementById('atelierLibPrice').value)||'',minParticipants:minP||'',maxParticipants:maxP||'',description:(document.getElementById('atelierLibDescription').value||'').trim(),modes:modes,active:!!document.getElementById('atelierLibActive').checked,custom:!ATELIER_MODELES.some(function(x){return x.id===id;})};
   var list=ensureAtelierModelsSettings(), pos=list.findIndex(function(x){return x.id===id;}); if(pos>=0) list[pos]=Object.assign({},list[pos],rec); else list.push(rec);
   ensureAtelierRecipeSettings(); if(!state.settings.atelierRecipes[id]) state.settings.atelierRecipes[id]=defaultAtelierRecipeLines(original);
   ui.atelierLibraryEditId=null; ui.stockRecipeModel=id; ui.stockSub='ateliers'; saveCache(); render(); toast('Atelier enregistré dans la bibliothèque.');
@@ -2282,11 +2288,61 @@ var ATELIER_STOCK_INITIAL=[
   {key:"peigne_10_dents",nom:"Peigne 10 dents",categorie:"Accessoires",quantite:0,unite:"pièce",prixUnitaire:0,fournisseur:"À renseigner",seuil:5}
 ];
 function atelierModeleById(id){ return atelierModelsAll(true).find(function(x){return x.id===id;})||null; }
+function atelierModelSupportsMode(model,mode){
+  if(!model) return false;
+  var modes=model.modes||[];
+  if(modes.indexOf(mode)>=0) return true;
+  return mode==='thematique' && modes.indexOf('prive')>=0;
+}
 function atelierModeleOptions(selected,mode){
-  var list=atelierModelsAll(false).filter(function(x){return !mode || x.modes.indexOf(mode)>=0;});
+  var list=atelierModelsAll(false).filter(function(x){return !mode || atelierModelSupportsMode(x,mode);});
   if(selected && !list.some(function(x){return x.id===selected;})){ var old=atelierModeleById(selected); if(old) list.unshift(old); }
   return '<option value="">— Choisir un atelier —</option>'+list.map(function(x){return '<option value="'+esc(x.id)+'"'+(selected===x.id?' selected':'')+'>'+esc(x.label)+' — '+x.modes.map(atelierModeLabel).join(' / ')+'</option>';}).join('');
 }
+function atelierSelectedModelIds(a){
+  var ids=(a&&Array.isArray(a.atelierModeleIds))?a.atelierModeleIds.slice():[];
+  if(a&&a.atelierModeleId&&ids.indexOf(a.atelierModeleId)<0) ids.unshift(a.atelierModeleId);
+  return ids.filter(function(id,i,arr){return id&&arr.indexOf(id)===i;});
+}
+function atelierModelParticipantCounts(a){
+  var raw=(a&&a.atelierModelParticipantCounts&&typeof a.atelierModelParticipantCounts==="object")?a.atelierModelParticipantCounts:{};
+  var out={}; Object.keys(raw).forEach(function(id){out[id]=Math.max(0,Math.round(Number(raw[id])||0));});
+  var ids=atelierSelectedModelIds(a), total=atelierParticipantsCount(a);
+  if(ids.length===1 && !out[ids[0]] && total>0) out[ids[0]]=total;
+  return out;
+}
+function atelierAllocationSummary(a){
+  var ids=atelierSelectedModelIds(a), counts=atelierModelParticipantCounts(a), total=atelierParticipantsCount(a);
+  var allocated=ids.reduce(function(sum,id){return sum+(Number(counts[id])||0);},0);
+  var missing=ids.filter(function(id){return (Number(counts[id])||0)<=0;});
+  return {total:total,allocated:allocated,missing:missing,ok:total>0&&ids.length>0&&missing.length===0&&allocated===total};
+}
+function atelierAllocationValidation(a){
+  var ids=atelierSelectedModelIds(a), info=atelierAllocationSummary(a);
+  if(!ids.length) return {ok:false,message:"Choisis au moins un type d’atelier."};
+  if(info.total<=0) return {ok:false,message:"Indique obligatoirement le nombre total de participants."};
+  if(info.missing.length){
+    var names=info.missing.map(function(id){var m=atelierModeleById(id);return (m&&m.label)||"Atelier";});
+    return {ok:false,message:"Indique le nombre de participants pour chaque création sélectionnée :\n\n• "+names.join("\n• ")};
+  }
+  if(info.allocated!==info.total) return {ok:false,message:"La répartition des participants doit correspondre au total de l’atelier.\n\nTotal prévu : "+info.total+"\nRéparti entre les créations : "+info.allocated};
+  return {ok:true};
+}
+function atelierModelMultiSelector(a,mode){
+  var selected=atelierSelectedModelIds(a), counts=atelierModelParticipantCounts(a), total=atelierParticipantsCount(a);
+  var list=atelierModelsAll(false).filter(function(x){return atelierModelSupportsMode(x,mode);});
+  selected.forEach(function(id){if(!list.some(function(x){return x.id===id;})){var old=atelierModeleById(id);if(old)list.unshift(old);}});
+  if(!list.length) return '<div class="summary"><b>Aucun type d’atelier disponible.</b><div class="muted">Crée-le depuis Matériel → Bibliothèque des ateliers.</div></div>';
+  var cards=list.map(function(m){
+    var checked=selected.indexOf(m.id)>=0;
+    return '<div style="border:1px solid var(--line);border-radius:12px;padding:10px;background:'+(checked?'#fff8f5':'#fff')+';">'+
+      '<label style="display:flex;gap:8px;align-items:flex-start;"><input type="checkbox" data-atelier-model-id="'+esc(m.id)+'" data-action="at-stock-config-change"'+(checked?' checked':'')+'> <span><b>'+esc(m.label)+'</b><small class="muted" style="display:block;">'+(m.category?esc(m.category)+' · ':'')+(m.duree?esc(m.duree):m.modes.map(atelierModeLabel).join(' / '))+'</small></span></label>'+
+      (checked?'<label class="field" style="margin:9px 0 0;"><span>Participants pour cette création <b style="color:var(--red);">*</b></span><input type="number" min="1" step="1" data-atelier-model-participants="'+esc(m.id)+'" data-action="at-stock-config-change" value="'+esc(counts[m.id]||'')+'" placeholder="Ex. 8"></label>':'')+'</div>';
+  }).join('');
+  var info=atelierAllocationSummary(a), status=selected.length?('<div class="summary" style="margin-top:10px;background:'+(info.ok?'#eef7ef':'#fff2ed')+';"><b>Répartition : '+info.allocated+' / '+(total||0)+' participant(s)</b><div class="muted">'+(info.ok?'La répartition est correcte pour le calcul du stock.':'La somme des créations doit être exactement égale au nombre total de participants.')+'</div></div>'):'';
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;">'+cards+'</div>'+status;
+}
+function atelierSelectedModels(a){return atelierSelectedModelIds(a).map(atelierModeleById).filter(Boolean);}
 function atelierVariantValue(a,key){
   var defaults={supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"};
   return (a&&a.stockVariants&&a.stockVariants[key])||defaults[key]||"";
@@ -2368,22 +2424,25 @@ function atelierRecipeLineStock(line){
   return line.stockKey?atelierStockForSimulation(line.stockKey):null;
 }
 function atelierRecipe(a){
-  var model=atelierModeleById(a&&a.atelierModeleId); if(!model) return [];
-  var n=Math.max(0,atelierParticipantsCount(a)), grouped={};
-  atelierRecipeLines(model.id).filter(function(line){return atelierRecipeConditionMatches(a,line);}).forEach(function(line){
-    var sim=atelierRecipeLineStock(line), item=sim&&sim.item;
-    var key=line.stockItemId?("item:"+line.stockItemId):(line.stockKey?("key:"+line.stockKey):("line:"+line.id));
-    var qty=r2((Number(line.qtyPerPerson)||0)*n); if(qty<=0) return;
-    if(!grouped[key]) grouped[key]={key:line.stockKey||"",stockItemId:line.stockItemId||"",label:(item&&item.nom)||line.label||"Matériel",qty:0,item:item||null,isFallback:!!(sim&&sim.isFallback)};
-    grouped[key].qty=r2(grouped[key].qty+qty);
+  var models=atelierSelectedModels(a); if(!models.length) return [];
+  var counts=atelierModelParticipantCounts(a), grouped={};
+  models.forEach(function(model){
+    var n=Math.max(0,Number(counts[model.id])||0); if(n<=0) return;
+    atelierRecipeLines(model.id).filter(function(line){return atelierRecipeConditionMatches(a,line);}).forEach(function(line){
+      var sim=atelierRecipeLineStock(line), item=sim&&sim.item;
+      var key=line.stockItemId?("item:"+line.stockItemId):(line.stockKey?("key:"+line.stockKey):("line:"+model.id+":"+line.id));
+      var qty=r2((Number(line.qtyPerPerson)||0)*n); if(qty<=0) return;
+      if(!grouped[key]) grouped[key]={key:line.stockKey||"",stockItemId:line.stockItemId||"",label:(item&&item.nom)||line.label||"Matériel",qty:0,item:item||null,isFallback:!!(sim&&sim.isFallback)};
+      grouped[key].qty=r2(grouped[key].qty+qty);
+    });
   });
   return Object.keys(grouped).map(function(k){return grouped[k];});
 }
 function atelierRecipePreview(a){
-  var recipe=atelierRecipe(a), model=atelierModeleById(a&&a.atelierModeleId); if(!model) return '';
+  var recipe=atelierRecipe(a), models=atelierSelectedModels(a); if(!models.length) return '';
   var prepared=!!a.stockPrepared;
   var h='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin:0;">📦 Matériel de l’atelier</h3><span class="pill" style="background:'+(prepared?'var(--green-s)':'var(--blush-s)')+';color:'+(prepared?'var(--green)':'var(--bordeaux)')+';">'+(prepared?'Décompté':'À préparer')+'</span></div>'+ 
-    '<p class="muted" style="margin:8px 0 10px;">Recette utilisée : <b>'+esc(model.label)+'</b>. Le stock est retiré uniquement lorsque tu confirmes « Préparer le matériel ».</p>';
+    '<p class="muted" style="margin:8px 0 10px;">Répartition utilisée : <b>'+models.map(function(m){return esc(m.label)+' × '+(atelierModelParticipantCounts(a)[m.id]||0);}).join(' + ')+'</b>. Chaque recette est calculée uniquement pour le nombre de participants affecté à cette création.</p>';
   if(!recipe.length) return h+'<p class="muted">Aucun matériel n’est associé à cet atelier. Configure sa recette depuis l’onglet Matériel.</p></div>';
   recipe.forEach(function(r){
     var it=r.item, available=it?Number(it.quantite)||0:null;
@@ -2454,24 +2513,39 @@ function atelierRecipeLinksForStockItem(item){
   return out;
 }
 function viewAtelierLibraryManager(){
-  var models=atelierModelsAll(true);
-  if(!ui.stockRecipeModel || !atelierModeleById(ui.stockRecipeModel)) ui.stockRecipeModel=models[0]?models[0].id:'';
-  var html='<div class="card" id="atelierLibraryManager"><div class="flexb" style="align-items:flex-start;gap:12px;"><div><h3 style="margin:0;">📚 Bibliothèque des ateliers</h3><p class="muted" style="margin:5px 0 0;">Crée ici de nouveaux thèmes d’atelier. Ils apparaîtront ensuite automatiquement lors de la création d’un atelier client.</p></div><button class="btn primary" type="button" data-action="atelier-library-new">+ Créer un nouveau thème</button></div>';
+  var allModels=atelierModelsAll(true);
+  var q=searchNorm(ui.atelierLibrarySearch||''), status=ui.atelierLibraryStatus||'all';
+  var models=allModels.filter(function(m){
+    var matchesStatus=status==='all'||(status==='active'&&m.active!==false)||(status==='archived'&&m.active===false);
+    var hay=searchNorm([m.label,m.category,m.description,(m.modes||[]).map(atelierModeLabel).join(' ')].filter(Boolean).join(' '));
+    return matchesStatus&&(!q||hay.indexOf(q)>=0);
+  });
+  if(!ui.stockRecipeModel || !atelierModeleById(ui.stockRecipeModel)) ui.stockRecipeModel=allModels[0]?allModels[0].id:'';
+  var activeCount=allModels.filter(function(m){return m.active!==false;}).length;
+  var archivedCount=allModels.length-activeCount;
+  var html='<div class="card" id="atelierLibraryManager"><div class="flexb" style="align-items:flex-start;gap:12px;"><div><h3 style="margin:0;">📚 Bibliothèque des ateliers</h3><p class="muted" style="margin:5px 0 0;">Crée et organise tes thèmes d’atelier. Un même thème peut être proposé dans plusieurs contextes et posséder sa propre recette de matériel par personne.</p></div><button class="btn primary" type="button" data-action="atelier-library-new">+ Créer un nouveau thème</button></div>';
+  html+='<div class="grid-stats" style="margin-top:14px;">'+stat('Ateliers actifs',activeCount,false)+stat('Ateliers archivés',archivedCount,false)+stat('Total bibliothèque',allModels.length,false)+'</div>';
+  html+='<div class="inline" style="margin-top:12px;"><div style="flex:2;"><label class="field"><span>Rechercher un atelier</span><input id="atelierLibrarySearch" value="'+esc(ui.atelierLibrarySearch||'')+'" placeholder="Nom, catégorie, contexte…"></label></div><div><label class="field"><span>Afficher</span><select id="atelierLibraryStatus"><option value="all"'+(status==='all'?' selected':'')+'>Tous</option><option value="active"'+(status==='active'?' selected':'')+'>Actifs</option><option value="archived"'+(status==='archived'?' selected':'')+'>Archivés</option></select></label></div></div>';
   html+=atelierLibraryEditor();
   if(!models.length){
-    html+='<div class="summary" style="margin-top:14px;"><b>Aucun atelier enregistré.</b><div class="muted">Clique sur « Créer un nouveau thème » pour commencer.</div></div>';
+    html+='<div class="summary" style="margin-top:14px;"><b>Aucun atelier ne correspond.</b><div class="muted">Modifie la recherche ou crée un nouveau thème.</div></div>';
   }else{
-    html+='<div style="margin-top:14px;display:grid;gap:10px;">';
-    models.forEach(function(m){
-      var selected=m.id===ui.stockRecipeModel;
-      var recipeCount=(atelierRecipeLines(m.id)||[]).length;
-      html+='<div class="checkrow" style="align-items:flex-start;border:'+(selected?'2px solid var(--bordeaux)':'1px solid var(--line)')+';border-radius:14px;padding:13px;background:'+(selected?'#fff8f5':'#fff')+';">'+
-        '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><b style="color:var(--bordeaux);font-size:15px;">'+esc(m.label||'Atelier')+'</b>'+(m.active===false?'<span class="badge">Archivé</span>':'<span class="badge" style="background:var(--green-s);color:var(--green);">Actif</span>')+(m.category?'<span class="chip">'+esc(m.category)+'</span>':'')+'</div>'+ 
-        '<div class="muted" style="font-size:12px;margin-top:4px;">'+(m.modes||[]).map(atelierModeLabel).join(' / ')+(m.duree?' · '+esc(m.duree):'')+(m.tarif!==''&&m.tarif!=null?' · '+euro(m.tarif)+' / personne':'')+' · '+recipeCount+' article(s) dans la recette</div>'+ 
-        (m.description?'<div class="muted" style="font-size:12px;margin-top:4px;">'+esc(m.description)+'</div>':'')+'</div>'+ 
-        '<div class="row-actions" style="margin-top:0;justify-content:flex-end;"><button class="btn small soft" type="button" data-action="atelier-library-edit-'+esc(m.id)+'">Modifier</button><button class="btn small soft" type="button" data-action="atelier-library-recipe-'+esc(m.id)+'">Matériel nécessaire</button><button class="btn small ghost" type="button" data-action="atelier-library-duplicate-'+esc(m.id)+'">Dupliquer</button><button class="btn small ghost" type="button" data-action="atelier-library-archive-'+esc(m.id)+'">'+(m.active===false?'Réactiver':'Archiver')+'</button></div></div>';
+    ['active','archived'].forEach(function(group){
+      var rows=models.filter(function(m){return group==='active'?m.active!==false:m.active===false;});
+      if(!rows.length)return;
+      html+='<h4 style="margin:18px 0 8px;color:var(--bordeaux);">'+(group==='active'?'Ateliers actifs':'Ateliers archivés')+' · '+rows.length+'</h4><div style="display:grid;gap:10px;">';
+      rows.forEach(function(m){
+        var selected=m.id===ui.stockRecipeModel;
+        var recipeCount=(atelierRecipeLines(m.id)||[]).length;
+        html+='<div class="checkrow" style="align-items:flex-start;border:'+(selected?'2px solid var(--bordeaux)':'1px solid var(--line)')+';border-radius:14px;padding:13px;background:'+(selected?'#fff8f5':'#fff')+';">'+
+          '<div style="flex:1;min-width:0;"><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><b style="color:var(--bordeaux);font-size:15px;">'+esc(m.label||'Atelier')+'</b>'+(m.active===false?'<span class="badge">Archivé</span>':'<span class="badge" style="background:var(--green-s);color:var(--green);">Actif</span>')+(m.category?'<span class="chip">'+esc(m.category)+'</span>':'')+'</div>'+ 
+          '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;">'+(m.modes||[]).map(function(mode){return '<span class="chip">'+esc(atelierModeLabel(mode))+'</span>';}).join('')+'</div>'+ 
+          '<div class="muted" style="font-size:12px;margin-top:5px;">'+(m.duree?'Durée : '+esc(m.duree)+' · ':'')+(m.tarif!==''&&m.tarif!=null?'Tarif conseillé : '+euro(m.tarif)+' / personne · ':'')+recipeCount+' article(s) dans la recette</div>'+ 
+          (m.description?'<div class="muted" style="font-size:12px;margin-top:4px;">'+esc(m.description)+'</div>':'')+'</div>'+ 
+          '<div class="row-actions" style="margin-top:0;justify-content:flex-end;"><button class="btn small soft" type="button" data-action="atelier-library-edit-'+esc(m.id)+'">Modifier</button><button class="btn small primary" type="button" data-action="atelier-library-recipe-'+esc(m.id)+'">Configurer le matériel</button><button class="btn small ghost" type="button" data-action="atelier-library-duplicate-'+esc(m.id)+'">Dupliquer</button><button class="btn small ghost" type="button" data-action="atelier-library-archive-'+esc(m.id)+'">'+(m.active===false?'Réactiver':'Archiver')+'</button></div></div>';
+      });
+      html+='</div>';
     });
-    html+='</div>';
   }
   return html+'</div>';
 }
@@ -2542,7 +2616,8 @@ function atelierApplyStockDelta(a,deltas,context){
 }
 function atelierPrepareStock(a,askConfirm){
   var next=atelierStockSnapshotFromRecipe(a);
-  if(!a.atelierModeleId) return {ok:false,message:"Choisis d’abord un type d’atelier."};
+  var allocation=atelierAllocationValidation(a);
+  if(!allocation.ok) return allocation;
   if(!next.length) return {ok:false,message:"Aucun matériel n’est associé à cet atelier. Configure sa recette dans Matériel."};
   var deltas=atelierStockDelta([],next), shortages=atelierStockShortages(deltas);
   if(shortages.length){
@@ -2930,7 +3005,7 @@ function atelierParticipantsCount(a){
   var mode=atelierMode(a);
   if(mode==="prive") return Number(a.nbPersonnes)||0;
   if(mode==="structure") return Number(a.nbParticipantsPrevu)||0;
-  return ((a&&a.participants)||[]).length;
+  return Number(a&&a.nbParticipantsPrevu)||0;
 }
 
 
@@ -2950,7 +3025,7 @@ function newAtelier(){
   var a={id:uid(),modeAtelier:"thematique",date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",
     organisatrice:"",structureNom:"",contactEmail:"",contactTel:"",
     nbPersonnes:0,nbParticipantsPrevu:0,montantForfait:0,montantPrestation:0,
-    prestationsComplementaires:[],atelierModeleId:"",stockVariants:{supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"},stockConsumption:[],stockPrepared:false,stockPreparedAt:"",
+    prestationsComplementaires:[],atelierModeleId:"",atelierModeleIds:[],atelierModelParticipantCounts:{},stockVariants:{supportColor:"blanc",strawColor:"rose",circleSize:"20",circleSizeDemi:"20",macrameColor:"beige",combSize:"4"},stockConsumption:[],stockPrepared:false,stockPreparedAt:"",
     materiel:"",description:"",statut:"booke",participants:[],createdAt:new Date().toISOString()};
   state.ateliers=state.ateliers||[];
   state.ateliers.unshift(a);
@@ -3010,7 +3085,12 @@ function viewAteliers(){
       stat("Participants / invités",totalParticipants,false)+
     '</div>';
   if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucun atelier enregistré pour le moment.</p></div>';
-  list.forEach(function(a){
+  var statusOrder=["booke","preparation","materiel_prepare","termine","annule"];
+  statusOrder.forEach(function(status){
+    var group=list.filter(function(a){return (a.statut||"booke")===status;});
+    if(!group.length) return;
+    html+='<div class="flexb" style="margin:22px 0 8px;"><h3 style="margin:0;color:var(--bordeaux);">'+esc(ATELIER_STATUTS[status]||status)+'</h3><span class="badge">'+group.length+' atelier(s)</span></div>';
+    group.forEach(function(a){
     var mode=atelierMode(a), t=atelierTotals(a), st=ATELIER_STATUTS[a.statut]||a.statut||"Booké";
     var contact=a.organisatrice||a.structureNom||"";
     html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(atelierModeLabel(mode))+' · '+esc(a.theme||"À compléter")+'</b>'+
@@ -3025,6 +3105,7 @@ function viewAteliers(){
         '<span class="chip">À facturer : '+euro(t.resteNonFacture)+'</span>'+
       '</div>'+
       '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
+    });
   });
   return html;
 }
@@ -3046,7 +3127,16 @@ function captureAtelier(a){
   a.nbParticipantsPrevu=num(val("atNbParticipantsPrevu"));
   a.montantForfait=num(val("atMontantForfait"));
   a.montantPrestation=num(val("atMontantPrestation"));
-  a.atelierModeleId=val("atAtelierModele")||"";
+  var modelChecks=document.querySelectorAll("[data-atelier-model-id]");
+  a.atelierModeleIds=[]; modelChecks.forEach(function(el){if(el.checked)a.atelierModeleIds.push(el.getAttribute("data-atelier-model-id"));});
+  a.atelierModeleId=a.atelierModeleIds[0]||"";
+  var previousCounts=(a.atelierModelParticipantCounts&&typeof a.atelierModelParticipantCounts==="object")?a.atelierModelParticipantCounts:{};
+  a.atelierModelParticipantCounts={};
+  a.atelierModeleIds.forEach(function(id){
+    var input=document.querySelector('[data-atelier-model-participants="'+id.replace(/"/g,'\"')+'"]');
+    a.atelierModelParticipantCounts[id]=Math.max(0,Math.round(input?num(input.value):(Number(previousCounts[id])||0)));
+  });
+  if(a.atelierModeleIds.length===1 && !a.atelierModelParticipantCounts[a.atelierModeleIds[0]] && atelierParticipantsCount(a)>0) a.atelierModelParticipantCounts[a.atelierModeleIds[0]]=atelierParticipantsCount(a);
   a.stockVariants=a.stockVariants||{};
   if(document.getElementById("atVarSupportColor")) a.stockVariants.supportColor=val("atVarSupportColor");
   if(document.getElementById("atVarStrawColor")) a.stockVariants.strawColor=val("atVarStrawColor");
@@ -3080,8 +3170,12 @@ function viewAtelierDetail(a){
     '<div><label class="field"><span>Thème</span><select id="atType">'+atelierTypeOptions(a.type)+'</select><div class="hint">Choisis un thème existant ou indique un thème libre ci-dessous.</div></label></div></div>'+
     '<div class="inline"><div><label class="field"><span>Thème libre</span><input id="atTypeCustom" value="'+esc((a.type&&ATELIER_TYPES.indexOf(a.type)<0)?a.type:"")+'" placeholder="Ex : Fête des mères, Halloween, Baby shower…"></label></div>'+
     '<div><label class="field"><span>Nom / détails du thème</span><input id="atTheme" value="'+esc(a.theme||"")+'" placeholder="Ex : Couronne florale pastel, Bridgerton…"></label></div></div>'+
-    '<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">🧰 Modèle d’atelier et gestion du stock</h3><label class="field"><span>Type d’atelier réalisé</span><select id="atAtelierModele" data-action="at-stock-config-change">'+atelierModeleOptions(a.atelierModeleId,mode)+'</select><div class="hint">La liste est filtrée selon Structure / Privé. Le matériel est calculé par personne et sera décompté après confirmation lorsque tu le prépares.</div></label>'+atelierVariantFields(a,atelierModeleById(a.atelierModeleId))+'</div>'+
+    '<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">🧰 Types d’atelier et gestion du stock</h3><label class="field"><span>Type(s) d’atelier réalisé(s) — plusieurs choix possibles</span>'+atelierModelMultiSelector(a,mode)+'<div class="hint">Sélectionne une ou plusieurs créations puis répartis obligatoirement les participants. La somme doit correspondre au nombre total de l’atelier.</div></label>'+atelierSelectedModels(a).map(function(m){return atelierVariantFields(a,m);}).join('')+'</div>'+
     '<label class="field"><span>Statut</span><select id="atStatut">'+atelierStatutOptions(a.statut)+'</select></label>';
+
+  if(mode==="thematique"){
+    html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier thématique</h3><label class="field"><span>Nombre de participants prévu <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||'')+'" placeholder="Obligatoire pour calculer le stock"><div class="hint">Ce nombre pilote le calcul et le décompte du matériel. La liste nominative des participantes reste gérée plus bas.</div></label></div>';
+  }
 
   if(mode==="structure"){
     html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier en structure</h3>'+
@@ -3090,7 +3184,7 @@ function viewAtelierDetail(a){
       '<div><label class="field"><span>Organisatrice / référente</span><input id="atOrganisatrice" value="'+esc(a.organisatrice||"")+'"></label></div></div>'+
       '<div class="inline"><div><label class="field"><span>Email référente</span><input id="atContactEmail" type="email" value="'+esc(a.contactEmail||"")+'"></label></div>'+
       '<div><label class="field"><span>Téléphone référente</span><input id="atContactTel" value="'+esc(a.contactTel||"")+'"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Nombre de participants prévu</span><input id="atNbParticipantsPrevu" type="number" min="0" value="'+esc(a.nbParticipantsPrevu||"")+'"></label></div>'+
+      '<div class="inline"><div><label class="field"><span>Nombre de participants prévu <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||"")+'"></label></div>'+
       '<div><label class="field"><span>Montant de la prestation (€)</span><input id="atMontantPrestation" type="number" min="0" step="0.01" value="'+esc(a.montantPrestation||"")+'"></label></div></div>'+
       '</div>';
   }else if(mode==="prive"){
@@ -3099,7 +3193,7 @@ function viewAtelierDetail(a){
       '<div class="inline"><div><label class="field"><span>Cliente organisatrice</span><input id="atOrganisatrice" value="'+esc(a.organisatrice||"")+'"></label></div>'+
       '<div><label class="field"><span>Téléphone</span><input id="atContactTel" value="'+esc(a.contactTel||"")+'"></label></div></div>'+
       '<label class="field"><span>Email</span><input id="atContactEmail" type="email" value="'+esc(a.contactEmail||"")+'"></label>'+
-      '<div class="inline"><div><label class="field"><span>Nombre de personnes prévu</span><input id="atNbPersonnes" type="number" min="0" value="'+esc(a.nbPersonnes||"")+'"></label></div>'+
+      '<div class="inline"><div><label class="field"><span>Nombre de personnes prévu <b style="color:var(--red);">*</b></span><input id="atNbPersonnes" type="number" min="1" required value="'+esc(a.nbPersonnes||"")+'"></label></div>'+
       '<div><label class="field"><span>Montant forfaitaire défini (€)</span><input id="atMontantForfait" type="number" min="0" step="0.01" value="'+esc(a.montantForfait||"")+'"></label></div></div>'+
       '</div>';
   }
@@ -5633,7 +5727,7 @@ function handleAction(action){
   if(action==="atelier-library-save"){ saveAtelierLibraryEditor(); return; }
   if(action==="atelier-library-duplicate"){
     var src=atelierModeleById(ui.stockRecipeModel); if(!src)return;
-    var nid2="atelier_"+uid(), copy={id:nid2,label:(src.label||"Atelier")+" — copie",category:src.category||"",duree:src.duree||"",tarif:src.tarif||"",minParticipants:src.minParticipants||"",maxParticipants:src.maxParticipants||"",description:src.description||"",modes:(src.modes||[]).slice(),active:true,custom:true};
+    var nid2="atelier_"+uid(), copy={id:nid2,label:(src.label||"Atelier")+" — copie",category:src.category||"",duree:src.duree||"",tarif:src.tarif||"",minParticipants:src.minParticipants||"",maxParticipants:src.maxParticipants||"",description:src.description||"",modes:(src.modes||['thematique','structure','prive']).slice(),active:true,custom:true};
     ensureAtelierModelsSettings().push(copy); ensureAtelierRecipeSettings()[nid2]=(atelierRecipeLines(src.id)||[]).map(function(x){return Object.assign({},x,{id:uid()});}); ui.stockRecipeModel=nid2; ui.atelierLibraryEditId=nid2; saveCache(); render(); toast("Atelier dupliqué."); return;
   }
   if(action==="atelier-library-archive"){
@@ -5756,6 +5850,8 @@ function handleAction(action){
     var as=getAtelier(ui.atelierOpen); if(as){
       var wasPrepared=!!as.stockPrepared, oldStatus=as.statut;
       captureAtelier(as);
+      var allocationCheck=atelierAllocationValidation(as);
+      if(!allocationCheck.ok){ alert(allocationCheck.message); render(); return; }
       if(wasPrepared){
         if(as.statut==="annule"){
           if(confirm("Le matériel de cet atelier a déjà été décompté.\n\nSouhaites-tu le réintégrer au stock ?")) atelierRestoreStock(as,false);
@@ -6278,6 +6374,7 @@ document.addEventListener("input", function(e){
   var t=e.target;
   if(t && t.id==="globalSearchInput"){ renderGlobalSearchBox(); return; }
   if(t && t.id==="stockSearch"){ ui.stockSearch=t.value; stockFilterRowsFromDOM(); return; }
+  if(t && t.id==="atelierLibrarySearch"){ ui.atelierLibrarySearch=t.value; var caret=t.selectionStart||t.value.length; render(); setTimeout(function(){var f=document.getElementById("atelierLibrarySearch");if(f){f.focus();try{f.setSelectionRange(caret,caret);}catch(_e){}}},0); return; }
   if(isTodoField(t)){ ui.todoEditing=true; saveTodoLocalOnly(); return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
@@ -6312,6 +6409,7 @@ document.addEventListener("change", function(e){
   var t=e.target;
   if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
   if(t.id==="stockCategoryFilter"){ ui.stockCategoryFilter=t.value; stockFilterRowsFromDOM(); return; }
+  if(t.id==="atelierLibraryStatus"){ ui.atelierLibraryStatus=t.value||"all"; render(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="dash-year"){ ui.anneeDash=Number(t.value); ui.monthDetail=null; render(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="treso-year"){ ui.tresoYear=Number(t.value); render(); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="treso-month"){ ui.tresoMonth=Number(t.value); render(); return; }

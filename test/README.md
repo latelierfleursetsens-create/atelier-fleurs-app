@@ -1,22 +1,27 @@
-# MyBusiness — V3.9.0 TEST
+# MyBusiness — V4.0.2 TEST
 
-## Bibliothèque des ateliers
+## Bibliothèque des ateliers dynamique
 
-Dans **Matériel**, trois onglets sont maintenant visibles :
+Cette version test est construite à partir de la V3.9.2 fournie.
 
-- **Articles et stock**
-- **Bibliothèque des ateliers**
-- **Recettes matériel**
-
-La bibliothèque permet de créer, modifier, dupliquer, archiver ou réactiver un thème d’atelier. Le bouton **Matériel nécessaire** ouvre directement sa recette pour associer les articles du stock et la quantité consommée par personne.
-
-Le décompte réel du stock reste déclenché uniquement au passage de l’atelier au statut **Matériel préparé**.
+- Création et modification des thèmes d’atelier.
+- Association d’un thème à plusieurs contextes : thématique, structure et privé/EVJF.
+- Recherche par nom, catégorie, description ou contexte.
+- Classement séparé des ateliers actifs et archivés.
+- Duplication et archivage.
+- Accès direct à la recette de matériel de chaque thème.
+- Contrôle des noms en double.
+- Vérification des participants minimum et maximum.
+- Les recettes restent exprimées en quantité par personne et alimentent le calcul de stock existant.
 
 ## Test conseillé
 
-1. Ouvrir **Matériel > Bibliothèque des ateliers**.
-2. Cliquer sur **Créer un nouveau thème**.
-3. Créer un atelier test, par exemple « Couronne de Noël TEST ».
-4. Cliquer sur **Matériel nécessaire**.
-5. Ajouter des articles et enregistrer la recette.
-6. Vérifier que ce thème apparaît lors de la création d’un atelier client.
+1. Ouvrir Matériel > Bibliothèque des ateliers.
+2. Créer un thème « TEST Noël ».
+3. Cocher au moins deux contextes.
+4. Enregistrer puis cliquer sur Configurer le matériel.
+5. Ajouter deux articles avec une quantité par personne.
+6. Vérifier que le thème apparaît dans les formulaires concernés.
+7. Archiver le thème et vérifier son classement.
+
+Fais une sauvegarde JSON avant les essais.
