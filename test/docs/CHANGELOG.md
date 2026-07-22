@@ -1,3 +1,11 @@
+# V4.0.7 TEST — Argent à encaisser dans Finances
+
+- Ajout des cartes **Ateliers à encaisser**, **Mariages à encaisser** et **Total à encaisser**.
+- Ajout d’un tableau détaillé des dossiers restant à payer.
+- Déduction automatique des paiements déjà encaissés.
+- Exclusion des dossiers annulés, perdus ou terminés.
+- Accès direct aux fiches atelier et mariage depuis Finances.
+
 # V4.0.6 TEST — Statut devis en attente
 
 - Ajout de **En attente de validation du devis** aux statuts des ateliers.

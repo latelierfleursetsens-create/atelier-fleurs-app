@@ -1,9 +1,10 @@
-/* V4.0.5 TEST MODULAIRE — ajout du statut « En attente de validation du devis » comme statut par défaut des ateliers. */
+/* V4.0.7 TEST MODULAIRE — ajout dans Finances des montants à encaisser Ateliers + Mariages. */
 "use strict";
 
-var APP_VERSION = "TEST V4.0.5 MODULAIRE";
-var APP_VERSION_NOTE = "La répartition des participants apparaît immédiatement dès la sélection d’un ou plusieurs types d’atelier, avant le premier enregistrement.";
+var APP_VERSION = "TEST V4.0.7 MODULAIRE";
+var APP_VERSION_NOTE = "Finances affiche désormais les montants restant à encaisser pour les ateliers, les mariages et leur total, avec le détail des dossiers.";
 var APP_CHANGELOG = [
+  "V4.0.7 TEST — Ajout dans Finances des montants à encaisser Ateliers, Mariages et Total, avec tableau détaillé des dossiers.",
   "V4.0.5 TEST — Nouveau statut « En attente de validation du devis », sélectionné par défaut lors de la création d’un atelier.",
   "V4.0.4 TEST — Affichage immédiat du champ participants pour chaque création sélectionnée, sans devoir enregistrer puis rouvrir l’atelier.",
   "V4.0.3 PROD — Réservation automatique du stock dès l’enregistrement d’un atelier, ajustement automatique après modification et réintégration à l’annulation ou à la suppression.",
@@ -1987,6 +1988,59 @@ function tresoMonthOptions(sel){
 function tresoYearOptions(years, sel){
   return (years||[]).map(function(y){ return '<option value="'+esc(y)+'"'+(String(y)===String(sel)?' selected':'')+'>'+esc(y)+'</option>'; }).join("");
 }
+function financePendingOverview(){
+  var items=[];
+  (state.ateliers||[]).forEach(function(a){
+    if(!a || a.statut==="annule" || a.statut==="termine") return;
+    var t=atelierTotals(a);
+    var reste=r2(Math.max(0,(Number(t.total)||0)-(Number(t.paye)||0)));
+    if(reste<=0) return;
+    items.push({
+      kind:"atelier", id:a.id, date:a.date||"9999-12-31",
+      client:a.structureNom||a.organisatrice||"Atelier",
+      label:(a.theme||a.type||"Atelier"), montant:reste,
+      statut:ATELIER_STATUTS[a.statut]||a.statut||"À encaisser",
+      action:"pending-atelier-"+a.id
+    });
+  });
+  (state.mariages||[]).forEach(function(m){
+    if(!m || m.statut==="perdu" || m.statut==="annule" || mariageTermine(m)) return;
+    var b=mariageBudgetData(m);
+    var reste=r2(Math.max(0,Number(b.reste)||0));
+    if(reste<=0) return;
+    items.push({
+      kind:"mariage", id:m.id, date:m.dateLivraison||m.dateMariage||"9999-12-31",
+      client:m.nom||"Mariage", label:m.lieu||"Projet mariage", montant:reste,
+      statut:"À encaisser", action:"mar-open-"+m.id
+    });
+  });
+  items.sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999") || (a.client||"").localeCompare(b.client||"","fr");});
+  var ateliers=r2(items.filter(function(i){return i.kind==="atelier";}).reduce(function(s,i){return s+i.montant;},0));
+  var mariages=r2(items.filter(function(i){return i.kind==="mariage";}).reduce(function(s,i){return s+i.montant;},0));
+  return {items:items,ateliers:ateliers,mariages:mariages,total:r2(ateliers+mariages)};
+}
+function financePendingBlock(data){
+  var html='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="align-items:flex-start;gap:12px;"><div><h3 style="margin:0;">💰 Argent restant à encaisser</h3><p class="muted" style="margin:4px 0 0;">Montants restant dus sur les ateliers et mariages actifs, après déduction des paiements déjà encaissés.</p></div><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">mise à jour automatique</span></div>'+ 
+    '<div class="grid-stats" style="margin-top:14px;margin-bottom:14px;">'+
+      stat('🌸 Ateliers à encaisser',euro(data.ateliers),false,'var(--green-s)')+
+      stat('💍 Mariages à encaisser',euro(data.mariages),false,'var(--blush-s)')+
+      stat('💰 Total à encaisser',euro(data.total),true,'#fff')+
+    '</div>'+
+    '<div class="flexb"><h3 style="margin:0 0 8px;">Détail des prochains encaissements</h3><span class="muted">'+data.items.length+' dossier(s)</span></div>';
+  if(!data.items.length){
+    html+='<p class="muted" style="margin:8px 0 0;">Aucun montant restant à encaisser sur les ateliers et mariages actifs.</p>';
+  }else{
+    data.items.forEach(function(i){
+      var icon=i.kind==="mariage"?'💍':'🌸';
+      html+='<div class="checkrow" style="align-items:flex-start;">'+
+        '<div style="flex:1;"><b style="color:var(--bordeaux);">'+icon+' '+esc(i.client)+'</b><div class="muted" style="font-size:12px;">'+esc(i.label||'')+' · '+(i.date&&i.date!=="9999-12-31"?frDate(i.date):'date non renseignée')+' · '+esc(i.statut||'')+'</div></div>'+ 
+        '<div style="text-align:right;min-width:130px;"><b style="color:var(--bordeaux);font-size:16px;">'+euro(i.montant)+'</b><div style="margin-top:6px;"><button class="btn small ghost" data-action="'+esc(i.action)+'">Ouvrir</button></div></div>'+ 
+      '</div>';
+    });
+  }
+  return html+'</div>';
+}
 function viewTresorerie(){
   var period=tresoSelectedPeriod();
   var list=encaissementsTresorerie();
@@ -2006,6 +2060,7 @@ function viewTresorerie(){
   var byPay=groupTresorerieBy(function(e){return e.paiement;}, listYear);
   var byAct=groupTresorerieBy(function(e){return e.activite;}, listYear);
   var label=tresoPeriodLabel(period);
+  var pendingFinance=financePendingOverview();
   var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+ 
     '<div class="row-actions" style="margin:0;align-items:flex-end;">'+
       '<label class="field" style="margin:0;min-width:150px;"><span>Mois</span><select data-action="treso-month">'+tresoMonthOptions(period.month)+'</select></label>'+ 
@@ -2013,6 +2068,7 @@ function viewTresorerie(){
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
     '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
+    financePendingBlock(pendingFinance)+
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
       stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+

@@ -1,3 +1,24 @@
+# MyBusiness — V4.0.7 TEST
+
+## Nouveauté Finances
+
+Dans **Finances > Trésorerie**, un nouveau bloc affiche désormais :
+
+- le montant restant à encaisser pour les **ateliers** ;
+- le montant restant à encaisser pour les **mariages** ;
+- le **total général à encaisser** ;
+- le détail de chaque dossier avec sa date, son statut et un bouton pour ouvrir directement la fiche.
+
+Les montants sont calculés automatiquement après déduction des paiements déjà encaissés. Les ateliers annulés ou terminés et les mariages annulés, perdus ou terminés sont exclus.
+
+## Test conseillé
+
+1. Ouvrir **Finances > Trésorerie**.
+2. Vérifier les trois indicateurs Ateliers, Mariages et Total.
+3. Comparer un atelier avec son reste à encaisser affiché dans sa fiche.
+4. Comparer un mariage avec le reste affiché dans son budget.
+5. Cliquer sur **Ouvrir** depuis le tableau financier.
+
 # MyBusiness — V4.0.6 TEST
 
 ## Nouveauté
