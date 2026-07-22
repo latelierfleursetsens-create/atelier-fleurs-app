@@ -1,3 +1,14 @@
+# V3.8.5 PROD — Bibliothèque dynamique des ateliers
+
+- Création libre de nouveaux thèmes d’atelier depuis le module Matériel.
+- Modification des informations d’un atelier : nom, catégorie, durée, tarif, nombre mini/maxi, description et contextes.
+- Duplication d’un atelier avec copie automatique de sa recette matériel.
+- Archivage et réactivation des ateliers saisonniers.
+- Suppression sécurisée des ateliers personnalisés non utilisés.
+- Affichage automatique des ateliers actifs lors de la création d’un atelier.
+- Association de chaque atelier à un ou plusieurs articles du stock avec quantité par personne.
+- Conservation du décompte réel sécurisé au statut Matériel préparé.
+
 # V3.8.4 PROD — Décompte réel du matériel
 
 - Ajout du statut **Matériel préparé**.
