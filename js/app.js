@@ -1,11 +1,11 @@
-/* V4.0.2 TEST MODULAIRE — recettes et répartition multi-ateliers. */
+/* V4.0.2 PROD MODULAIRE — recettes et répartition multi-ateliers. */
 "use strict";
 
-var APP_VERSION = "TEST V4.0.2 MODULAIRE";
+var APP_VERSION = "PROD V4.0.2 MODULAIRE";
 var APP_VERSION_NOTE = "Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle des totaux et calcul de stock précis.";
 var APP_CHANGELOG = [
-  "V4.0.2 TEST — Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle du total et calcul précis du stock.",
-  "V4.0.2 TEST — Bibliothèque des ateliers dynamique renforcée : recherche, classement actifs/archivés, contrôles de doublons et accès direct aux recettes matériel.",
+  "V4.0.2 PROD — Recettes matériel et ateliers multiples : répartition obligatoire des participants par création, contrôle du total et calcul précis du stock.",
+  "V4.0.2 PROD — Bibliothèque des ateliers dynamique renforcée : recherche, classement actifs/archivés, contrôles de doublons et accès direct aux recettes matériel.",
   "V3.8.5 PROD — Décompte réel du stock à la préparation des ateliers, blocage en cas de stock insuffisant, ajustements et réintégration sécurisée.",
   "V3.8.3 PROD — Bibliothèque matériel : tri alphabétique, recherche, filtres, statuts et édition complète de chaque article.",
   "V3.8.2 TEST — Recettes matériel configurables : ajout libre d’articles stock et association à un ou plusieurs ateliers avec quantité par personne.",

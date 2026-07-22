@@ -1,4 +1,4 @@
-# V4.0.2 TEST
+# V4.0.2 PROD
 
 - Bibliothèque des ateliers dynamique renforcée.
 - Recherche et filtre Actifs / Archivés.
@@ -185,7 +185,7 @@
 - Centre de notifications.
 - Correctifs encaissements ateliers.
 
-## V4.0.2 TEST — Recettes et répartition multi-ateliers
+## V4.0.2 PROD — Recettes et répartition multi-ateliers
 
 - Sélection de plusieurs créations dans un même atelier programmé.
 - Nombre total de participants obligatoire.
