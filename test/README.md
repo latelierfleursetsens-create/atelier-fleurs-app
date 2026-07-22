@@ -1,27 +1,34 @@
-# MyBusiness — V4.0.2 TEST
+# MyBusiness — V4.0.6 TEST
 
-## Bibliothèque des ateliers dynamique
+## Nouveauté
 
-Cette version test est construite à partir de la V3.9.2 fournie.
-
-- Création et modification des thèmes d’atelier.
-- Association d’un thème à plusieurs contextes : thématique, structure et privé/EVJF.
-- Recherche par nom, catégorie, description ou contexte.
-- Classement séparé des ateliers actifs et archivés.
-- Duplication et archivage.
-- Accès direct à la recette de matériel de chaque thème.
-- Contrôle des noms en double.
-- Vérification des participants minimum et maximum.
-- Les recettes restent exprimées en quantité par personne et alimentent le calcul de stock existant.
+- Ajout du statut **En attente de validation du devis** dans le menu déroulant des ateliers.
+- Ce statut est désormais sélectionné par défaut lors de la création d’un nouvel atelier.
+- Les statuts et les ateliers existants restent inchangés.
+- La réservation automatique du stock continue de fonctionner dès l’enregistrement, y compris avec ce nouveau statut.
 
 ## Test conseillé
 
-1. Ouvrir Matériel > Bibliothèque des ateliers.
-2. Créer un thème « TEST Noël ».
-3. Cocher au moins deux contextes.
-4. Enregistrer puis cliquer sur Configurer le matériel.
-5. Ajouter deux articles avec une quantité par personne.
-6. Vérifier que le thème apparaît dans les formulaires concernés.
-7. Archiver le thème et vérifier son classement.
+1. Créer un nouvel atelier.
+2. Vérifier que le statut par défaut est **En attente de validation du devis**.
+3. Enregistrer et contrôler que l’atelier apparaît dans le groupe correspondant.
+4. Passer ensuite le statut à **Booké** et vérifier le déplacement dans la liste.
 
-Fais une sauvegarde JSON avant les essais.
+
+## Répartition immédiate des participants
+
+Cette version corrige l’ergonomie de la sélection multi-ateliers.
+
+- Dès qu’un type d’atelier est coché, le champ **Participants pour cette création** apparaît immédiatement.
+- Il n’est plus nécessaire d’enregistrer puis de rouvrir l’atelier.
+- Plusieurs créations peuvent toujours être sélectionnées.
+- Le total des participants reste obligatoire et doit correspondre à la somme répartie.
+- Le stock réel est toujours déduit uniquement lors de l’enregistrement de l’atelier.
+
+## Test conseillé
+
+1. Créer un nouvel atelier.
+2. Cocher un premier type de création et vérifier que le champ participants apparaît immédiatement.
+3. Cocher un second type et saisir les deux répartitions.
+4. Vérifier le récapitulatif du total.
+5. Enregistrer et contrôler la déduction du stock.
