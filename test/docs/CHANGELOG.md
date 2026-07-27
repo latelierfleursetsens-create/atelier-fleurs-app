@@ -1,3 +1,14 @@
+# V4.1.2 TEST — Correction des encaissements Squarespace
+
+- Ajout d’un bouton **Modifier** dans l’historique Squarespace.
+- Ajout d’un bouton **Corriger** dans l’historique des paiements de chaque atelier.
+- Correction possible de l’atelier, des places, du type de paiement, du tarif et du montant encaissé.
+- Suppression automatique de l’ancien rattachement avant création du nouveau.
+- Recalcul immédiat des places et des montants des ateliers concernés.
+- Contrôle anti-doublon du numéro de commande conservé, sans bloquer la commande en cours de modification.
+
+---
+
 # V4.1.1 TEST — Ateliers complets et commandes multi-places
 
 - Tous les ateliers non annulés sont visibles dans la sélection Squarespace.

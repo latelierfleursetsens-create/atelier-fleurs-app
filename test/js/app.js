@@ -1,9 +1,10 @@
-/* V4.1.1 TEST MODULAIRE — Tous les ateliers visibles, commandes multi-places et acompte/total Squarespace. */
+/* V4.1.2 TEST MODULAIRE — Correction des rattachements Squarespace depuis l’historique. */
 "use strict";
 
-var APP_VERSION = "TEST V4.1.1 MODULAIRE";
-var APP_VERSION_NOTE = "Les commandes Squarespace peuvent réserver plusieurs places et être payées en acompte ou en totalité, sans double comptage du CA de l’atelier.";
+var APP_VERSION = "TEST V4.1.2 MODULAIRE";
+var APP_VERSION_NOTE = "Chaque encaissement Squarespace peut être modifié depuis l’historique afin de corriger l’atelier, les places, le type de paiement et le montant, avec recalcul automatique.";
 var APP_CHANGELOG = [
+  "V4.1.2 TEST — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
   "V4.1.1 TEST — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
   "V4.1.0 TEST — Nouveaux ateliers visibles dans les réservations site, séparation paiements atelier / ventes indépendantes, suivi des places et suppression du double affichage du CA.",
   "V4.0.9 PROD — Ajout d’un tarif par personne pour les ateliers thématiques site et calcul automatique du montant de référence à partir du nombre de participants prévu.",
@@ -86,7 +87,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -1626,7 +1627,7 @@ function viewAchatsPreview(){
 }
 
 
-/* ===================== Ventes site internet V4.1.1 ===================== */
+/* ===================== Ventes site internet V4.1.2 ===================== */
 var SITE_ACTIVITES=["Atelier","Produit","Box DIY","Mariage","Autre"];
 
 function isSiteSaleAtelierPayment(s){
@@ -1721,6 +1722,7 @@ function siteSalesSummary(list){
 }
 
 function newSiteSaleDraft(){
+  ui.siteSaleEditingId=null;
   var firstAtelier=siteEligibleAteliers()[0]||null;
   ui.siteSaleDraft={
     id:uid(),
@@ -1751,6 +1753,44 @@ function newSiteSaleDraft(){
     createdAt:new Date().toISOString()
   };
   setSiteDraftAtelier(ui.siteSaleDraft,ui.siteSaleDraft.atelierId,true);
+}
+
+function editSiteSale(id){
+  var original=(state.ventesSite||[]).find(function(s){return s.id===id;});
+  if(!original){ toast("Encaissement introuvable."); return; }
+  var s=Object.assign({},original);
+  s.id=original.id;
+  s.clientMode=(s.clientId&&(state.clients||[]).some(function(c){return c.id===s.clientId;}))?"existant":"nouveau";
+  s.activite=isSiteSaleAtelierPayment(s)?"Atelier":(s.activite||"Autre");
+  if(s.activite==="Atelier"){
+    s.nature="atelier_payment";
+    s.caContractuelInclus=true;
+    s.nbPlaces=sitePlacesCount(s.nbPlaces||s.nombrePlaces||1);
+    var storedTotal=Number(s.atelierPrixTotal)||0;
+    var unit=Number(s.atelierPrixUnitaire)||Number(s.prixUnitaire)||0;
+    if(!unit) unit=storedTotal?safeSiteUnitPrice(storedTotal,s.nbPlaces):0;
+    var linkedAtelier=getAtelier(s.atelierId);
+    if(!unit&&linkedAtelier) unit=atelierDefaultSitePrice(linkedAtelier);
+    s.atelierPrixUnitaire=r2(unit);
+    s.atelierPrixTotal=siteContractTotal(s.atelierPrixUnitaire,s.nbPlaces);
+    s.atelierPaiementType=s.atelierPaiementType==="acompte30"?"acompte30":"total";
+    s.prestation=s.prestation||s.produit||"Place atelier";
+    if(linkedAtelier) s.atelierLabel=siteAtelierDisplayLabel(linkedAtelier);
+  }else{
+    s.nature="independent_sale";
+    s.caContractuelInclus=false;
+  }
+  ui.siteSaleDraft=s;
+  ui.siteSaleEditingId=id;
+  ui.confirmDelete=null;
+  ui.tab="clientsModule";
+  ui.clientsSub="ventesSite";
+  render();
+  setTimeout(function(){ window.scrollTo(0,0); },0);
+}
+function safeSiteUnitPrice(total,places){
+  places=sitePlacesCount(places);
+  return r2((Number(total)||0)/places);
 }
 
 function captureSiteSaleDraft(){
@@ -1815,6 +1855,7 @@ function siteActiviteOptions(selected){
 
 function viewSiteSaleForm(){
   var s=ui.siteSaleDraft;
+  var editing=!!ui.siteSaleEditingId;
   var clientPart='';
   if(state.clients.length){
     clientPart+='<div class="row-actions" style="margin-top:0;margin-bottom:12px;">'+
@@ -1864,7 +1905,8 @@ function viewSiteSaleForm(){
   }
 
   var isAtelier=s.activite==="Atelier";
-  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">'+(isAtelier?'Nouveau paiement atelier via le site':'Nouvelle vente site indépendante')+'</h3><button class="btn small ghost" data-action="site-cancel">Annuler</button></div>'+
+  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">'+(editing?(isAtelier?'Modifier le paiement atelier':'Modifier la vente indépendante'):(isAtelier?'Nouveau paiement atelier via le site':'Nouvelle vente site indépendante'))+'</h3><button class="btn small ghost" data-action="site-cancel">Annuler</button></div>'+
+    (editing?'<div class="summary" style="margin-bottom:12px;background:var(--gold-s);"><div class="totrow"><span>Correction d’un encaissement existant</span><b>Le précédent rattachement sera remplacé</b></div></div>':'')+
     '<p class="muted" style="margin-top:0;">'+(isAtelier?'Le paiement sera rattaché à l’atelier et diminuera son reste à encaisser. Il ne sera pas ajouté une seconde fois au CA prévu de l’atelier.':'Cette vente est indépendante d’un atelier et constitue un nouveau chiffre d’affaires encaissé.')+'</p>'+
     '<div class="inline"><div><label class="field"><span>Date de commande</span><input id="siteDate" type="date" value="'+esc(s.date)+'"></label></div>'+
     '<div><label class="field"><span>N° commande Squarespace</span><input id="siteCommande" value="'+esc(s.commande||"")+'" placeholder="Ex : #000123"></label></div></div>'+
@@ -1876,7 +1918,7 @@ function viewSiteSaleForm(){
     '<label class="field"><span>Frais éventuels (€)</span><input id="siteFrais" type="number" min="0" step="0.01" value="'+esc(s.frais||"")+'"></label>'+
     '<label class="field"><span>Notes</span><textarea id="siteNotes" placeholder="Informations utiles…">'+esc(s.notes||"")+'</textarea></label>'+
     '<div class="summary"><div class="totrow"><span>Nature comptable dans MyBusiness</span><b>'+(isAtelier?'Paiement d’un atelier existant':'Vente indépendante')+'</b></div><div class="totrow"><span>Moyen de paiement</span><b>Site internet</b></div><div class="totrow"><span>Statut</span><b>Payé</b></div></div>'+
-    '<div class="row-actions"><button class="btn primary" data-action="site-save">'+(isAtelier?'Enregistrer le paiement atelier':'Enregistrer la vente indépendante')+'</button></div></div>';
+    '<div class="row-actions"><button class="btn primary" data-action="site-save">'+(editing?'Enregistrer les corrections':(isAtelier?'Enregistrer le paiement atelier':'Enregistrer la vente indépendante'))+'</button></div></div>';
 }
 
 function viewVentesSite(){
@@ -1901,7 +1943,7 @@ function viewVentesSite(){
       (s.atelierLabel?'<div class="muted" style="font-size:12px;">Atelier : '+esc(s.atelierLabel)+'</div>':'')+
       (linked?'<div class="muted" style="font-size:12px;">'+sitePlacesCount(s.nbPlaces)+' place(s) · '+(s.atelierPaiementType==="acompte30"?'acompte 30 %':'paiement total')+' · montant contractuel '+euro(s.atelierPrixTotal||0)+'</div>':'')+
       (s.notes?'<div class="muted" style="font-size:12px;">'+esc(s.notes)+'</div>':'')+
-      '</div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(s.montant||0)+' encaissé</b><div style="margin-top:6px;"><button class="btn small danger" data-action="site-del-'+s.id+'">'+(del?'Confirmer':'Supprimer')+'</button></div></div></div>';
+      '</div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(s.montant||0)+' encaissé</b><div class="row-actions" style="margin-top:6px;justify-content:flex-end;"><button class="btn small ghost" data-action="site-edit-'+s.id+'">Modifier</button><button class="btn small danger" data-action="site-del-'+s.id+'">'+(del?'Confirmer':'Supprimer')+'</button></div></div></div>';
   });
   html+='</div>';
   return html;
@@ -1981,8 +2023,11 @@ function removeSiteSaleFromAtelier(s){
 function saveSiteSale(){
   captureSiteSaleDraft();
   var s=ui.siteSaleDraft; if(!s) return;
+  var editingId=ui.siteSaleEditingId||"";
+  var existingIndex=editingId?(state.ventesSite||[]).findIndex(function(x){return x.id===editingId;}):-1;
+  var oldSale=existingIndex>=0?state.ventesSite[existingIndex]:null;
   if(!(s.client||"").trim()){ toast("Indique la cliente."); return; }
-  if(s.commande && (state.ventesSite||[]).some(function(x){return x.commande===s.commande;})){
+  if(s.commande && (state.ventesSite||[]).some(function(x){return x.commande===s.commande&&x.id!==editingId;})){
     toast("Cette commande Squarespace est déjà enregistrée."); return;
   }
   if(s.activite==="Atelier"){
@@ -2001,12 +2046,23 @@ function saveSiteSale(){
 
   resolveSiteSaleClient(s);
   if(!(s.produit||"").trim()) s.produit=(s.activite==="Atelier"?(s.prestation||"Réservation atelier"):"Vente indépendante du site");
-  syncSiteSaleToAtelier(s);
+  s.updatedAt=new Date().toISOString();
 
   state.ventesSite=state.ventesSite||[];
-  state.ventesSite.unshift(Object.assign({},s));
+  if(oldSale){
+    s.id=oldSale.id;
+    s.createdAt=oldSale.createdAt||s.createdAt||new Date().toISOString();
+    removeSiteSaleFromAtelier(oldSale);
+    syncSiteSaleToAtelier(s);
+    state.ventesSite[existingIndex]=Object.assign({},s);
+  }else{
+    syncSiteSaleToAtelier(s);
+    state.ventesSite.unshift(Object.assign({},s));
+  }
   ui.siteSaleDraft=null;
-  saveCache(); render(); toast(isSiteSaleAtelierPayment(s)?"Paiement rattaché à l’atelier sans double comptage du CA.":"Vente site indépendante enregistrée.");
+  ui.siteSaleEditingId=null;
+  saveCache(); render();
+  toast(oldSale?"Encaissement corrigé : le décompte du bon atelier a été recalculé.":(isSiteSaleAtelierPayment(s)?"Paiement rattaché à l’atelier sans double comptage du CA.":"Vente site indépendante enregistrée."));
 }
 
 function viewSiteSalesPreview(){
@@ -3260,7 +3316,7 @@ function atelierPaymentRows(a){
   var rows=[];
   (state.ventesSite||[]).forEach(function(s){
     if(isSiteSaleAtelierPayment(s)&&s.atelierId===a.id){
-      rows.push({date:s.date||"",client:s.client||"Participante",source:"Squarespace",reference:s.commande||"",montant:Number(s.montant)||0,places:sitePlacesCount(s.nbPlaces),paiementType:s.atelierPaiementType||"total",contract:Number(s.atelierPrixTotal)||0});
+      rows.push({date:s.date||"",client:s.client||"Participante",source:"Squarespace",reference:s.commande||"",montant:Number(s.montant)||0,places:sitePlacesCount(s.nbPlaces),paiementType:s.atelierPaiementType||"total",contract:Number(s.atelierPrixTotal)||0,siteSaleId:s.id});
     }
   });
   atelierFacturesLiees(a).forEach(function(f){
@@ -3283,7 +3339,7 @@ function viewAtelierPaymentSummary(a){
     '<div class="flexb"><h3 style="margin:0 0 8px;">Historique des paiements rattachés</h3><span class="muted">'+rows.length+' paiement(s)</span></div>';
   if(!rows.length) html+='<p class="muted" style="margin:0;">Aucun paiement encore enregistré pour cet atelier.</p>';
   else rows.forEach(function(r){
-    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(r.client)+'</b><div class="muted" style="font-size:12px;">'+(r.date?frDate(r.date)+' · ':'')+esc(r.source)+(r.reference?' · '+esc(r.reference):'')+(r.places?' · '+r.places+' place(s) · '+(r.paiementType==="acompte30"?'acompte 30 %':'paiement total'):'')+'</div></div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(r.montant)+'</b>'+(r.contract?'<div class="muted" style="font-size:11px;">sur '+euro(r.contract)+'</div>':'')+'</div></div>';
+    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(r.client)+'</b><div class="muted" style="font-size:12px;">'+(r.date?frDate(r.date)+' · ':'')+esc(r.source)+(r.reference?' · '+esc(r.reference):'')+(r.places?' · '+r.places+' place(s) · '+(r.paiementType==="acompte30"?'acompte 30 %':'paiement total'):'')+'</div></div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(r.montant)+'</b>'+(r.contract?'<div class="muted" style="font-size:11px;">sur '+euro(r.contract)+'</div>':'')+(r.siteSaleId?'<div style="margin-top:5px;"><button class="btn small ghost" data-action="site-edit-'+r.siteSaleId+'">Corriger</button></div>':'')+'</div></div>';
   });
   return html+'</div>';
 }
@@ -6126,7 +6182,8 @@ function handleAction(action){
 
   
   if(action==="site-new"){ newSiteSaleDraft(); ui.tab="clientsModule"; ui.clientsSub="ventesSite"; render(); return; }
-  if(action==="site-cancel"){ ui.siteSaleDraft=null; render(); return; }
+  if(action==="site-cancel"){ ui.siteSaleDraft=null; ui.siteSaleEditingId=null; render(); return; }
+  if(action.indexOf("site-edit-")===0){ editSiteSale(action.slice(10)); return; }
   if(action==="site-mode-nouveau"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="nouveau"; render(); return; }
   if(action==="site-mode-existant"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="existant"; if(!ui.siteSaleDraft.clientId&&state.clients[0]) ui.siteSaleDraft.clientId=state.clients[0].id; render(); return; }
   if(action==="site-activite-change"){ captureSiteSaleDraft(); render(); return; }
@@ -6139,6 +6196,7 @@ function handleAction(action){
     var saleToDelete=(state.ventesSite||[]).find(function(s){return s.id===sid;});
     removeSiteSaleFromAtelier(saleToDelete);
     state.ventesSite=(state.ventesSite||[]).filter(function(s){return s.id!==sid;});
+    if(ui.siteSaleEditingId===sid){ ui.siteSaleEditingId=null; ui.siteSaleDraft=null; }
     ui.confirmDelete=null; saveCache(); render(); toast(saleToDelete&&isSiteSaleAtelierPayment(saleToDelete)?"Paiement atelier supprimé.":"Vente site supprimée."); return;
   }
 
