@@ -1,55 +1,37 @@
-# MyBusiness — V4.0.7 TEST
+# MyBusiness — V4.1.0 TEST
 
-## Nouveauté Finances
+## Objectif de la version
 
-Dans **Finances > Trésorerie**, un nouveau bloc affiche désormais :
+Séparer clairement les **paiements de places d’atelier reçus via Squarespace** des **ventes internet indépendantes**, afin d’éviter tout double affichage du chiffre d’affaires contractuel.
 
-- le montant restant à encaisser pour les **ateliers** ;
-- le montant restant à encaisser pour les **mariages** ;
-- le **total général à encaisser** ;
-- le détail de chaque dossier avec sa date, son statut et un bouton pour ouvrir directement la fiche.
+## Nouveautés
 
-Les montants sont calculés automatiquement après déduction des paiements déjà encaissés. Les ateliers annulés ou terminés et les mariages annulés, perdus ou terminés sont exclus.
+- La liste des ateliers proposée dans **Paiements et ventes du site** est reconstruite à chaque ouverture.
+- Tous les ateliers thématiques non annulés apparaissent, avec les prochains ateliers en premier.
+- Le tarif par personne enregistré dans l’atelier est automatiquement repris.
+- Une réservation Squarespace est enregistrée comme **paiement rattaché à l’atelier**.
+- Le paiement diminue le reste à encaisser, sans créer un second CA contractuel.
+- Les ventes de box, produits et autres commandes restent des ventes indépendantes.
+- Chaque atelier thématique dispose d’un bloc **Places et paiements** : CA prévu, encaissé, reste, réservations et places disponibles.
+- Les historiques distinguent désormais « Paiement atelier » et « Vente indépendante ».
 
-## Test conseillé
+## Exemple de contrôle
 
-1. Ouvrir **Finances > Trésorerie**.
-2. Vérifier les trois indicateurs Ateliers, Mariages et Total.
-3. Comparer un atelier avec son reste à encaisser affiché dans sa fiche.
-4. Comparer un mariage avec le reste affiché dans son budget.
-5. Cliquer sur **Ouvrir** depuis le tableau financier.
+Atelier de 10 personnes à 30 € :
 
-# MyBusiness — V4.0.6 TEST
+- CA prévu de l’atelier : **300 €**
+- 1 place payée sur Squarespace : **30 € encaissés**
+- Reste à encaisser : **270 €**
+- CA contractuel supplémentaire créé par la réservation : **0 €**
+- CA réellement encaissé à déclarer à cet instant : **30 €**
 
-## Nouveauté
+## Tests conseillés avant passage en PROD
 
-- Ajout du statut **En attente de validation du devis** dans le menu déroulant des ateliers.
-- Ce statut est désormais sélectionné par défaut lors de la création d’un nouvel atelier.
-- Les statuts et les ateliers existants restent inchangés.
-- La réservation automatique du stock continue de fonctionner dès l’enregistrement, y compris avec ce nouveau statut.
+1. Créer un nouvel atelier thématique de 10 places à 30 € et l’enregistrer.
+2. Ouvrir **Clients → Paiements et ventes du site** et vérifier qu’il apparaît immédiatement.
+3. Enregistrer une place payée 30 € sur Squarespace.
+4. Vérifier dans l’atelier : 1 place réservée, 9 restantes, 30 € encaissés et 270 € restant à encaisser.
+5. Vérifier dans Finances que le CA encaissé du mois augmente seulement de 30 €.
+6. Enregistrer une Box DIY à 19,90 € et vérifier qu’elle apparaît comme vente indépendante.
 
-## Test conseillé
-
-1. Créer un nouvel atelier.
-2. Vérifier que le statut par défaut est **En attente de validation du devis**.
-3. Enregistrer et contrôler que l’atelier apparaît dans le groupe correspondant.
-4. Passer ensuite le statut à **Booké** et vérifier le déplacement dans la liste.
-
-
-## Répartition immédiate des participants
-
-Cette version corrige l’ergonomie de la sélection multi-ateliers.
-
-- Dès qu’un type d’atelier est coché, le champ **Participants pour cette création** apparaît immédiatement.
-- Il n’est plus nécessaire d’enregistrer puis de rouvrir l’atelier.
-- Plusieurs créations peuvent toujours être sélectionnées.
-- Le total des participants reste obligatoire et doit correspondre à la somme répartie.
-- Le stock réel est toujours déduit uniquement lors de l’enregistrement de l’atelier.
-
-## Test conseillé
-
-1. Créer un nouvel atelier.
-2. Cocher un premier type de création et vérifier que le champ participants apparaît immédiatement.
-3. Cocher un second type et saisir les deux répartitions.
-4. Vérifier le récapitulatif du total.
-5. Enregistrer et contrôler la déduction du stock.
+Cette version est une version **TEST**. Conserver la V4.0.9 PROD jusqu’à validation complète.
