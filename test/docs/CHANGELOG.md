@@ -1,3 +1,13 @@
+# V4.1.1 TEST — Ateliers complets et commandes multi-places
+
+- Tous les ateliers non annulés sont visibles dans la sélection Squarespace.
+- Ajout du nombre de places réservées par commande.
+- Décompte des places basé sur la quantité achetée.
+- Ajout du prix unitaire et du montant contractuel total de la commande.
+- Choix entre acompte de 30 % et paiement total.
+- Historique enrichi avec quantité, type de paiement et montant contractuel.
+- Compatibilité automatique avec les anciennes réservations, considérées comme une place.
+
 # V4.1.0 TEST — Paiements Squarespace rattachés aux ateliers
 
 - Nouveaux ateliers visibles immédiatement dans le sélecteur des opérations site.

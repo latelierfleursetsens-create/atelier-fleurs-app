@@ -1,37 +1,33 @@
-# MyBusiness — V4.1.0 TEST
+# MyBusiness — V4.1.1 TEST
 
-## Objectif de la version
+## Corrections et nouveautés
 
-Séparer clairement les **paiements de places d’atelier reçus via Squarespace** des **ventes internet indépendantes**, afin d’éviter tout double affichage du chiffre d’affaires contractuel.
+- La liste Squarespace affiche désormais **tous les ateliers non annulés**, pas uniquement les ateliers reconnus comme « Atelier thématique site ».
+- Les ateliers thématiques à venir restent proposés en premier, puis les autres ateliers à venir et enfin les ateliers passés ou terminés.
+- Une commande Squarespace peut réserver **plusieurs places**.
+- Le décompte des places utilise le nombre réellement acheté dans la commande.
+- Le prix par place est prérempli depuis l’atelier et le montant contractuel de la commande est calculé automatiquement.
+- Le paiement peut être enregistré en **acompte de 30 %** ou en **paiement total**.
+- Le montant réellement encaissé reste modifiable pour correspondre exactement à Squarespace.
+- Les paiements diminuent le reste à encaisser de l’atelier sans ajouter une seconde fois son chiffre d’affaires.
 
-## Nouveautés
+## Exemple
 
-- La liste des ateliers proposée dans **Paiements et ventes du site** est reconstruite à chaque ouverture.
-- Tous les ateliers thématiques non annulés apparaissent, avec les prochains ateliers en premier.
-- Le tarif par personne enregistré dans l’atelier est automatiquement repris.
-- Une réservation Squarespace est enregistrée comme **paiement rattaché à l’atelier**.
-- Le paiement diminue le reste à encaisser, sans créer un second CA contractuel.
-- Les ventes de box, produits et autres commandes restent des ventes indépendantes.
-- Chaque atelier thématique dispose d’un bloc **Places et paiements** : CA prévu, encaissé, reste, réservations et places disponibles.
-- Les historiques distinguent désormais « Paiement atelier » et « Vente indépendante ».
+Atelier de 10 places à 30 € :
 
-## Exemple de contrôle
+- commande de 3 places : montant contractuel **90 €** ;
+- acompte de 30 % encaissé : **27 €** ;
+- places réservées : **3 / 10** ;
+- places restantes : **7** ;
+- CA prévu de l’atelier : toujours **300 €** ;
+- reste total à encaisser sur l’atelier : **273 €**.
 
-Atelier de 10 personnes à 30 € :
+## Test conseillé
 
-- CA prévu de l’atelier : **300 €**
-- 1 place payée sur Squarespace : **30 € encaissés**
-- Reste à encaisser : **270 €**
-- CA contractuel supplémentaire créé par la réservation : **0 €**
-- CA réellement encaissé à déclarer à cet instant : **30 €**
+1. Créer ou ouvrir plusieurs ateliers de catégories différentes.
+2. Vérifier qu’ils apparaissent tous dans la liste Squarespace, sauf les ateliers annulés.
+3. Enregistrer une commande de 3 places avec acompte de 30 %.
+4. Vérifier le décompte des places et les montants dans la fiche atelier et dans Finances.
+5. Refaire le test avec un paiement total.
 
-## Tests conseillés avant passage en PROD
-
-1. Créer un nouvel atelier thématique de 10 places à 30 € et l’enregistrer.
-2. Ouvrir **Clients → Paiements et ventes du site** et vérifier qu’il apparaît immédiatement.
-3. Enregistrer une place payée 30 € sur Squarespace.
-4. Vérifier dans l’atelier : 1 place réservée, 9 restantes, 30 € encaissés et 270 € restant à encaisser.
-5. Vérifier dans Finances que le CA encaissé du mois augmente seulement de 30 €.
-6. Enregistrer une Box DIY à 19,90 € et vérifier qu’elle apparaît comme vente indépendante.
-
-Cette version est une version **TEST**. Conserver la V4.0.9 PROD jusqu’à validation complète.
+Cette version est une version **TEST**. Conserver la V4.0.9 PROD tant que les contrôles ne sont pas validés.
