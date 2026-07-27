@@ -1,7 +1,7 @@
 /* V4.2.0 TEST MODULAIRE — Correction du remplissage des ateliers privés dans la liste. */
 "use strict";
 
-var APP_VERSION = "TEST V4.1.3 MODULAIRE";
+var APP_VERSION = "TEST V4.2.0 MODULAIRE";
 var APP_VERSION_NOTE = "Les participantes soldées et celles ayant encore un solde à régler sont différenciées visuellement. Le remplissage et le statut COMPLET apparaissent dans la liste des ateliers.";
 var APP_CHANGELOG = [
   "V4.2.0 TEST — Ateliers multi-activités : plusieurs choix à une même date, capacité et tarif par choix, réservations et stock ventilés par activité.",
@@ -1631,7 +1631,7 @@ function viewAchatsPreview(){
 }
 
 
-/* ===================== Ventes site internet V4.1.3 ===================== */
+/* ===================== Ventes site internet V4.2.0 ===================== */
 var SITE_ACTIVITES=["Atelier","Produit","Box DIY","Mariage","Autre"];
 
 function isSiteSaleAtelierPayment(s){

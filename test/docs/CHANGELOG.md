@@ -1,4 +1,6 @@
 # V4.2.0 TEST
+- Correction de l’affichage du numéro de version dans le tableau de bord et l’onglet navigateur.
+- Mise à jour des paramètres de cache CSS/JavaScript vers 4.2.0.
 - Ateliers multi-activités à une date et un lieu communs.
 - Capacité, tarif, réservations et stock distincts par activité.
 - Choix de l’activité dans les ventes Squarespace et les ajouts manuels.

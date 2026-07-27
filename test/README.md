@@ -1,5 +1,11 @@
 # MyBusiness — V4.2.0 TEST
 
+## Correction d’affichage de version
+
+- Le tableau de bord affiche désormais **TEST V4.2.0 MODULAIRE**.
+- L’onglet du navigateur affiche désormais **MyBusiness — TEST V4.2.0 MODULAIRE**.
+- Les paramètres de cache des fichiers CSS et JavaScript ont été actualisés pour forcer le chargement de cette version.
+
 ## Correction apportée
 
 Une réservation Squarespace rattachée à un atelier apparaît maintenant dans la fiche de cet atelier, **même lorsque l’atelier est classé comme atelier privé ou atelier en structure**.
