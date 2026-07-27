@@ -1,9 +1,10 @@
 /* V4.0.9 PROD MODULAIRE — Tarif par personne pour les ateliers thématiques site. */
 "use strict";
 
-var APP_VERSION = "PROD V4.0.9 MODULAIRE";
-var APP_VERSION_NOTE = "Les ateliers thématiques site disposent désormais d’un tarif par personne, utilisé avec le nombre de participants prévu pour alimenter les calculs financiers.";
+var APP_VERSION = "PROD V4.0.10 MODULAIRE";
+var APP_VERSION_NOTE = "Les réservations Squarespace liées à un atelier sont désormais identifiées comme des paiements de cet atelier, sans être présentées comme un chiffre d’affaires indépendant supplémentaire.";
 var APP_CHANGELOG = [
+  "V4.0.10 PROD — Nouveaux ateliers visibles dans les ventes site et séparation entre paiements d’atelier et ventes internet indépendantes.",
   "V4.0.9 PROD — Ajout d’un tarif par personne pour les ateliers thématiques site et calcul automatique du montant de référence à partir du nombre de participants prévu.",
   "V4.0.8 PROD — Finances devient la source unique des montants à encaisser ; retrait des synthèses financières dans Ateliers et exclusion des devis en attente de validation.",
   "V4.0.7 PROD — Ajout dans Finances des montants à encaisser Ateliers, Mariages et Total, avec tableau détaillé des dossiers.",
@@ -1625,8 +1626,27 @@ function viewAchatsPreview(){
 /* ===================== Ventes site internet V3.0.0 ===================== */
 var SITE_ACTIVITES=["Atelier","Produit","Box DIY","Mariage","Autre"];
 
+function siteSaleAteliersDisponibles(){
+  var today=todayISO();
+  return (state.ateliers||[]).filter(function(a){
+    return a && a.statut!=="annule";
+  }).slice().sort(function(a,b){
+    var af=(a.date||"")>=today?0:1, bf=(b.date||"")>=today?0:1;
+    return af-bf || (a.date||"9999").localeCompare(b.date||"9999") || (a.createdAt||"").localeCompare(b.createdAt||"");
+  });
+}
+function siteSaleLieeAtelier(s){
+  return !!(s && s.activite==="Atelier" && s.atelierId);
+}
+function siteSaleTarifAtelier(a){
+  if(!a) return 0;
+  var tarif=Number(a.tarifParPersonne)||0;
+  if(tarif>0) return tarif;
+  var parts=(a.participants||[]).filter(function(p){return Number(p.montant)>0;});
+  return parts.length ? Number(parts[0].montant)||0 : 0;
+}
 function newSiteSaleDraft(){
-  var firstAtelier=(state.ateliers||[]).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");})[0];
+  var firstAtelier=siteSaleAteliersDisponibles()[0];
   ui.siteSaleDraft={
     id:uid(),
     date:todayISO(),
@@ -1643,7 +1663,7 @@ function newSiteSaleDraft(){
     atelierLabel:"",
     prestation:"Place atelier",
     atelierPaiementType:"acompte30",
-    atelierPrixTotal:0,
+    atelierPrixTotal:firstAtelier?siteSaleTarifAtelier(firstAtelier):0,
     montant:0,
     frais:0,
     notes:"",
@@ -1670,11 +1690,14 @@ function captureSiteSaleDraft(){
     s.tel=val("siteTel");
   }
 
+  var previousAtelierId=s.atelierId||"";
   s.atelierId=val("siteAtelierId")||s.atelierId||"";
   s.prestation=val("sitePrestation")||s.prestation||"";
+  var atelierChanged=s.activite==="Atelier" && s.atelierId && s.atelierId!==previousAtelierId;
+  var selectedTarif=atelierChanged?siteSaleTarifAtelier(getAtelier(s.atelierId)):0;
   s.produit=val("siteProduit");
   s.atelierPaiementType=val("siteAtelierPaiementType")||s.atelierPaiementType||"acompte30";
-  s.atelierPrixTotal=num(val("siteAtelierPrixTotal"))||num(s.atelierPrixTotal)||0;
+  s.atelierPrixTotal=(atelierChanged && selectedTarif>0)?selectedTarif:(num(val("siteAtelierPrixTotal"))||num(s.atelierPrixTotal)||0);
 
   if(s.activite==="Atelier"){
     var a=getAtelier(s.atelierId);
@@ -1721,7 +1744,10 @@ function viewSiteSaleForm(){
 
   var atelierPart='';
   if(s.activite==="Atelier"){
-    var ateliers=(state.ateliers||[]).filter(function(a){return atelierMode(a)==="thematique";}).slice().sort(function(a,b){return (a.date||"9999").localeCompare(b.date||"9999");});
+    var ateliers=siteSaleAteliersDisponibles();
+    if(s.atelierId && !ateliers.some(function(a){return a.id===s.atelierId;})){
+      var selectedAtelier=getAtelier(s.atelierId); if(selectedAtelier) ateliers.unshift(selectedAtelier);
+    }
     var prixTotal=num(s.atelierPrixTotal)||0;
     var montantSug=s.atelierPaiementType==="acompte30"?r2(prixTotal*0.30):prixTotal;
     var soldeSug=s.atelierPaiementType==="acompte30"?r2(prixTotal-montantSug):0;
@@ -1729,7 +1755,7 @@ function viewSiteSaleForm(){
     if(!ateliers.length){
       atelierPart+='<p class="muted">Aucun atelier thématique site créé pour le moment. Crée d’abord un atelier en catégorie « Atelier thématique site » dans Clients → Ateliers.</p>';
     } else {
-      atelierPart+='<label class="field"><span>Atelier concerné</span><select id="siteAtelierId" data-action="site-atelier-change">'+ateliers.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc((a.date?frDate(a.date)+" · ":"")+(a.type||"Atelier")+" · "+(a.theme||"Sans thème")+(a.lieu?" · "+a.lieu:""))+'</option>';}).join("")+'</select><div class="hint">La participante sera ajoutée automatiquement dans cet atelier.</div></label>'+
+      atelierPart+='<label class="field"><span>Atelier concerné</span><select id="siteAtelierId" data-action="site-atelier-change">'+ateliers.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc((a.date?frDate(a.date)+" · ":"")+atelierModeLabel(atelierMode(a))+" · "+(a.theme||a.type||"Sans thème")+(a.lieu?" · "+a.lieu:"")+(siteSaleTarifAtelier(a)>0?" · "+euro(siteSaleTarifAtelier(a))+" / pers.":""))+'</option>';}).join("")+'</select><div class="hint">La participante sera ajoutée automatiquement dans cet atelier.</div></label>'+
       '<label class="field"><span>Prestation / place réservée</span><input id="sitePrestation" value="'+esc(s.prestation||"")+'" placeholder="Ex : Place atelier couronne, demi-couronne…"></label>'+
       '<div class="inline"><div><label class="field"><span>Type de réservation Squarespace</span><select id="siteAtelierPaiementType" data-action="site-atelier-pay-change"><option value="acompte30"'+(s.atelierPaiementType==="acompte30"?' selected':'')+'>Acompte 30 %</option><option value="total"'+(s.atelierPaiementType==="total"?' selected':'')+'>Prix total</option></select></label></div>'+
       '<div><label class="field"><span>Prix total de la place (€)</span><input id="siteAtelierPrixTotal" data-action="site-atelier-price" type="number" min="0" step="0.01" value="'+esc(s.atelierPrixTotal||"")+'"></label></div></div>'+
@@ -1755,18 +1781,21 @@ function viewSiteSaleForm(){
 
 function viewVentesSite(){
   var list=(state.ventesSite||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
-  var totalM=list.filter(function(s){return (s.date||"").slice(0,7)===todayISO().slice(0,7);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
-  var totalA=list.filter(function(s){return (s.date||"").slice(0,4)===todayISO().slice(0,4);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var mois=todayISO().slice(0,7), annee=todayISO().slice(0,4);
+  var totalM=list.filter(function(s){return (s.date||"").slice(0,7)===mois;}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var totalA=list.filter(function(s){return (s.date||"").slice(0,4)===annee;}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var independantM=list.filter(function(s){return (s.date||"").slice(0,7)===mois && !siteSaleLieeAtelier(s);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var atelierM=r2(totalM-independantM);
   var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ventes site internet</h2><button class="btn primary" data-action="site-new">+ Nouvelle vente site</button></div>'+
     '<p class="muted" style="margin-top:-6px;">Ici, tu enregistres les ventes Squarespace déjà facturées automatiquement par le site : réservations d’ateliers, box DIY, produits en ligne. Elles alimentent la Trésorerie sans créer de doublon de facture.</p>'+
-    '<div class="grid-stats">'+stat("Site internet ce mois",euro(r2(totalM)),false)+stat("Site internet cette année",euro(r2(totalA)),false)+stat("Nombre de ventes",list.length,false)+'</div>';
+    '<div class="grid-stats">'+stat("Paiements Squarespace ce mois",euro(r2(totalM)),false)+stat("dont paiements liés aux ateliers",euro(r2(atelierM)),false)+stat("Ventes internet indépendantes",euro(r2(independantM)),false)+stat("Site internet cette année",euro(r2(totalA)),false)+'</div>';
   if(ui.siteSaleDraft) html+=viewSiteSaleForm();
   if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucune vente site enregistrée.</p></div>';
   html+='<div class="card"><h3 style="margin:0 0 10px;">Historique des ventes site</h3>';
   list.forEach(function(s){
     var del=ui.confirmDelete==="site:"+s.id;
     html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
-      '<div><b style="color:var(--bordeaux);">'+esc(s.produit||"Vente site")+'</b> <span class="achat-cat">'+esc(s.activite||"Autre")+'</span></div>'+
+      '<div><b style="color:var(--bordeaux);">'+esc(s.produit||"Vente site")+'</b> <span class="achat-cat">'+esc(siteSaleLieeAtelier(s)?"Paiement atelier":(s.activite||"Autre"))+'</span></div>'+
       '<div class="muted" style="font-size:12px;">'+frDate(s.date)+(s.client?' · '+esc(s.client):'')+(s.commande?' · Commande '+esc(s.commande):'')+'</div>'+
       '<div class="muted" style="font-size:12px;">Paiement : Site internet · Statut : payé'+(s.email?' · '+esc(s.email):'')+(s.atelierLabel?' · Atelier lié : '+esc(s.atelierLabel):'')+'</div>'+
       (s.notes?'<div class="muted" style="font-size:12px;">'+esc(s.notes)+'</div>':'')+
@@ -1803,7 +1832,6 @@ function syncSiteSaleToAtelier(s){
   if(!s || s.activite!=="Atelier" || !s.atelierId) return;
   var a=getAtelier(s.atelierId);
   if(!a) return;
-  if(atelierMode(a)!=="thematique") return;
   a.participants=a.participants||[];
   var existing=a.participants.find(function(p){return p.siteSaleId===s.id;});
   var prestation=s.prestation||s.produit||"Réservation site internet";
@@ -1916,7 +1944,7 @@ function encaissementsTresorerie(){
       id:s.id,
       type:"site",
       date:s.date||todayISO(),
-      libelle:(s.commande?("Squarespace "+s.commande):"Vente site")+" · "+(s.produit||""),
+      libelle:(siteSaleLieeAtelier(s)?"Paiement atelier":(s.commande?("Squarespace "+s.commande):"Vente site"))+" · "+(s.produit||""),
       client:s.client||"",
       montant:siteSaleSplit(s).total,
       montantBiens:siteSaleSplit(s).biens,

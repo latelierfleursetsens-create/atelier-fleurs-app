@@ -1,3 +1,10 @@
+# V4.0.10 PROD — Réservations atelier liées aux ventes site
+
+- Tous les ateliers non annulés sont proposés dans la liste des ventes site, avec les prochains en premier.
+- Le tarif par personne est repris automatiquement lorsqu’il est renseigné dans la fiche atelier.
+- Une réservation Squarespace liée est identifiée comme un paiement de l’atelier, et non comme une vente internet indépendante supplémentaire.
+- La trésorerie et la déclaration URSSAF continuent de comptabiliser les sommes réellement encaissées.
+
 # V4.0.9 PROD — Tarif par personne des ateliers thématiques site
 
 - Nouveau champ **Tarif par personne (€)** dans la fiche atelier.
