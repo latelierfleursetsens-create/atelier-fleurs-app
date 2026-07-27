@@ -1,3 +1,9 @@
+## V4.1.5 TEST
+
+- Correction du remplissage dans la liste des ateliers privés.
+- Compatibilité avec les fiches utilisant `nbPersonnes` comme capacité prévue.
+- Affichage correct de `10/10` et du badge `COMPLET`.
+
 ## V4.1.4 TEST
 - Statut visuel vert pour les participantes soldées.
 - Statut orange avec montant restant pour les participantes ayant encore un solde.

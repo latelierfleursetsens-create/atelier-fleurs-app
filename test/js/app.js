@@ -1,10 +1,10 @@
-/* V4.1.4 TEST MODULAIRE — Statut visuel des paiements participantes et remplissage visible dans la liste des ateliers. */
+/* V4.1.5 TEST MODULAIRE — Correction du remplissage des ateliers privés dans la liste. */
 "use strict";
 
 var APP_VERSION = "TEST V4.1.3 MODULAIRE";
 var APP_VERSION_NOTE = "Les participantes soldées et celles ayant encore un solde à régler sont différenciées visuellement. Le remplissage et le statut COMPLET apparaissent dans la liste des ateliers.";
 var APP_CHANGELOG = [
-  "V4.1.4 TEST — Statut visuel payé / reste à régler dans les participantes et remplissage visible dans la liste des ateliers.",
+  "V4.1.5 TEST — Correction du compteur réservé/capacité et du badge COMPLET pour les ateliers privés.",
   "V4.1.3 TEST — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
   "V4.1.2 TEST — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
   "V4.1.1 TEST — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
@@ -3341,7 +3341,10 @@ function atelierSitePaymentTotals(a){
   return {paye:r2(paye),solde:r2(solde)};
 }
 function atelierCapacityInfo(a){
-  var planned=Math.max(0,Number(a&&a.nbParticipantsPrevu)||0);
+  // La capacité dépend du type de fiche : les ateliers thématiques utilisent
+  // nbParticipantsPrevu, tandis que certains ateliers privés historiques
+  // enregistrent encore leur capacité dans nbPersonnes.
+  var planned=Math.max(0,Number(a&&a.nbParticipantsPrevu)||Number(a&&a.nbPersonnes)||0);
   var reserved=atelierReservedCount(a);
   return {planned:planned,reserved:reserved,remaining:Math.max(0,planned-reserved),overbooked:Math.max(0,reserved-planned)};
 }

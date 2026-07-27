@@ -1,4 +1,4 @@
-# MyBusiness — V4.1.4 TEST
+# MyBusiness — V4.1.5 TEST
 
 ## Correction apportée
 
@@ -32,3 +32,10 @@ La version répare également automatiquement les anciennes liaisons : à l’ou
 - Différenciation visuelle des participantes ayant tout payé et de celles ayant encore un solde à régler le jour de l’atelier.
 - Affichage du remplissage directement dans la liste des ateliers.
 - Badge **COMPLET** lorsque le nombre de places réservées atteint la capacité prévue.
+
+
+## V4.1.5 TEST
+
+- Correction du compteur de remplissage des ateliers privés.
+- La capacité utilise désormais `nbParticipantsPrevu` ou, pour les anciennes fiches privées, `nbPersonnes`.
+- Un atelier privé de 10 places avec 10 places vendues affiche maintenant `10/10 places réservées` et le badge `COMPLET`.
