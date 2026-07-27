@@ -1,10 +1,15 @@
-/* V4.0.9 PROD MODULAIRE — Tarif par personne pour les ateliers thématiques site. */
+/* V4.2.0 PROD MODULAIRE — Ateliers multi-activités validés pour la production. */
 "use strict";
 
-var APP_VERSION = "PROD V4.0.10 MODULAIRE";
-var APP_VERSION_NOTE = "Les réservations Squarespace liées à un atelier sont désormais identifiées comme des paiements de cet atelier, sans être présentées comme un chiffre d’affaires indépendant supplémentaire.";
+var APP_VERSION = "PROD V4.2.0 MODULAIRE";
+var APP_VERSION_NOTE = "Les participantes soldées et celles ayant encore un solde à régler sont différenciées visuellement. Le remplissage et le statut COMPLET apparaissent dans la liste des ateliers.";
 var APP_CHANGELOG = [
-  "V4.0.10 PROD — Nouveaux ateliers visibles dans les ventes site et séparation entre paiements d’atelier et ventes internet indépendantes.",
+  "V4.2.0 PROD — Ateliers multi-activités : plusieurs choix à une même date, capacité et tarif par choix, réservations et stock ventilés par activité.",
+  "V4.2.0 PROD — Correction du compteur réservé/capacité et du badge COMPLET pour les ateliers privés.",
+  "V4.1.3 TEST — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
+  "V4.1.2 TEST — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
+  "V4.1.1 TEST — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
+  "V4.1.0 TEST — Nouveaux ateliers visibles dans les réservations site, séparation paiements atelier / ventes indépendantes, suivi des places et suppression du double affichage du CA.",
   "V4.0.9 PROD — Ajout d’un tarif par personne pour les ateliers thématiques site et calcul automatique du montant de référence à partir du nombre de participants prévu.",
   "V4.0.8 PROD — Finances devient la source unique des montants à encaisser ; retrait des synthèses financières dans Ateliers et exclusion des devis en attente de validation.",
   "V4.0.7 PROD — Ajout dans Finances des montants à encaisser Ateliers, Mariages et Total, avec tableau détaillé des dossiers.",
@@ -85,7 +90,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -166,6 +171,8 @@ function applyData(d){
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
   state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
+  normalizeSiteSalesData();
+  reconcileSiteSaleParticipants();
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -385,7 +392,7 @@ function moduleHeader(title, subtitle){
 function viewClientsModule(){
   var sub=ui.clientsSub||"clients";
   var html=moduleHeader("Clients","Fiches clientes, mariages, ateliers, ventes et commandes regroupés au même endroit.")+
-    subNav([["clients","Fiches clientes"],["mariages","Mariages"],["ateliers","Ateliers"],["commandes","Suivi des Commandes"],["ventesSite","Ventes site internet"],["encaissements","Encaissements manuels"]],sub,"mod-clients-");
+    subNav([["clients","Fiches clientes"],["mariages","Mariages"],["ateliers","Ateliers"],["commandes","Suivi des Commandes"],["ventesSite","Paiements et ventes du site"],["encaissements","Encaissements manuels"]],sub,"mod-clients-");
   if(sub==="mariages") return html+viewMariages();
   if(sub==="ateliers") return html+viewAteliers();
   if(sub==="commandes") return html+viewCommandes();
@@ -642,6 +649,7 @@ function caMoisSplit(annee, moisIndex){
 function anneesDispo(){
   var s={}; state.factures.forEach(function(f){ if(f.datePaiement) s[f.datePaiement.slice(0,4)]=1; });
   state.encaissements.forEach(function(e){ if(e.date) s[e.date.slice(0,4)]=1; });
+  (state.ventesSite||[]).forEach(function(v){ if(v.date) s[v.date.slice(0,4)]=1; });
   s[String(new Date().getFullYear())]=1;
   return Object.keys(s).sort();
 }
@@ -750,12 +758,12 @@ function viewPendingPaymentsModal(){
 
 
 function viewVersionDashboard(){
-  var env = APP_VERSION.indexOf("PROD")>=0 ? "PROD" : "PROD";
+  var env = APP_VERSION.indexOf("PROD")>=0 ? "PROD" : "TEST";
   var bg = env==="PROD" ? "#fffaf5" : "#eef7f1";
   var border = env==="PROD" ? "var(--gold-s)" : "#9fc9ab";
   return '<div class="card" style="background:'+bg+';border-color:'+border+';margin-bottom:12px;padding:10px 14px;">'+
     '<div class="flexb" style="gap:8px;">'+
-      '<div><b style="color:var(--green);">✅ Version : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:2px;">☁ Synchronisation active · '+esc(APP_VERSION_NOTE)+'</div></div>'+ 
+      '<div><b style="color:'+(env==="PROD"?'var(--green)':'var(--bordeaux)')+';">'+(env==="PROD"?'✅':'🧪')+' Version : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:2px;">☁ Synchronisation active · '+esc(APP_VERSION_NOTE)+'</div></div>'+ 
       '<button class="btn small ghost" data-action="version-notes-open">ℹ️ Notes de version</button>'+ 
     '</div>'+ 
   '</div>';
@@ -963,7 +971,7 @@ function monthSales(year, mi){
   (state.ventesSite||[]).forEach(function(s){
     if(s.date && s.date.slice(0,7)===pref){
       var sp=siteSaleSplit(s);
-      items.push({date:s.date, label:(s.commande?("Squarespace "+s.commande+" · "):"")+(s.produit||"Vente site"), client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, type:"Vente site"});
+      items.push({date:s.date, label:(s.commande?("Squarespace "+s.commande+" · "):"")+(s.produit||"Opération site"), client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, type:siteSaleNatureLabel(s)});
     }
   });
   items.sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
@@ -1623,30 +1631,146 @@ function viewAchatsPreview(){
 }
 
 
-/* ===================== Ventes site internet V3.0.0 ===================== */
+/* ===================== Ventes site internet V4.2.0 ===================== */
 var SITE_ACTIVITES=["Atelier","Produit","Box DIY","Mariage","Autre"];
 
-function siteSaleAteliersDisponibles(){
+function isSiteSaleAtelierPayment(s){
+  if(!s) return false;
+  if(s.nature==="atelier_payment") return true;
+  if(s.nature==="independent_sale") return false;
+  return !!(s.atelierId && String(s.activite||"").toLowerCase().indexOf("atelier")>=0);
+}
+function normalizeSiteSalesData(){
+  state.ventesSite=(state.ventesSite||[]).map(function(s){
+    s=s||{};
+    s.nature=isSiteSaleAtelierPayment(s)?"atelier_payment":"independent_sale";
+    s.caContractuelInclus=s.nature==="atelier_payment";
+    if(s.nature==="atelier_payment"){
+      var hadPlaces=Number(s.nbPlaces||s.nombrePlaces)>0;
+      var places=Math.max(1,parseInt(s.nbPlaces||s.nombrePlaces||1,10)||1);
+      var storedTotal=Number(s.atelierPrixTotal)||0;
+      var unit=Number(s.atelierPrixUnitaire)||Number(s.prixUnitaire)||0;
+      if(!unit) unit=(hadPlaces&&places>1&&storedTotal)?r2(storedTotal/places):storedTotal;
+      s.nbPlaces=places;
+      s.atelierPrixUnitaire=r2(unit);
+      s.atelierPrixTotal=r2(unit*places);
+      s.atelierPaiementType=s.atelierPaiementType==="acompte30"?"acompte30":"total";
+      s.paiement="Site internet";
+      s.statut=s.statut||"payee";
+    }
+    return s;
+  });
+}
+function siteSaleNatureLabel(s){ return isSiteSaleAtelierPayment(s)?"Paiement atelier":"Vente indépendante"; }
+function atelierChoiceOptions(a){
+  if(!a) return [];
+  var ids=atelierSelectedModelIds(a), counts=atelierModelParticipantCounts(a);
+  var prices=(a.atelierModelPrices&&typeof a.atelierModelPrices==="object")?a.atelierModelPrices:{};
+  if(!ids.length) return [];
+  return ids.map(function(id,index){
+    var m=atelierModeleById(id);
+    var fallback=(ids.length===1?Number(a.tarifParPersonne)||0:0);
+    return {id:id,modelId:id,label:(m&&m.label)||("Choix "+(index+1)),capacity:Math.max(0,Number(counts[id])||0),price:r2(Number(prices[id])||fallback)};
+  });
+}
+function atelierChoiceById(a,id){
+  var opts=atelierChoiceOptions(a);
+  return opts.find(function(o){return o.id===id;})||opts[0]||null;
+}
+function atelierIsMultiChoice(a){ return atelierChoiceOptions(a).length>1; }
+function atelierDefaultSitePrice(a,choiceId){
+  var choice=atelierChoiceById(a,choiceId);
+  return r2(choice?choice.price:(Number(a&&a.tarifParPersonne)||0));
+}
+function atelierChoiceReservedCount(a,choiceId){
+  return ((a&&a.participants)||[]).reduce(function(total,p){
+    if((p.atelierOptionId||p.atelierModeleId||"")!==choiceId) return total;
+    return total+sitePlacesCount(p&&p.nbPlaces);
+  },0);
+}
+function atelierChoiceCapacityInfo(a,choiceId){
+  var choice=atelierChoiceById(a,choiceId);
+  if(!choice) return {planned:0,reserved:0,remaining:0,overbooked:0};
+  var reserved=atelierChoiceReservedCount(a,choice.id), planned=choice.capacity;
+  return {planned:planned,reserved:reserved,remaining:Math.max(0,planned-reserved),overbooked:Math.max(0,reserved-planned)};
+}
+function atelierChoicesSummaryHtml(a){
+  var opts=atelierChoiceOptions(a);
+  if(opts.length<2) return '';
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">'+opts.map(function(o){
+    var c=atelierChoiceCapacityInfo(a,o.id), full=c.planned>0&&c.reserved>=c.planned;
+    return '<span class="pill" style="background:'+(full?'#dff3e5':'#fff1d6')+';color:'+(full?'#23663a':'#8a5a00')+';font-weight:700;">'+esc(o.label)+' : '+c.reserved+'/'+c.planned+(full?' · COMPLET':'')+' · '+euro(o.price)+'</span>';
+  }).join('')+'</div>';
+}
+function sitePlacesCount(value){ return Math.max(1,parseInt(value||1,10)||1); }
+function siteContractTotal(unitPrice,places){ return r2((Number(unitPrice)||0)*sitePlacesCount(places)); }
+function siteSuggestedPayment(total,paymentType){ return paymentType==="acompte30"?r2((Number(total)||0)*0.30):r2(Number(total)||0); }
+function atelierReservedCount(a){
+  return ((a&&a.participants)||[]).reduce(function(total,p){
+    return total+sitePlacesCount(p&&p.nbPlaces);
+  },0);
+}
+function siteAtelierDisplayLabel(a){
+  var planned=Number(a&&a.nbParticipantsPrevu)||Number(a&&a.nbPersonnes)||0;
+  var reserved=atelierReservedCount(a);
+  var places=planned?(" · "+reserved+"/"+planned+" place(s)"):(reserved?" · "+reserved+" place(s) réservée(s)":"");
+  return (a&&a.date?frDate(a.date)+" · ":"")+((a&&a.theme)||((a&&a.type)||"Atelier"))+(a&&a.lieu?" · "+a.lieu:"")+places+" · "+atelierModeLabel(atelierMode(a));
+}
+function siteEligibleAteliers(){
   var today=todayISO();
   return (state.ateliers||[]).filter(function(a){
     return a && a.statut!=="annule";
   }).slice().sort(function(a,b){
-    var af=(a.date||"")>=today?0:1, bf=(b.date||"")>=today?0:1;
-    return af-bf || (a.date||"9999").localeCompare(b.date||"9999") || (a.createdAt||"").localeCompare(b.createdAt||"");
+    var aUpcoming=(!(a.date)||a.date>=today) && a.statut!=="termine";
+    var bUpcoming=(!(b.date)||b.date>=today) && b.statut!=="termine";
+    if(aUpcoming!==bUpcoming) return aUpcoming?-1:1;
+    var aSite=atelierMode(a)==="thematique", bSite=atelierMode(b)==="thematique";
+    if(aSite!==bSite) return aSite?-1:1;
+    if(aUpcoming) return (a.date||"9999-12-31").localeCompare(b.date||"9999-12-31");
+    return (b.date||"").localeCompare(a.date||"");
   });
 }
-function siteSaleLieeAtelier(s){
-  return !!(s && s.activite==="Atelier" && s.atelierId);
+function setSiteDraftAtelier(s,atelierId,resetAmount){
+  if(!s) return;
+  var eligible=siteEligibleAteliers();
+  var a=eligible.find(function(x){return x.id===atelierId;})||eligible[0]||null;
+  s.atelierId=a?a.id:"";
+  s.atelierLabel=a?siteAtelierDisplayLabel(a):"";
+  if(a){
+    var choices=atelierChoiceOptions(a);
+    if(!s.atelierOptionId || !choices.some(function(o){return o.id===s.atelierOptionId;})) s.atelierOptionId=choices[0]?choices[0].id:"";
+    var choice=atelierChoiceById(a,s.atelierOptionId);
+    var price=atelierDefaultSitePrice(a,s.atelierOptionId);
+    s.atelierOptionLabel=choice?choice.label:"";
+    s.nbPlaces=sitePlacesCount(s.nbPlaces);
+    s.atelierPrixUnitaire=price;
+    s.atelierPrixTotal=siteContractTotal(price,s.nbPlaces);
+    if(!s.prestation || s.prestation==="Place atelier" || String(s.prestation).indexOf("Place · ")===0) s.prestation="Place · "+(choice?choice.label:(a.theme||a.type||"Atelier"));
+    if(!s.produit || s.produit==="Réservation atelier" || s.produit==="Place atelier") s.produit=s.prestation;
+    if(resetAmount) s.montant=siteSuggestedPayment(s.atelierPrixTotal,s.atelierPaiementType);
+  }else{
+    s.atelierPrixUnitaire=0;
+    s.atelierPrixTotal=0;
+    if(resetAmount) s.montant=0;
+  }
 }
-function siteSaleTarifAtelier(a){
-  if(!a) return 0;
-  var tarif=Number(a.tarifParPersonne)||0;
-  if(tarif>0) return tarif;
-  var parts=(a.participants||[]).filter(function(p){return Number(p.montant)>0;});
-  return parts.length ? Number(parts[0].montant)||0 : 0;
+function siteSalesSummary(list){
+  var out={atelierPayments:0,independentSales:0,totalReceived:0,countAtelier:0,countIndependent:0};
+  (list||[]).forEach(function(s){
+    var amount=Number(s.montant)||0;
+    out.totalReceived+=amount;
+    if(isSiteSaleAtelierPayment(s)){ out.atelierPayments+=amount; out.countAtelier++; }
+    else { out.independentSales+=amount; out.countIndependent++; }
+  });
+  out.atelierPayments=r2(out.atelierPayments);
+  out.independentSales=r2(out.independentSales);
+  out.totalReceived=r2(out.totalReceived);
+  return out;
 }
+
 function newSiteSaleDraft(){
-  var firstAtelier=siteSaleAteliersDisponibles()[0];
+  ui.siteSaleEditingId=null;
+  var firstAtelier=siteEligibleAteliers()[0]||null;
   ui.siteSaleDraft={
     id:uid(),
     date:todayISO(),
@@ -1658,12 +1782,18 @@ function newSiteSaleDraft(){
     produit:"",
     commande:"",
     activite:"Atelier",
+    nature:"atelier_payment",
+    caContractuelInclus:true,
     atelierId:firstAtelier?firstAtelier.id:"",
+    atelierOptionId:"",
+    atelierOptionLabel:"",
     atelierParticipantId:"",
     atelierLabel:"",
     prestation:"Place atelier",
-    atelierPaiementType:"acompte30",
-    atelierPrixTotal:firstAtelier?siteSaleTarifAtelier(firstAtelier):0,
+    atelierPaiementType:"total",
+    nbPlaces:1,
+    atelierPrixUnitaire:0,
+    atelierPrixTotal:0,
     montant:0,
     frais:0,
     notes:"",
@@ -1671,13 +1801,52 @@ function newSiteSaleDraft(){
     statut:"payee",
     createdAt:new Date().toISOString()
   };
+  setSiteDraftAtelier(ui.siteSaleDraft,ui.siteSaleDraft.atelierId,true);
+}
+
+function editSiteSale(id){
+  var original=(state.ventesSite||[]).find(function(s){return s.id===id;});
+  if(!original){ toast("Encaissement introuvable."); return; }
+  var s=Object.assign({},original);
+  s.id=original.id;
+  s.clientMode=(s.clientId&&(state.clients||[]).some(function(c){return c.id===s.clientId;}))?"existant":"nouveau";
+  s.activite=isSiteSaleAtelierPayment(s)?"Atelier":(s.activite||"Autre");
+  if(s.activite==="Atelier"){
+    s.nature="atelier_payment";
+    s.caContractuelInclus=true;
+    s.nbPlaces=sitePlacesCount(s.nbPlaces||s.nombrePlaces||1);
+    var storedTotal=Number(s.atelierPrixTotal)||0;
+    var unit=Number(s.atelierPrixUnitaire)||Number(s.prixUnitaire)||0;
+    if(!unit) unit=storedTotal?safeSiteUnitPrice(storedTotal,s.nbPlaces):0;
+    var linkedAtelier=getAtelier(s.atelierId);
+    if(!unit&&linkedAtelier) unit=atelierDefaultSitePrice(linkedAtelier,s.atelierOptionId);
+    s.atelierPrixUnitaire=r2(unit);
+    s.atelierPrixTotal=siteContractTotal(s.atelierPrixUnitaire,s.nbPlaces);
+    s.atelierPaiementType=s.atelierPaiementType==="acompte30"?"acompte30":"total";
+    s.prestation=s.prestation||s.produit||"Place atelier";
+    if(linkedAtelier) s.atelierLabel=siteAtelierDisplayLabel(linkedAtelier);
+  }else{
+    s.nature="independent_sale";
+    s.caContractuelInclus=false;
+  }
+  ui.siteSaleDraft=s;
+  ui.siteSaleEditingId=id;
+  ui.confirmDelete=null;
+  ui.tab="clientsModule";
+  ui.clientsSub="ventesSite";
+  render();
+  setTimeout(function(){ window.scrollTo(0,0); },0);
+}
+function safeSiteUnitPrice(total,places){
+  places=sitePlacesCount(places);
+  return r2((Number(total)||0)/places);
 }
 
 function captureSiteSaleDraft(){
   var s=ui.siteSaleDraft; if(!s) return;
-  s.date=val("siteDate")||todayISO();
+  s.date=val("siteDate")||s.date||todayISO();
   s.commande=val("siteCommande");
-  s.activite=val("siteActivite")||"Autre";
+  s.activite=val("siteActivite")||s.activite||"Autre";
   s.clientMode=s.clientMode||"nouveau";
 
   if(s.clientMode==="existant" && state.clients.length){
@@ -1690,33 +1859,41 @@ function captureSiteSaleDraft(){
     s.tel=val("siteTel");
   }
 
-  var previousAtelierId=s.atelierId||"";
-  s.atelierId=val("siteAtelierId")||s.atelierId||"";
   s.prestation=val("sitePrestation")||s.prestation||"";
-  var atelierChanged=s.activite==="Atelier" && s.atelierId && s.atelierId!==previousAtelierId;
-  var selectedTarif=atelierChanged?siteSaleTarifAtelier(getAtelier(s.atelierId)):0;
-  s.produit=val("siteProduit");
-  s.atelierPaiementType=val("siteAtelierPaiementType")||s.atelierPaiementType||"acompte30";
-  s.atelierPrixTotal=(atelierChanged && selectedTarif>0)?selectedTarif:(num(val("siteAtelierPrixTotal"))||num(s.atelierPrixTotal)||0);
-
-  if(s.activite==="Atelier"){
-    var a=getAtelier(s.atelierId);
-    s.atelierLabel=a?((a.type||"Atelier")+" · "+(a.theme||"")+" · "+(a.date?frDate(a.date):"")):"";
-    if(!s.produit) s.produit=s.prestation||"Réservation atelier";
-
-    var paid=num(val("siteMontant"));
-    if(!paid && s.atelierPrixTotal>0){
-      paid=s.atelierPaiementType==="acompte30"?r2(s.atelierPrixTotal*0.30):s.atelierPrixTotal;
-    }
-    s.montant=paid;
-  } else {
-    s.montant=num(val("siteMontant"));
-  }
-
+  s.produit=val("siteProduit")||s.produit||"";
   s.frais=num(val("siteFrais"));
   s.notes=val("siteNotes");
   s.paiement="Site internet";
   s.statut="payee";
+
+  if(s.activite==="Atelier"){
+    s.nature="atelier_payment";
+    s.caContractuelInclus=true;
+    s.atelierId=val("siteAtelierId")||s.atelierId||"";
+    s.atelierOptionId=val("siteAtelierOptionId")||s.atelierOptionId||"";
+    s.atelierPaiementType=val("siteAtelierPaiementType")||s.atelierPaiementType||"total";
+    var placesField=document.getElementById("siteNbPlaces");
+    if(placesField) s.nbPlaces=sitePlacesCount(placesField.value);
+    var unitField=document.getElementById("siteAtelierPrixUnitaire");
+    if(unitField) s.atelierPrixUnitaire=num(unitField.value);
+    s.atelierPrixTotal=siteContractTotal(s.atelierPrixUnitaire,s.nbPlaces);
+    var amountField=document.getElementById("siteMontant");
+    if(amountField) s.montant=num(amountField.value);
+    var a=getAtelier(s.atelierId);
+    s.atelierLabel=a?siteAtelierDisplayLabel(a):"";
+    if(!s.produit) s.produit=s.prestation||"Réservation atelier";
+  } else {
+    s.nature="independent_sale";
+    s.caContractuelInclus=false;
+    s.atelierId="";
+    s.atelierParticipantId="";
+    s.atelierLabel="";
+    s.nbPlaces=1;
+    s.atelierPrixUnitaire=0;
+    s.atelierPrixTotal=0;
+    s.atelierSolde=0;
+    s.montant=num(val("siteMontant"));
+  }
 }
 
 function siteActiviteOptions(selected){
@@ -1728,6 +1905,7 @@ function siteActiviteOptions(selected){
 
 function viewSiteSaleForm(){
   var s=ui.siteSaleDraft;
+  var editing=!!ui.siteSaleEditingId;
   var clientPart='';
   if(state.clients.length){
     clientPart+='<div class="row-actions" style="margin-top:0;margin-bottom:12px;">'+
@@ -1735,7 +1913,7 @@ function viewSiteSaleForm(){
       '<button class="btn small '+(s.clientMode==="existant"?"primary":"ghost")+'" data-action="site-mode-existant">Cliente enregistrée</button></div>';
   }
   if(s.clientMode==="existant"&&state.clients.length){
-    clientPart+='<label class="field"><span>Cliente liée à la base clients</span><select id="siteClientId" data-action="site-clientsel">'+sortedClients().map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===s.clientId?' selected':'')+'>'+esc(c.nom)+'</option>';}).join("")+'</select><div class="hint">La vente sera automatiquement ajoutée dans l’historique de cette cliente.</div></label>';
+    clientPart+='<label class="field"><span>Cliente liée à la base clients</span><select id="siteClientId" data-action="site-clientsel">'+sortedClients().map(function(c){return '<option value="'+esc(c.id)+'"'+(c.id===s.clientId?' selected':'')+'>'+esc(c.nom)+'</option>';}).join("")+'</select><div class="hint">Le paiement ou la vente sera ajouté à l’historique de cette cliente.</div></label>';
   } else {
     clientPart+='<div class="inline"><div><label class="field"><span>Cliente</span><input id="siteClient" value="'+esc(s.client||"")+'" placeholder="Nom de la cliente"></label></div>'+
       '<div><label class="field"><span>Email</span><input id="siteEmail" type="email" value="'+esc(s.email||"")+'" placeholder="email@exemple.fr"></label></div></div>'+
@@ -1744,62 +1922,83 @@ function viewSiteSaleForm(){
 
   var atelierPart='';
   if(s.activite==="Atelier"){
-    var ateliers=siteSaleAteliersDisponibles();
-    if(s.atelierId && !ateliers.some(function(a){return a.id===s.atelierId;})){
-      var selectedAtelier=getAtelier(s.atelierId); if(selectedAtelier) ateliers.unshift(selectedAtelier);
-    }
-    var prixTotal=num(s.atelierPrixTotal)||0;
-    var montantSug=s.atelierPaiementType==="acompte30"?r2(prixTotal*0.30):prixTotal;
-    var soldeSug=s.atelierPaiementType==="acompte30"?r2(prixTotal-montantSug):0;
-    atelierPart+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Lien avec un atelier</h3>';
+    var ateliers=siteEligibleAteliers();
+    if(ateliers.length && !ateliers.some(function(a){return a.id===s.atelierId;})) setSiteDraftAtelier(s,ateliers[0].id,true);
+    var nbPlaces=sitePlacesCount(s.nbPlaces);
+    var prixUnitaire=num(s.atelierPrixUnitaire)||(nbPlaces?num(s.atelierPrixTotal)/nbPlaces:0)||0;
+    var prixTotal=siteContractTotal(prixUnitaire,nbPlaces);
+    s.nbPlaces=nbPlaces;
+    s.atelierPrixUnitaire=r2(prixUnitaire);
+    s.atelierPrixTotal=prixTotal;
+    var montantSug=siteSuggestedPayment(prixTotal,s.atelierPaiementType);
+    var soldeSug=Math.max(0,r2(prixTotal-(num(s.montant)||montantSug)));
+    atelierPart+='<div class="card" style="background:var(--cream);"><div class="flexb"><h3 style="margin-top:0;">Paiement rattaché à un atelier</h3><span class="badge" style="background:var(--green-s);color:var(--green);">sans nouveau CA</span></div>';
     if(!ateliers.length){
-      atelierPart+='<p class="muted">Aucun atelier thématique site créé pour le moment. Crée d’abord un atelier en catégorie « Atelier thématique site » dans Clients → Ateliers.</p>';
+      atelierPart+='<p class="muted">Aucun atelier thématique disponible. Crée et enregistre d’abord un atelier en catégorie « Atelier thématique site » dans Clients → Ateliers.</p>';
     } else {
-      atelierPart+='<label class="field"><span>Atelier concerné</span><select id="siteAtelierId" data-action="site-atelier-change">'+ateliers.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc((a.date?frDate(a.date)+" · ":"")+atelierModeLabel(atelierMode(a))+" · "+(a.theme||a.type||"Sans thème")+(a.lieu?" · "+a.lieu:"")+(siteSaleTarifAtelier(a)>0?" · "+euro(siteSaleTarifAtelier(a))+" / pers.":""))+'</option>';}).join("")+'</select><div class="hint">La participante sera ajoutée automatiquement dans cet atelier.</div></label>'+
-      '<label class="field"><span>Prestation / place réservée</span><input id="sitePrestation" value="'+esc(s.prestation||"")+'" placeholder="Ex : Place atelier couronne, demi-couronne…"></label>'+
-      '<div class="inline"><div><label class="field"><span>Type de réservation Squarespace</span><select id="siteAtelierPaiementType" data-action="site-atelier-pay-change"><option value="acompte30"'+(s.atelierPaiementType==="acompte30"?' selected':'')+'>Acompte 30 %</option><option value="total"'+(s.atelierPaiementType==="total"?' selected':'')+'>Prix total</option></select></label></div>'+
-      '<div><label class="field"><span>Prix total de la place (€)</span><input id="siteAtelierPrixTotal" data-action="site-atelier-price" type="number" min="0" step="0.01" value="'+esc(s.atelierPrixTotal||"")+'"></label></div></div>'+
-      '<div class="summary" style="margin-bottom:0;"><div class="totrow"><span>Montant à saisir / encaissé Squarespace</span><b>'+(prixTotal?euro(montantSug):"—")+'</b></div><div class="totrow"><span>Solde restant le jour de l’atelier</span><b>'+(soldeSug?euro(soldeSug):"0,00 €")+'</b></div></div>';
+      var today=todayISO();
+      var upcomingSite=ateliers.filter(function(a){return (!(a.date)||a.date>=today)&&a.statut!=="termine"&&atelierMode(a)==="thematique";});
+      var upcomingOther=ateliers.filter(function(a){return (!(a.date)||a.date>=today)&&a.statut!=="termine"&&atelierMode(a)!=="thematique";});
+      var older=ateliers.filter(function(a){return upcomingSite.indexOf(a)<0&&upcomingOther.indexOf(a)<0;});
+      var opts='';
+      if(upcomingSite.length) opts+='<optgroup label="Ateliers thématiques / site à venir">'+upcomingSite.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc(siteAtelierDisplayLabel(a))+'</option>';}).join('')+'</optgroup>';
+      if(upcomingOther.length) opts+='<optgroup label="Autres ateliers à venir">'+upcomingOther.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc(siteAtelierDisplayLabel(a))+'</option>';}).join('')+'</optgroup>';
+      if(older.length) opts+='<optgroup label="Ateliers passés / terminés">'+older.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc(siteAtelierDisplayLabel(a))+'</option>';}).join('')+'</optgroup>';
+      var selectedAtelier=ateliers.find(function(a){return a.id===s.atelierId;})||ateliers[0];
+      var choiceList=atelierChoiceOptions(selectedAtelier);
+      if(choiceList.length && !choiceList.some(function(o){return o.id===s.atelierOptionId;})) s.atelierOptionId=choiceList[0].id;
+      var choiceOpts=choiceList.map(function(o){var ci=atelierChoiceCapacityInfo(selectedAtelier,o.id);return '<option value="'+esc(o.id)+'"'+(o.id===s.atelierOptionId?' selected':'')+'>'+esc(o.label)+' · '+ci.reserved+'/'+ci.planned+' · '+euro(o.price)+'</option>';}).join('');
+      atelierPart+='<label class="field"><span>Atelier concerné</span><select id="siteAtelierId" data-action="site-atelier-change">'+opts+'</select><div class="hint">Tous les ateliers non annulés sont proposés : thématiques, privés et structures, avec les prochains en premier.</div></label>'+
+      (choiceList.length?'<label class="field"><span>Activité choisie par la participante</span><select id="siteAtelierOptionId" data-action="site-atelier-option-change">'+choiceOpts+'</select><div class="hint">Chaque choix possède son propre tarif, sa capacité et son décompte de stock.</div></label>':'')+
+      '<label class="field"><span>Prestation / places réservées</span><input id="sitePrestation" value="'+esc(s.prestation||"")+'" placeholder="Ex : Places atelier couronne"></label>'+
+      '<div class="inline"><div><label class="field"><span>Nombre de places réservées</span><input id="siteNbPlaces" data-action="site-places-change" type="number" min="1" step="1" value="'+esc(nbPlaces)+'"><div class="hint">Une seule commande peut contenir plusieurs places.</div></label></div>'+
+      '<div><label class="field"><span>Prix par place (€)</span><input id="siteAtelierPrixUnitaire" data-action="site-atelier-price-change" type="number" min="0" step="0.01" value="'+esc(prixUnitaire||"")+'"><div class="hint">Prérempli avec le tarif par personne enregistré dans l’atelier.</div></label></div></div>'+
+      '<label class="field"><span>Type de paiement Squarespace</span><select id="siteAtelierPaiementType" data-action="site-atelier-pay-change"><option value="total"'+(s.atelierPaiementType==="total"?' selected':'')+'>Paiement total des places</option><option value="acompte30"'+(s.atelierPaiementType==="acompte30"?' selected':'')+'>Acompte de 30 %</option></select></label>'+
+      '<div class="summary" style="margin-bottom:0;"><div class="totrow"><span>Montant contractuel de la commande ('+nbPlaces+' place(s))</span><b>'+(prixTotal?euro(prixTotal):"—")+'</b></div><div class="totrow"><span>'+(s.atelierPaiementType==="acompte30"?'Acompte encaissé sur Squarespace':'Paiement total encaissé sur Squarespace')+'</span><b>'+(num(s.montant)?euro(s.montant):(prixTotal?euro(montantSug):"—"))+'</b></div><div class="totrow"><span>Solde restant pour cette commande</span><b>'+euro(soldeSug)+'</b></div></div>';
     }
     atelierPart+='</div>';
   }
 
-  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">Nouvelle vente site internet</h3><button class="btn small ghost" data-action="site-cancel">Annuler</button></div>'+
-    '<p class="muted" style="margin-top:0;">À utiliser pour les commandes Squarespace déjà facturées et payées par le site. Si c’est une réservation atelier, elle sera aussi ajoutée dans l’atelier correspondant.</p>'+
+  var isAtelier=s.activite==="Atelier";
+  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">'+(editing?(isAtelier?'Modifier le paiement atelier':'Modifier la vente indépendante'):(isAtelier?'Nouveau paiement atelier via le site':'Nouvelle vente site indépendante'))+'</h3><button class="btn small ghost" data-action="site-cancel">Annuler</button></div>'+
+    (editing?'<div class="summary" style="margin-bottom:12px;background:var(--gold-s);"><div class="totrow"><span>Correction d’un encaissement existant</span><b>Le précédent rattachement sera remplacé</b></div></div>':'')+
+    '<p class="muted" style="margin-top:0;">'+(isAtelier?'Le paiement sera rattaché à l’atelier et diminuera son reste à encaisser. Il ne sera pas ajouté une seconde fois au CA prévu de l’atelier.':'Cette vente est indépendante d’un atelier et constitue un nouveau chiffre d’affaires encaissé.')+'</p>'+
     '<div class="inline"><div><label class="field"><span>Date de commande</span><input id="siteDate" type="date" value="'+esc(s.date)+'"></label></div>'+
     '<div><label class="field"><span>N° commande Squarespace</span><input id="siteCommande" value="'+esc(s.commande||"")+'" placeholder="Ex : #000123"></label></div></div>'+
     clientPart+
-    '<div class="inline"><div><label class="field"><span>Type de vente</span><select id="siteActivite" data-action="site-activite-change">'+siteActiviteOptions(s.activite)+'</select></label></div>'+
-    '<div><label class="field"><span>Montant encaissé sur Squarespace (€)</span><input id="siteMontant" type="number" min="0" step="0.01" value="'+esc(s.montant||"")+'"><div class="hint">Pour un atelier avec acompte, indique seulement le montant réellement payé sur Squarespace.</div></label></div></div>'+
+    '<div class="inline"><div><label class="field"><span>Type d’opération</span><select id="siteActivite" data-action="site-activite-change">'+siteActiviteOptions(s.activite)+'</select></label></div>'+
+    '<div><label class="field"><span>Montant réellement encaissé sur Squarespace (€)</span><input id="siteMontant" type="number" min="0" step="0.01" value="'+esc(s.montant||"")+'"><div class="hint">Ce montant reste compté dans la trésorerie et l’URSSAF, car il a réellement été encaissé.</div></label></div></div>'+
     atelierPart+
     '<label class="field"><span>Produit / libellé affiché</span><input id="siteProduit" value="'+esc(s.produit||"")+'" placeholder="Ex : Atelier couronne, Box DIY, bouquet…"></label>'+
     '<label class="field"><span>Frais éventuels (€)</span><input id="siteFrais" type="number" min="0" step="0.01" value="'+esc(s.frais||"")+'"></label>'+
-    '<label class="field"><span>Notes</span><textarea id="siteNotes" placeholder="Infos utiles, nombre de participantes, produit expédié…">'+esc(s.notes||"")+'</textarea></label>'+
-    '<div class="summary"><div class="totrow"><span>Moyen de paiement</span><b>Site internet</b></div><div class="totrow"><span>Statut</span><b>Payé</b></div></div>'+
-    '<div class="row-actions"><button class="btn primary" data-action="site-save">Enregistrer la vente site</button></div></div>';
+    '<label class="field"><span>Notes</span><textarea id="siteNotes" placeholder="Informations utiles…">'+esc(s.notes||"")+'</textarea></label>'+
+    '<div class="summary"><div class="totrow"><span>Nature comptable dans MyBusiness</span><b>'+(isAtelier?'Paiement d’un atelier existant':'Vente indépendante')+'</b></div><div class="totrow"><span>Moyen de paiement</span><b>Site internet</b></div><div class="totrow"><span>Statut</span><b>Payé</b></div></div>'+
+    '<div class="row-actions"><button class="btn primary" data-action="site-save">'+(editing?'Enregistrer les corrections':(isAtelier?'Enregistrer le paiement atelier':'Enregistrer la vente indépendante'))+'</button></div></div>';
 }
 
 function viewVentesSite(){
   var list=(state.ventesSite||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
-  var mois=todayISO().slice(0,7), annee=todayISO().slice(0,4);
-  var totalM=list.filter(function(s){return (s.date||"").slice(0,7)===mois;}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
-  var totalA=list.filter(function(s){return (s.date||"").slice(0,4)===annee;}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
-  var independantM=list.filter(function(s){return (s.date||"").slice(0,7)===mois && !siteSaleLieeAtelier(s);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
-  var atelierM=r2(totalM-independantM);
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Ventes site internet</h2><button class="btn primary" data-action="site-new">+ Nouvelle vente site</button></div>'+
-    '<p class="muted" style="margin-top:-6px;">Ici, tu enregistres les ventes Squarespace déjà facturées automatiquement par le site : réservations d’ateliers, box DIY, produits en ligne. Elles alimentent la Trésorerie sans créer de doublon de facture.</p>'+
-    '<div class="grid-stats">'+stat("Paiements Squarespace ce mois",euro(r2(totalM)),false)+stat("dont paiements liés aux ateliers",euro(r2(atelierM)),false)+stat("Ventes internet indépendantes",euro(r2(independantM)),false)+stat("Site internet cette année",euro(r2(totalA)),false)+'</div>';
+  var now=todayISO();
+  var monthList=list.filter(function(s){return (s.date||"").slice(0,7)===now.slice(0,7);});
+  var yearList=list.filter(function(s){return (s.date||"").slice(0,4)===now.slice(0,4);});
+  var month=siteSalesSummary(monthList), year=siteSalesSummary(yearList);
+  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Paiements et ventes du site</h2><button class="btn primary" data-action="site-new">+ Nouvelle opération site</button></div>'+
+    '<p class="muted" style="margin-top:-6px;">Les réservations d’atelier sont traitées comme des <b>paiements rattachés</b>. Les box, produits et autres commandes restent des <b>ventes indépendantes</b>. Les deux alimentent la trésorerie réelle, mais seuls les produits indépendants créent un CA contractuel supplémentaire.</p>'+
+    '<div class="grid-stats">'+stat("Paiements ateliers ce mois",euro(month.atelierPayments),false,'var(--green-s)')+stat("Ventes indépendantes ce mois",euro(month.independentSales),false,'var(--blush-s)')+stat("Total encaissé via le site",euro(month.totalReceived),true)+stat("Ventes indépendantes cette année",euro(year.independentSales),false)+'</div>';
   if(ui.siteSaleDraft) html+=viewSiteSaleForm();
-  if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucune vente site enregistrée.</p></div>';
-  html+='<div class="card"><h3 style="margin:0 0 10px;">Historique des ventes site</h3>';
+  if(!list.length) return html+'<div class="card"><p class="muted" style="margin:0;">Aucun paiement ou vente site enregistré.</p></div>';
+  html+='<div class="card"><h3 style="margin:0 0 10px;">Historique Squarespace</h3>';
   list.forEach(function(s){
     var del=ui.confirmDelete==="site:"+s.id;
+    var linked=isSiteSaleAtelierPayment(s);
     html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
-      '<div><b style="color:var(--bordeaux);">'+esc(s.produit||"Vente site")+'</b> <span class="achat-cat">'+esc(siteSaleLieeAtelier(s)?"Paiement atelier":(s.activite||"Autre"))+'</span></div>'+
+      '<div><b style="color:var(--bordeaux);">'+esc(s.produit||"Opération site")+'</b> <span class="achat-cat">'+esc(siteSaleNatureLabel(s))+'</span></div>'+
       '<div class="muted" style="font-size:12px;">'+frDate(s.date)+(s.client?' · '+esc(s.client):'')+(s.commande?' · Commande '+esc(s.commande):'')+'</div>'+
-      '<div class="muted" style="font-size:12px;">Paiement : Site internet · Statut : payé'+(s.email?' · '+esc(s.email):'')+(s.atelierLabel?' · Atelier lié : '+esc(s.atelierLabel):'')+'</div>'+
+      '<div class="muted" style="font-size:12px;">'+(linked?'Paiement rattaché : il réduit le reste à encaisser sans augmenter le CA prévu.':'Vente indépendante : elle crée un CA supplémentaire.')+(s.email?' · '+esc(s.email):'')+'</div>'+
+      (s.atelierLabel?'<div class="muted" style="font-size:12px;">Atelier : '+esc(s.atelierLabel)+'</div>':'')+
+      (linked?'<div class="muted" style="font-size:12px;">'+sitePlacesCount(s.nbPlaces)+' place(s) · '+(s.atelierPaiementType==="acompte30"?'acompte 30 %':'paiement total')+' · montant contractuel '+euro(s.atelierPrixTotal||0)+'</div>':'')+
       (s.notes?'<div class="muted" style="font-size:12px;">'+esc(s.notes)+'</div>':'')+
-      '</div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(s.montant||0)+'</b><div style="margin-top:6px;"><button class="btn small danger" data-action="site-del-'+s.id+'">'+(del?'Confirmer':'Supprimer')+'</button></div></div></div>';
+      '</div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(s.montant||0)+' encaissé</b><div class="row-actions" style="margin-top:6px;justify-content:flex-end;"><button class="btn small ghost" data-action="site-edit-'+s.id+'">Modifier</button><button class="btn small danger" data-action="site-del-'+s.id+'">'+(del?'Confirmer':'Supprimer')+'</button></div></div></div>';
   });
   html+='</div>';
   return html;
@@ -1829,22 +2028,33 @@ function resolveSiteSaleClient(s){
   return client;
 }
 function syncSiteSaleToAtelier(s){
-  if(!s || s.activite!=="Atelier" || !s.atelierId) return;
+  if(!s || !isSiteSaleAtelierPayment(s) || !s.atelierId) return;
   var a=getAtelier(s.atelierId);
   if(!a) return;
   a.participants=a.participants||[];
-  var existing=a.participants.find(function(p){return p.siteSaleId===s.id;});
+  var existing=a.participants.find(function(p){
+    var siteParticipant=(p&&(p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0));
+    return p&&(p.siteSaleId===s.id||(s.atelierParticipantId&&p.id===s.atelierParticipantId)||(siteParticipant&&s.commande&&p.commande===s.commande));
+  });
   var prestation=s.prestation||s.produit||"Réservation site internet";
-  var prixTotal=num(s.atelierPrixTotal)||num(s.montant)||0;
+  var places=sitePlacesCount(s.nbPlaces);
+  var prixUnitaire=num(s.atelierPrixUnitaire)||(places?num(s.atelierPrixTotal)/places:0)||num(s.montant)||0;
+  var prixTotal=siteContractTotal(prixUnitaire,places);
   var paye=num(s.montant)||0;
   var solde=Math.max(0,r2(prixTotal-paye));
   var facturationSite=s.atelierPaiementType==="acompte30"?"site_acompte":"site_total";
 
   if(existing){
+    existing.siteSaleId=s.id;
     existing.nom=s.client;
     existing.email=s.email;
     existing.tel=s.tel;
     existing.prestation=prestation;
+    existing.atelierOptionId=s.atelierOptionId||"";
+    existing.atelierOptionLabel=s.atelierOptionLabel||((atelierChoiceById(a,s.atelierOptionId)||{}).label)||"";
+    existing.atelierModeleId=s.atelierOptionId||"";
+    existing.nbPlaces=places;
+    existing.prixUnitaire=prixUnitaire;
     existing.montant=prixTotal;
     existing.payeSiteMontant=paye;
     existing.soldeSite=solde;
@@ -1854,13 +2064,18 @@ function syncSiteSaleToAtelier(s){
     existing.commande=s.commande||"";
     s.atelierParticipantId=existing.id;
   } else {
-    var p={id:uid(),nom:s.client,email:s.email||"",tel:s.tel||"",prestation:prestation,montant:prixTotal,payeSiteMontant:paye,soldeSite:solde,facturation:facturationSite,source:"site",payeSite:true,siteSaleId:s.id,commande:s.commande||""};
+    var p={id:uid(),nom:s.client,email:s.email||"",tel:s.tel||"",prestation:prestation,atelierOptionId:s.atelierOptionId||"",atelierOptionLabel:s.atelierOptionLabel||((atelierChoiceById(a,s.atelierOptionId)||{}).label)||"",atelierModeleId:s.atelierOptionId||"",nbPlaces:places,prixUnitaire:prixUnitaire,montant:prixTotal,payeSiteMontant:paye,soldeSite:solde,facturation:facturationSite,source:"site",payeSite:true,siteSaleId:s.id,commande:s.commande||""};
     a.participants.push(p);
     s.atelierParticipantId=p.id;
   }
+  s.nature="atelier_payment";
+  s.caContractuelInclus=true;
+  s.nbPlaces=places;
+  s.atelierPrixUnitaire=prixUnitaire;
   s.atelierPrixTotal=prixTotal;
   s.atelierSolde=solde;
-  s.atelierLabel=(a.type||"Atelier")+" · "+(a.theme||"")+" · "+(a.date?frDate(a.date):"");
+  s.atelierOptionLabel=((atelierChoiceById(a,s.atelierOptionId)||{}).label)||s.atelierOptionLabel||"";
+  s.atelierLabel=siteAtelierDisplayLabel(a);
 }
 function removeSiteSaleFromAtelier(s){
   if(!s) return;
@@ -1868,41 +2083,95 @@ function removeSiteSaleFromAtelier(s){
     a.participants=(a.participants||[]).filter(function(p){return p.siteSaleId!==s.id;});
   });
 }
+function reconcileSiteSaleParticipants(){
+  var salesById={}, salesByParticipantId={}, salesByCommande={};
+  (state.ventesSite||[]).forEach(function(s){
+    if(!s||!s.id) return;
+    salesById[s.id]=s;
+    if(s.atelierParticipantId) salesByParticipantId[s.atelierParticipantId]=s;
+    if(s.commande) salesByCommande[String(s.commande).trim().toLowerCase()]=s;
+  });
+  (state.ateliers||[]).forEach(function(a){
+    if(!a) return;
+    a.participants=(a.participants||[]).filter(function(p){
+      if(!p) return false;
+      var linked=p.siteSaleId?salesById[p.siteSaleId]:null;
+      if(!linked&&p.id) linked=salesByParticipantId[p.id]||null;
+      var siteParticipant=(p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0);
+      if(!linked&&siteParticipant&&p.commande) linked=salesByCommande[String(p.commande).trim().toLowerCase()]||null;
+      if(!linked) return !p.siteSaleId;
+      if(!isSiteSaleAtelierPayment(linked)) return false;
+      p.siteSaleId=linked.id;
+      return linked.atelierId===a.id;
+    });
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(isSiteSaleAtelierPayment(s)&&s.atelierId) syncSiteSaleToAtelier(s);
+  });
+}
 function saveSiteSale(){
   captureSiteSaleDraft();
   var s=ui.siteSaleDraft; if(!s) return;
+  var editingId=ui.siteSaleEditingId||"";
+  var existingIndex=editingId?(state.ventesSite||[]).findIndex(function(x){return x.id===editingId;}):-1;
+  var oldSale=existingIndex>=0?state.ventesSite[existingIndex]:null;
   if(!(s.client||"").trim()){ toast("Indique la cliente."); return; }
+  if(s.commande && (state.ventesSite||[]).some(function(x){return x.commande===s.commande&&x.id!==editingId;})){
+    toast("Cette commande Squarespace est déjà enregistrée."); return;
+  }
   if(s.activite==="Atelier"){
-    if(!s.atelierId){ toast("Choisis l’atelier concerné pour synchroniser la participante."); return; }
-    if(!(num(s.atelierPrixTotal)>0)){ toast("Indique le prix total de la place."); return; }
-    if(!(num(s.montant)>0)){
-      s.montant=s.atelierPaiementType==="acompte30"?r2(num(s.atelierPrixTotal)*0.30):num(s.atelierPrixTotal);
+    if(!s.atelierId){ toast("Choisis l’atelier concerné."); return; }
+    s.nbPlaces=sitePlacesCount(s.nbPlaces);
+    var saleAtelier=getAtelier(s.atelierId), saleChoice=atelierChoiceById(saleAtelier,s.atelierOptionId);
+    if(saleChoice){
+      s.atelierOptionId=saleChoice.id; s.atelierOptionLabel=saleChoice.label;
+      if(!(num(s.atelierPrixUnitaire)>0)) s.atelierPrixUnitaire=saleChoice.price;
+      var choiceCap=atelierChoiceCapacityInfo(saleAtelier,saleChoice.id);
+      var previousPlaces=oldSale&&oldSale.atelierId===s.atelierId&&oldSale.atelierOptionId===saleChoice.id?sitePlacesCount(oldSale.nbPlaces):0;
+      if(choiceCap.planned>0 && s.nbPlaces>choiceCap.remaining+previousPlaces){ toast("Il ne reste que "+(choiceCap.remaining+previousPlaces)+" place(s) pour « "+saleChoice.label+" »."); return; }
     }
-  } else if(!(Number(s.montant)>0)){
-    toast("Indique le montant encaissé."); return;
+    if(!(num(s.atelierPrixUnitaire)>0)){ toast("Indique le prix par place."); return; }
+    s.atelierPrixTotal=siteContractTotal(s.atelierPrixUnitaire,s.nbPlaces);
+    if(!(num(s.montant)>0)) s.montant=siteSuggestedPayment(s.atelierPrixTotal,s.atelierPaiementType);
+    s.nature="atelier_payment";
+    s.caContractuelInclus=true;
+  } else {
+    if(!(Number(s.montant)>0)){ toast("Indique le montant encaissé."); return; }
+    s.nature="independent_sale";
+    s.caContractuelInclus=false;
   }
 
   resolveSiteSaleClient(s);
-  if(!(s.produit||"").trim()) s.produit=(s.activite==="Atelier"?(s.prestation||"Réservation atelier"):"Vente site internet");
-  syncSiteSaleToAtelier(s);
+  if(!(s.produit||"").trim()) s.produit=(s.activite==="Atelier"?(s.prestation||"Réservation atelier"):"Vente indépendante du site");
+  s.updatedAt=new Date().toISOString();
 
   state.ventesSite=state.ventesSite||[];
-  state.ventesSite.unshift(Object.assign({},s));
+  if(oldSale){
+    s.id=oldSale.id;
+    s.createdAt=oldSale.createdAt||s.createdAt||new Date().toISOString();
+    removeSiteSaleFromAtelier(oldSale);
+    syncSiteSaleToAtelier(s);
+    state.ventesSite[existingIndex]=Object.assign({},s);
+  }else{
+    syncSiteSaleToAtelier(s);
+    state.ventesSite.unshift(Object.assign({},s));
+  }
   ui.siteSaleDraft=null;
-  saveCache(); render(); toast("Vente site enregistrée et synchronisée.");
+  ui.siteSaleEditingId=null;
+  saveCache(); render();
+  toast(oldSale?"Encaissement corrigé : le décompte du bon atelier a été recalculé.":(isSiteSaleAtelierPayment(s)?"Paiement rattaché à l’atelier sans double comptage du CA.":"Vente site indépendante enregistrée."));
 }
-
 
 function viewSiteSalesPreview(){
-  var list=(state.ventesSite||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");}).slice(0,3);
-  var total=(state.ventesSite||[]).filter(function(s){return (s.date||"").slice(0,7)===todayISO().slice(0,7);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
-  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🌐 Ventes site internet</h3><button class="btn small primary" data-action="nav-ventesSite">Ouvrir</button></div>'+
-    '<p class="muted" style="margin:8px 0 10px;">Ventes Squarespace du mois : <b style="color:var(--bordeaux);">'+euro(r2(total))+'</b></p>';
-  if(!list.length) return html+'<p class="muted" style="margin:0;">Aucune vente site enregistrée.</p></div>';
-  list.forEach(function(s){ html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(s.produit||"Vente site")+'</b><div class="muted" style="font-size:12px;">'+frDate(s.date)+' · '+esc(s.client||"")+' · '+euro(s.montant||0)+'</div></div>'; });
+  var all=(state.ventesSite||[]).slice().sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
+  var list=all.slice(0,3);
+  var month=siteSalesSummary(all.filter(function(s){return (s.date||"").slice(0,7)===todayISO().slice(0,7);}));
+  var html='<div class="card"><div class="flexb"><h3 style="margin:0;">🌐 Squarespace</h3><button class="btn small primary" data-action="nav-ventesSite">Ouvrir</button></div>'+
+    '<p class="muted" style="margin:8px 0 10px;">Encaissé ce mois : <b style="color:var(--bordeaux);">'+euro(month.totalReceived)+'</b> · dont '+euro(month.atelierPayments)+' de paiements ateliers.</p>';
+  if(!list.length) return html+'<p class="muted" style="margin:0;">Aucune opération site enregistrée.</p></div>';
+  list.forEach(function(s){ html+='<div class="cal-listitem"><b style="color:var(--bordeaux);">'+esc(s.produit||"Opération site")+'</b><div class="muted" style="font-size:12px;">'+frDate(s.date)+' · '+esc(siteSaleNatureLabel(s))+' · '+esc(s.client||"")+' · '+euro(s.montant||0)+'</div></div>'; });
   return html+'</div>';
 }
-
 
 /* ===================== Trésorerie V3.0.0 ===================== */
 function encaissementsTresorerie(){
@@ -1944,7 +2213,7 @@ function encaissementsTresorerie(){
       id:s.id,
       type:"site",
       date:s.date||todayISO(),
-      libelle:(siteSaleLieeAtelier(s)?"Paiement atelier":(s.commande?("Squarespace "+s.commande):"Vente site"))+" · "+(s.produit||""),
+      libelle:(s.commande?("Squarespace "+s.commande):siteSaleNatureLabel(s))+" · "+(s.produit||""),
       client:s.client||"",
       montant:siteSaleSplit(s).total,
       montantBiens:siteSaleSplit(s).biens,
@@ -1952,7 +2221,8 @@ function encaissementsTresorerie(){
       paiement:"Site internet",
       activite:activiteVenteSite(s),
       facture:null,
-      siteSale:s
+      siteSale:s,
+      nature:isSiteSaleAtelierPayment(s)?"atelier_payment":"independent_sale"
     });
   });
   arr.sort(function(a,b){return (b.date||"").localeCompare(a.date||"");});
@@ -2108,13 +2378,13 @@ function viewTresorerie(){
   var byAct=groupTresorerieBy(function(e){return e.activite;}, listYear);
   var label=tresoPeriodLabel(period);
   var pendingFinance=financePendingOverview();
-  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + ventes site</span></div>'+ 
+  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + paiements et ventes Squarespace</span></div>'+ 
     '<div class="row-actions" style="margin:0;align-items:flex-end;">'+
       '<label class="field" style="margin:0;min-width:150px;"><span>Mois</span><select data-action="treso-month">'+tresoMonthOptions(period.month)+'</select></label>'+ 
       '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
-    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--green);">✅ Version active : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
+    '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--bordeaux);">🧪 Version active : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
     financePendingBlock(pendingFinance)+
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
@@ -2140,7 +2410,7 @@ function viewTresorerie(){
   else listMonth.forEach(function(e){
     html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+ 
       '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+ 
-      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · Squarespace':'')+'</div>'+ 
+      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · '+esc(siteSaleNatureLabel(e.siteSale)):'')+'</div>'+ 
       '<div class="muted" style="font-size:12px;">'+euro(e.montantBiens||0)+' biens · '+euro(e.montantServices||0)+' services</div></div>'+ 
       '<div style="font-weight:800;color:var(--bordeaux);white-space:nowrap;">'+euro(e.montant)+'</div></div>';
   });
@@ -2177,7 +2447,7 @@ function todaySmartData(){
   var echues=(state.factures||[]).filter(function(f){return f.statut!=="payee" && f.echeance && f.echeance<today;}).length;
   var mariagesLivraison=(state.mariages||[]).filter(function(m){return !mariageTermine(m) && m.dateLivraison && m.dateLivraison>=today && m.dateLivraison<=addDays(today,7);}).length;
   var devisRelance=(state.devis||[]).filter(function(d){return d.statut==="envoye" && d.date && d.date<=addDays(today,-7);}).length;
-  var siteM=(state.ventesSite||[]).filter(function(s){return (s.date||"").slice(0,7)===today.slice(0,7);}).reduce(function(t,s){return t+(Number(s.montant)||0);},0);
+  var siteM=siteSalesSummary((state.ventesSite||[]).filter(function(s){return (s.date||"").slice(0,7)===today.slice(0,7);})).totalReceived;
   var ateliersSoon=(typeof atelierUpcoming==='function')?atelierUpcoming().filter(function(a){return a.date<=addDays(today,7);}).length:0;
   return {commandes:commandes,aEncaisser:r2(aEncaisser),echues:echues,mariagesLivraison:mariagesLivraison,devisRelance:devisRelance,siteM:r2(siteM),ateliersSoon:ateliersSoon};
 }
@@ -2189,7 +2459,7 @@ function viewSmartDashboard(){
     '<div class="checkrow" data-action="nav-mariages" style="cursor:pointer;"><div style="flex:1;">💍 Mariages à livrer sous 7 jours</div><b>'+d.mariagesLivraison+'</b></div>'+
     '<div class="checkrow" data-action="nav-devis" style="cursor:pointer;"><div style="flex:1;">📞 Devis à relancer</div><b>'+d.devisRelance+'</b></div>'+
     '<div class="checkrow" data-action="nav-ateliers" style="cursor:pointer;"><div style="flex:1;">🎨 Ateliers à venir sous 7 jours</div><b>'+d.ateliersSoon+'</b></div>'+ 
-    '<div class="checkrow" data-action="nav-ventesSite" style="cursor:pointer;"><div style="flex:1;">🌐 Ventes site du mois</div><b>'+euro(d.siteM)+'</b></div>'+
+    '<div class="checkrow" data-action="nav-ventesSite" style="cursor:pointer;"><div style="flex:1;">🌐 Encaissements Squarespace du mois</div><b>'+euro(d.siteM)+'</b></div>'+
     '<div class="checkrow" data-action="dash-pending-payments" style="cursor:pointer;border-bottom:none;"><div style="flex:1;">⚠️ Factures échues</div><b>'+d.echues+'</b></div>'+
   '</div>';
 }
@@ -2218,12 +2488,12 @@ function clientHistoriqueComplet(c){
   });
   (state.ventesSite||[]).forEach(function(s){
     if(s.client && clientNameMatches(c.nom,s.client)){
-      items.push({date:s.date,type:"Vente site internet",label:(s.commande?("Squarespace "+s.commande+" · "):"")+ (s.produit||"Vente site"),montant:Number(s.montant)||0,paid:true,source:"site",id:s.id,paiement:"Site internet",activite:s.activite||""});
+      items.push({date:s.date,type:siteSaleNatureLabel(s),label:(s.commande?("Squarespace "+s.commande+" · "):"")+ (s.produit||"Opération site"),montant:Number(s.montant)||0,paid:true,source:"site",id:s.id,paiement:"Site internet",activite:s.activite||""});
     }
   });
   (state.ateliers||[]).forEach(function(a){
     (a.participants||[]).forEach(function(p){
-      if(p.nom && clientNameMatches(c.nom,p.nom)){
+      if(p.nom && clientNameMatches(c.nom,p.nom) && !p.siteSaleId){
         items.push({date:a.date,type:"Atelier",label:(a.type||"Atelier")+" · "+(a.theme||"")+" · "+(p.prestation||""),montant:Number(p.montant)||0,paid:null,source:"atelier",id:a.id,activite:"Atelier"});
       }
     });
@@ -2443,7 +2713,7 @@ function atelierModelMultiSelector(a,mode){
     var checked=selected.indexOf(m.id)>=0;
     return '<div style="border:1px solid var(--line);border-radius:12px;padding:10px;background:'+(checked?'#fff8f5':'#fff')+';">'+
       '<label style="display:flex;gap:8px;align-items:flex-start;"><input type="checkbox" data-atelier-model-id="'+esc(m.id)+'" data-action="at-stock-config-change"'+(checked?' checked':'')+'> <span><b>'+esc(m.label)+'</b><small class="muted" style="display:block;">'+(m.category?esc(m.category)+' · ':'')+(m.duree?esc(m.duree):m.modes.map(atelierModeLabel).join(' / '))+'</small></span></label>'+
-      (checked?'<label class="field" style="margin:9px 0 0;"><span>Participants pour cette création <b style="color:var(--red);">*</b></span><input type="number" min="1" step="1" data-atelier-model-participants="'+esc(m.id)+'" data-action="at-stock-config-change" value="'+esc(counts[m.id]||'')+'" placeholder="Ex. 8"></label>':'')+'</div>';
+      (checked?'<label class="field" style="margin:9px 0 0;"><span>'+(mode==='thematique'?'Nombre de places proposées':'Participants pour cette création')+' <b style="color:var(--red);">*</b></span><input type="number" min="1" step="1" data-atelier-model-participants="'+esc(m.id)+'" data-action="at-stock-config-change" value="'+esc(counts[m.id]||'')+'" placeholder="Ex. 8"></label>'+(mode==='thematique'?'<label class="field" style="margin:9px 0 0;"><span>Tarif de cette activité (€) <b style="color:var(--red);">*</b></span><input type="number" min="0" step="0.01" data-atelier-model-price="'+esc(m.id)+'" value="'+esc(((a.atelierModelPrices||{})[m.id])||(selected.length===1?a.tarifParPersonne:'')||'')+'" placeholder="Ex. 39"></label>':''):'')+'</div>';
   }).join('');
   var info=atelierAllocationSummary(a), status=selected.length?('<div class="summary" style="margin-top:10px;background:'+(info.ok?'#eef7ef':'#fff2ed')+';"><b>Répartition : '+info.allocated+' / '+(total||0)+' participant(s)</b><div class="muted">'+(info.ok?'La répartition est correcte pour le calcul du stock.':'La somme des créations doit être exactement égale au nombre total de participants.')+'</div></div>'):'';
   return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;">'+cards+'</div>'+status;
@@ -3115,6 +3385,64 @@ function atelierStatutOptions(selected){
   return Object.keys(ATELIER_STATUTS).map(function(k){return '<option value="'+esc(k)+'"'+(selected===k?' selected':'')+'>'+esc(ATELIER_STATUTS[k])+'</option>';}).join("");
 }
 function getAtelier(id){ return (state.ateliers||[]).find(function(a){return a.id===id;}); }
+function atelierSitePaymentTotals(a){
+  var paye=0, solde=0, saleIds={};
+  (state.ventesSite||[]).forEach(function(s){
+    if(!isSiteSaleAtelierPayment(s) || s.atelierId!==a.id) return;
+    if(s.id && saleIds[s.id]) return;
+    if(s.id) saleIds[s.id]=true;
+    var paid=Number(s.montant)||0;
+    var contract=Number(s.atelierPrixTotal)||paid;
+    paye+=paid;
+    solde+=Math.max(0,contract-paid);
+  });
+  ((a&&a.participants)||[]).forEach(function(p){
+    var isSite=p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;
+    if(!isSite || (p.siteSaleId&&saleIds[p.siteSaleId])) return;
+    paye+=Number(p.payeSiteMontant)||Number(p.montant)||0;
+    solde+=Number(p.soldeSite)||0;
+  });
+  return {paye:r2(paye),solde:r2(solde)};
+}
+function atelierCapacityInfo(a){
+  // La capacité dépend du type de fiche : les ateliers thématiques utilisent
+  // nbParticipantsPrevu, tandis que certains ateliers privés historiques
+  // enregistrent encore leur capacité dans nbPersonnes.
+  var planned=Math.max(0,Number(a&&a.nbParticipantsPrevu)||Number(a&&a.nbPersonnes)||0);
+  var reserved=atelierReservedCount(a);
+  return {planned:planned,reserved:reserved,remaining:Math.max(0,planned-reserved),overbooked:Math.max(0,reserved-planned)};
+}
+function atelierPaymentRows(a){
+  var rows=[];
+  (state.ventesSite||[]).forEach(function(s){
+    if(isSiteSaleAtelierPayment(s)&&s.atelierId===a.id){
+      rows.push({date:s.date||"",client:s.client||"Participante",source:"Squarespace",reference:s.commande||"",montant:Number(s.montant)||0,places:sitePlacesCount(s.nbPlaces),paiementType:s.atelierPaiementType||"total",contract:Number(s.atelierPrixTotal)||0,siteSaleId:s.id});
+    }
+  });
+  atelierFacturesLiees(a).forEach(function(f){
+    if(f.statut==="payee") rows.push({date:f.datePaiement||f.date||"",client:(f.client&&f.client.nom)||"Cliente",source:normalizePaymentMethod(f.paiementClient||"Facture payée"),reference:f.numero||"",montant:Number(f.montant)||0});
+  });
+  rows.sort(function(x,y){return (y.date||"").localeCompare(x.date||"");});
+  return rows;
+}
+function viewAtelierPaymentSummary(a){
+  var t=atelierTotals(a), cap=atelierCapacityInfo(a), rows=atelierPaymentRows(a);
+  var reste=r2(Math.max(0,(Number(t.total)||0)-(Number(t.paye)||0)));
+  var html='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;"><div class="flexb"><div><h3 style="margin:0;">💳 Places et paiements</h3><p class="muted" style="margin:4px 0 0;">Le CA prévu de l’atelier reste unique. Chaque réservation payée réduit seulement le reste à encaisser.</p></div><span class="badge" style="background:var(--green-s);color:var(--green);">calcul automatique</span></div>'+
+    '<div class="grid-stats" style="margin-top:12px;">'+
+      stat("CA prévu atelier",euro(t.total),true)+
+      stat("Montant encaissé",euro(t.paye),false,'var(--green-s)')+
+      stat("Reste à encaisser",euro(reste),false,'var(--blush-s)')+
+      stat("Places réservées",cap.reserved+(cap.planned?" / "+cap.planned:""),false)+
+    '</div>'+
+    '<div class="summary" style="margin-bottom:12px;"><div class="totrow"><span>Places encore disponibles</span><b>'+cap.remaining+'</b></div>'+(cap.overbooked?'<div class="totrow" style="color:var(--red);"><span>Dépassement de capacité</span><b>+'+cap.overbooked+'</b></div>':'')+'<div class="totrow"><span>Paiements Squarespace inclus dans l’encaissé</span><b>'+euro(t.sitePaye)+'</b></div></div>'+
+    '<div class="flexb"><h3 style="margin:0 0 8px;">Historique des paiements rattachés</h3><span class="muted">'+rows.length+' paiement(s)</span></div>';
+  if(!rows.length) html+='<p class="muted" style="margin:0;">Aucun paiement encore enregistré pour cet atelier.</p>';
+  else rows.forEach(function(r){
+    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(r.client)+'</b><div class="muted" style="font-size:12px;">'+(r.date?frDate(r.date)+' · ':'')+esc(r.source)+(r.reference?' · '+esc(r.reference):'')+(r.places?' · '+r.places+' place(s) · '+(r.paiementType==="acompte30"?'acompte 30 %':'paiement total'):'')+'</div></div><div style="text-align:right;"><b style="color:var(--bordeaux);">'+euro(r.montant)+'</b>'+(r.contract?'<div class="muted" style="font-size:11px;">sur '+euro(r.contract)+'</div>':'')+(r.siteSaleId?'<div style="margin-top:5px;"><button class="btn small ghost" data-action="site-edit-'+r.siteSaleId+'">Corriger</button></div>':'')+'</div></div>';
+  });
+  return html+'</div>';
+}
 function newAtelier(){
   var a={id:uid(),modeAtelier:"thematique",date:todayISO(),heure:"",lieu:"",theme:"À compléter",type:"EVJF",
     organisatrice:"",structureNom:"",contactEmail:"",contactTel:"",
@@ -3134,8 +3462,9 @@ function atelierTotals(a){
   var parts=(a&&a.participants)||[];
   var participantTotal=parts.reduce(function(s,p){return s+(Number(p.montant)||0);},0);
   var tarifThematique=Number(a.tarifParPersonne)||0;
-  var totalThematique=(Number(a.nbParticipantsPrevu)||0)*tarifThematique;
-  var total=(mode==="thematique" && tarifThematique>0)?totalThematique:participantTotal;
+  var choices=atelierChoiceOptions(a);
+  var totalThematique=choices.length?choices.reduce(function(sum,o){return sum+(Number(o.capacity)||0)*(Number(o.price)||0);},0):(Number(a.nbParticipantsPrevu)||0)*tarifThematique;
+  var total=(mode==="thematique" && (totalThematique>0||tarifThematique>0))?totalThematique:participantTotal;
   if(mode==="structure") total=Number(a.montantPrestation)||0;
   if(mode==="prive") total=Number(a.montantForfait)||0;
   if(mode!=="thematique") total+=atelierPrestationsTotal(a);
@@ -3148,8 +3477,9 @@ function atelierTotals(a){
     total=totals(d.lignes||[],state.settings.partService).total;
   }
 
-  var sitePaye=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.payeSiteMontant)||Number(p.montant)||0);},0);
-  var siteSolde=parts.filter(function(p){return p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0;}).reduce(function(s,p){return s+(Number(p.soldeSite)||0);},0);
+  var siteTotals=atelierSitePaymentTotals(a);
+  var sitePaye=siteTotals.paye;
+  var siteSolde=siteTotals.solde;
   var factures=atelierFacturesLiees(a);
   var facture=factures.reduce(function(s,f){return s+(Number(f.montant)||0);},0);
   var paye=r2(sitePaye+factures.filter(function(f){return f.statut==="payee";}).reduce(function(s,f){return s+(Number(f.montant)||0);},0));
@@ -3179,14 +3509,16 @@ function viewAteliers(){
     html+='<div class="flexb" style="margin:22px 0 8px;"><h3 style="margin:0;color:var(--bordeaux);">'+esc(ATELIER_STATUTS[status]||status)+'</h3><span class="badge">'+group.length+' atelier(s)</span></div>';
     group.forEach(function(a){
     var mode=atelierMode(a), t=atelierTotals(a), st=ATELIER_STATUTS[a.statut]||a.statut||"Booké";
+    var cap=atelierCapacityInfo(a);
     var contact=a.organisatrice||a.structureNom||"";
     html+='<div class="card"><div class="flexb"><div><b style="color:var(--bordeaux);font-size:16px;">'+esc(atelierModeLabel(mode))+' · '+esc(a.theme||"À compléter")+'</b>'+
       '<div class="muted">'+(a.date?frDate(a.date):"Date à définir")+(a.heure?' · '+esc(a.heure):'')+(a.lieu?' · '+esc(a.lieu):'')+(contact?' · '+esc(contact):'')+'</div></div>'+
       '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(st)+'</span></div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+
         '<span class="chip">🏷️ '+esc(atelierModeLabel(mode))+'</span>'+ 
-        '<span class="chip">👥 '+t.participants+' '+(mode==="thematique"?'participant(s)':'personne(s) prévue(s)')+'</span>'+ 
-      '</div>'+
+        '<span class="chip">👥 '+(cap.planned?(cap.reserved+'/'+cap.planned+' place(s) réservée(s)'):(cap.reserved?cap.reserved+' place(s) réservée(s)':t.participants+' personne(s) prévue(s)'))+'</span>'+ 
+        (cap.planned && cap.reserved>=cap.planned?'<span class="pill" style="background:#dff3e5;color:#23663a;font-weight:800;">✓ COMPLET</span>':(cap.planned && cap.reserved>0?'<span class="pill" style="background:#fff1d6;color:#8a5a00;font-weight:700;">'+cap.remaining+' place(s) restante(s)</span>':''))+
+      '</div>'+atelierChoicesSummaryHtml(a)+
       '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
     });
   });
@@ -3214,6 +3546,8 @@ function captureAtelier(a){
   var modelChecks=document.querySelectorAll("[data-atelier-model-id]");
   a.atelierModeleIds=[]; modelChecks.forEach(function(el){if(el.checked)a.atelierModeleIds.push(el.getAttribute("data-atelier-model-id"));});
   a.atelierModeleId=a.atelierModeleIds[0]||"";
+  a.atelierModelPrices=a.atelierModelPrices||{};
+  a.atelierModeleIds.forEach(function(id){ var pin=document.querySelector('[data-atelier-model-price="'+id.replace(/"/g,'\"')+'"]'); if(pin) a.atelierModelPrices[id]=num(pin.value); });
   var previousCounts=(a.atelierModelParticipantCounts&&typeof a.atelierModelParticipantCounts==="object")?a.atelierModelParticipantCounts:{};
   a.atelierModelParticipantCounts={};
   a.atelierModeleIds.forEach(function(id){
@@ -3232,6 +3566,71 @@ function captureAtelier(a){
   a.materiel=val("atMateriel")||"";
   a.description=val("atDescription")||"";
 }
+function viewAtelierParticipantsSection(a,mode){
+  a.participants=a.participants||[];
+  var canAdd=mode==="thematique";
+  var html="";
+
+  if(canAdd){
+    html+='<div class="card"><h3 style="margin-top:0;">Ajouter une participante</h3>'+ 
+      '<p class="muted" style="margin-top:0;">Pour les ateliers thématiques du site, les participantes peuvent aussi être ajoutées automatiquement depuis Paiements et ventes du site.</p>'+ 
+      '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+ 
+      '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+ 
+      '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+ 
+      '<div><label class="field"><span>Activité choisie</span>'+(atelierChoiceOptions(a).length?'<select id="atPOptionId">'+atelierChoiceOptions(a).map(function(o){return '<option value="'+esc(o.id)+'">'+esc(o.label)+' · '+euro(o.price)+'</option>';}).join('')+'</select>':'<input id="atPPrestation" placeholder="Ex : demi-couronne">')+'</label></div></div>'+ 
+      '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'"><div class="hint">Prérempli avec le tarif par personne de l’atelier.</div></label></div>'+ 
+      '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+ 
+      '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
+  }
+
+  if(!a.participants.length){
+    if(canAdd){
+      html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Participantes / commandes</h3><span class="muted">0 place réservée · '+atelierCapacityInfo(a).remaining+' restante(s)</span></div><p class="muted">Aucune participante renseignée.</p></div>';
+    }else{
+      html+='<div class="card"><h3 style="margin-top:0;">Réservations site / participantes</h3><p class="muted" style="margin:0;">Aucune réservation nominative liée à cet atelier. Les participantes ajoutées depuis les ventes du site apparaîtront automatiquement ici.</p></div>';
+    }
+    return html;
+  }
+
+  var paymentSummary=a.participants.reduce(function(acc,p){
+    var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0);
+    if(!isSite) return acc;
+    var due=Math.max(0,Number(p.soldeSite)||0);
+    if(due>0.009) acc.due++; else acc.paid++;
+    return acc;
+  },{paid:0,due:0});
+  html+='<div class="card"><div class="flexb"><h3 style="margin:0;">'+(canAdd?'Participantes / commandes':'Réservations site / participantes')+'</h3><span class="muted">'+atelierReservedCount(a)+' place(s) réservée(s) · '+atelierCapacityInfo(a).remaining+' restante(s)</span></div>'+ 
+    ((paymentSummary.paid||paymentSummary.due)?'<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 6px;"><span class="pill" style="background:#dff3e5;color:#23663a;font-weight:700;">✓ '+paymentSummary.paid+' paiement(s) soldé(s)</span><span class="pill" style="background:#fff1d6;color:#8a5a00;font-weight:700;">€ '+paymentSummary.due+' solde(s) à encaisser</span></div>':'')+
+    (!canAdd?'<p class="muted" style="margin:8px 0 4px;">Les réservations provenant de Squarespace sont affichées même si le détail nominatif n’est normalement pas requis pour ce type d’atelier.</p>':'');
+
+  a.participants.forEach(function(p){
+    var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0);
+    var siteAcompte=(p.facturation==='site_acompte');
+    var acompte=r2((Number(p.montant)||0)*0.30);
+    var solde=r2((Number(p.montant)||0)-acompte);
+    var actions='';
+    if(isSite){
+      if(p.siteSaleId) actions+='<button class="btn small ghost" data-action="site-edit-'+p.siteSaleId+'">Corriger la vente</button>';
+    }else{
+      if(!p.factureId) actions+='<button class="btn small primary" data-action="at-fac-'+p.facturation+'-'+a.id+'-'+p.id+'">Créer facture '+(p.facturation==="total"?"totale":"acompte "+euro(acompte))+'</button>';
+      if(p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId) actions+='<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>';
+      actions+='<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>';
+    }
+    var siteSoldeRestant=Math.max(0,r2(Number(p.soldeSite)||0));
+    var paymentDone=isSite && siteSoldeRestant<=0.009;
+    var rowStyle=isSite?(paymentDone?'align-items:flex-start;background:#f2fbf5;border:1px solid #b9dfc5;border-radius:12px;padding:12px;margin-top:8px;':'align-items:flex-start;background:#fff8e8;border:1px solid #efd39a;border-radius:12px;padding:12px;margin-top:8px;'):'align-items:flex-start;';
+    html+='<div class="checkrow" style="'+rowStyle+'"><div style="flex:1;">'+ 
+      '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;"><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b><span>· '+esc(p.prestation||"Prestation")+' · <b>'+sitePlacesCount(p.nbPlaces)+' place(s)</b></span>'+(isSite?(paymentDone?'<span class="pill" style="background:#dff3e5;color:#23663a;font-weight:800;">✓ PAYÉ EN TOTALITÉ</span>':'<span class="pill" style="background:#ffe4ad;color:#7b4c00;font-weight:800;">€ RESTE '+euro(siteSoldeRestant)+' À RÉGLER</span>'):'')+'</div>'+ 
+      '<div class="muted" style="font-size:12px;">Montant contractuel : '+euro(p.montant||0)+(p.prixUnitaire?' · '+euro(p.prixUnitaire)+' / place':'')+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"paiement total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+ 
+      (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+ 
+      (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+ 
+      (isSite?'<div class="muted" style="font-size:12px;">✅ Payé via Squarespace : '+euro(p.payeSiteMontant||p.montant||0)+(p.soldeSite?' · Solde à payer le jour de l’atelier : '+euro(p.soldeSite):'')+(p.commande?' · Commande '+esc(p.commande):'')+'</div>':'')+ 
+      '</div><div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+actions+'</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+
 function viewAtelierDetail(a){
   if(!a){ ui.atelierOpen=null; return viewAteliers(); }
   a.participants=a.participants||[];
@@ -3251,8 +3650,9 @@ function viewAtelierDetail(a){
 
   if(mode==="thematique"){
     html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier thématique</h3>'+ 
-      '<div class="inline"><div><label class="field"><span>Nombre de participants prévu <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||'')+'" placeholder="Obligatoire pour calculer le stock"><div class="hint">Ce nombre pilote le calcul et le décompte du matériel.</div></label></div>'+ 
-      '<div><label class="field"><span>Tarif par personne (€)</span><input id="atTarifParPersonne" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'" placeholder="Ex : 35"><div class="hint">Le montant de référence est calculé automatiquement et reste visible uniquement dans Finances.</div></label></div></div>'+ 
+      '<div class="inline"><div><label class="field"><span>Nombre total de places proposées <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||'')+'" placeholder="Somme de toutes les activités"><div class="hint">Doit correspondre à la somme des places indiquées pour chaque activité ci-dessus.</div></label></div>'+ 
+      '<div><label class="field"><span>Tarif par défaut (€)</span><input id="atTarifParPersonne" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'" placeholder="Utilisé pour un atelier à choix unique"><div class="hint">Pour plusieurs activités, le tarif propre à chaque choix est saisi dans « Types d’atelier ».</div></label></div></div>'+
+      '<div class="summary"><b>Atelier multi-activités</b><div class="muted">Chaque activité possède son nombre de places, son tarif et sa recette de stock. Le CA prévu est la somme : places × tarif de chaque choix.</div></div>'+ 
       '</div>';
   }
 
@@ -3288,39 +3688,9 @@ function viewAtelierDetail(a){
     '<label class="field"><span>Description / mémo</span><textarea id="atDescription" placeholder="Infos organisation, demandes particulières, déroulé de l’atelier…">'+esc(a.description||"")+'</textarea></label>'+
     '<div class="row-actions"><button class="btn primary" data-action="at-save">Enregistrer l’atelier</button></div></div>';
 
-  if(mode==="thematique"){
-    html+='<div class="card"><h3 style="margin-top:0;">Ajouter une participante</h3>'+
-      '<p class="muted" style="margin-top:0;">Pour les ateliers thématiques du site, les participantes peuvent aussi être ajoutées automatiquement depuis Ventes site internet.</p>'+
-      '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+
-      '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+
-      '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'"><div class="hint">Prérempli avec le tarif par personne de l’atelier.</div></label></div>'+
-      '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+
-      '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
+  if(mode==="thematique") html+=viewAtelierPaymentSummary(a);
 
-    html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Participantes</h3><span class="muted">'+a.participants.length+' participante(s)</span></div>';
-    if(!a.participants.length){ html+='<p class="muted">Aucune participante renseignée.</p>'; }
-    else {
-      a.participants.forEach(function(p){
-        var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0), siteAcompte=(p.facturation==='site_acompte'), acompte=r2((Number(p.montant)||0)*0.30), solde=r2((Number(p.montant)||0)-acompte);
-        html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
-          '<div><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b> · '+esc(p.prestation||"Prestation")+'</div>'+
-          '<div class="muted" style="font-size:12px;">Montant : '+euro(p.montant||0)+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"prix total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+
-          (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+
-          (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+
-          (isSite?'<div class="muted" style="font-size:12px;">✅ Payé via Squarespace : '+euro(p.payeSiteMontant||p.montant||0)+(p.soldeSite?' · Solde à payer le jour de l’atelier : '+euro(p.soldeSite):'')+(p.commande?' · Commande '+esc(p.commande):'')+'</div>':'')+
-          '</div><div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
-            (!p.factureId&&!isSite?'<button class="btn small primary" data-action="at-fac-'+p.facturation+'-'+a.id+'-'+p.id+'">Créer facture '+(p.facturation==="total"?"totale":"acompte "+euro(acompte))+'</button>':'')+
-            (p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId&&!isSite?'<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>':'')+
-            '<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>'+
-          '</div></div>';
-      });
-    }
-    html+='</div>';
-  }else{
-    html+='<div class="card"><h3 style="margin-top:0;">Participants</h3><p class="muted" style="margin:0;">Pour ce type d’atelier, le détail nominatif des participants n’est pas nécessaire. Le budget est basé sur le montant renseigné ci-dessus.</p></div>';
-  }
+  html+=viewAtelierParticipantsSection(a,mode);
   return html;
 }
 function atelierClientFromParticipant(p){
@@ -4174,7 +4544,7 @@ function exportCSV(annee){
   (state.ventesSite||[]).forEach(function(s){
     if(s.date&&(annee==="all"||s.date.slice(0,4)===String(annee))){
       var sp=siteSaleSplit(s);
-      rows.push({date:s.date, source:"Vente site internet", ref:s.commande||"", type:s.produit||s.activite||"Vente site", client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, paiement:"Site internet"});
+      rows.push({date:s.date, source:siteSaleNatureLabel(s), ref:s.commande||"", type:s.produit||s.activite||"Opération site", client:s.client||"", montant:sp.total, biens:sp.biens, services:sp.services, paiement:"Site internet"});
     }
   });
   rows.sort(function(a,b){return (a.date||"").localeCompare(b.date||"");});
@@ -5944,18 +6314,20 @@ function handleAction(action){
   if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var list=prestationsActives(); var preset=list[pi]||list[list.length-1]||{label:"Autre / champ libre",type:"service",qte:1,prix:0}; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; var ptype=preset.type==="bien"?"bien":"service"; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:ptype,urssafType:ptype,qte:preset.qte||1,prix:num(preset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
   if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
   if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } var adel=getAtelier(adid); if(adel&&adel.stockPrepared) atelierRestoreStock(adel,false); state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé · stock réintégré automatiquement."); return; }
-  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; var np={id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),montant:montant,facturation:val("atPFacturation")||"acompte30"}; aa.participants.push(np); if(aa.stockPrepared){var apr=atelierReconcilePreparedStock(aa,false);if(!apr.ok){aa.participants=aa.participants.filter(function(p){return p.id!==np.id;});if(apr.message)alert(apr.message);render();return;}} ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée"+(aa.stockPrepared?" · stock ajusté.":".")); } return; }
+  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var optionId=val("atPOptionId"), option=atelierChoiceById(aa,optionId); var montant=option?option.price:num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } if(option){var oc=atelierChoiceCapacityInfo(aa,option.id);if(oc.planned>0&&oc.remaining<1){toast("Cette activité est complète.");return;}} aa.participants=aa.participants||[]; var np={id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:option?option.label:val("atPPrestation"),atelierOptionId:option?option.id:"",atelierOptionLabel:option?option.label:"",atelierModeleId:option?option.id:"",nbPlaces:1,prixUnitaire:montant,montant:montant,facturation:val("atPFacturation")||"acompte30"}; aa.participants.push(np); if(aa.stockPrepared){var apr=atelierReconcilePreparedStock(aa,false);if(!apr.ok){aa.participants=aa.participants.filter(function(p){return p.id!==np.id;});if(apr.message)alert(apr.message);render();return;}} ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée"+(aa.stockPrepared?" · stock ajusté.":".")); } return; }
   if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ var oldParts=(at.participants||[]).slice(); at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); if(at.stockPrepared){var adr=atelierReconcilePreparedStock(at,false);if(!adr.ok){at.participants=oldParts;if(adr.message)alert(adr.message);render();return;}} saveCache(); render(); toast("Participante supprimée"+(at.stockPrepared?" · stock ajusté.":".")); } return; }
   if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }
 
   
   if(action==="site-new"){ newSiteSaleDraft(); ui.tab="clientsModule"; ui.clientsSub="ventesSite"; render(); return; }
-  if(action==="site-cancel"){ ui.siteSaleDraft=null; render(); return; }
+  if(action==="site-cancel"){ ui.siteSaleDraft=null; ui.siteSaleEditingId=null; render(); return; }
+  if(action.indexOf("site-edit-")===0){ editSiteSale(action.slice(10)); return; }
   if(action==="site-mode-nouveau"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="nouveau"; render(); return; }
   if(action==="site-mode-existant"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="existant"; if(!ui.siteSaleDraft.clientId&&state.clients[0]) ui.siteSaleDraft.clientId=state.clients[0].id; render(); return; }
   if(action==="site-activite-change"){ captureSiteSaleDraft(); render(); return; }
-  if(action==="site-atelier-change"){ captureSiteSaleDraft(); render(); return; }
-  if(action==="site-atelier-pay-change"){ captureSiteSaleDraft(); render(); return; }
+  if(action==="site-atelier-change"){ captureSiteSaleDraft(); setSiteDraftAtelier(ui.siteSaleDraft,val("siteAtelierId"),true); render(); return; }
+  if(action==="site-atelier-option-change"){ captureSiteSaleDraft(); var sa=getAtelier(ui.siteSaleDraft.atelierId); var ch=atelierChoiceById(sa,val("siteAtelierOptionId")); if(ch){ui.siteSaleDraft.atelierOptionId=ch.id;ui.siteSaleDraft.atelierOptionLabel=ch.label;ui.siteSaleDraft.atelierPrixUnitaire=ch.price;ui.siteSaleDraft.prestation="Place · "+ch.label;ui.siteSaleDraft.atelierPrixTotal=siteContractTotal(ch.price,ui.siteSaleDraft.nbPlaces);ui.siteSaleDraft.montant=siteSuggestedPayment(ui.siteSaleDraft.atelierPrixTotal,ui.siteSaleDraft.atelierPaiementType);} render(); return; }
+  if(action==="site-atelier-pay-change"){ captureSiteSaleDraft(); ui.siteSaleDraft.montant=siteSuggestedPayment(ui.siteSaleDraft.atelierPrixTotal,ui.siteSaleDraft.atelierPaiementType); render(); return; }
   if(action==="site-save"){ saveSiteSale(); return; }
   if(action.indexOf("site-del-")===0){
     var sid=action.slice(9), skey="site:"+sid;
@@ -5963,7 +6335,8 @@ function handleAction(action){
     var saleToDelete=(state.ventesSite||[]).find(function(s){return s.id===sid;});
     removeSiteSaleFromAtelier(saleToDelete);
     state.ventesSite=(state.ventesSite||[]).filter(function(s){return s.id!==sid;});
-    ui.confirmDelete=null; saveCache(); render(); toast("Vente site supprimée."); return;
+    if(ui.siteSaleEditingId===sid){ ui.siteSaleEditingId=null; ui.siteSaleDraft=null; }
+    ui.confirmDelete=null; saveCache(); render(); toast(saleToDelete&&isSiteSaleAtelierPayment(saleToDelete)?"Paiement atelier supprimé.":"Vente site supprimée."); return;
   }
 
   if(action==="go-achats"){ ui.tab="financesModule"; ui.financesSub="achats"; render(); return; }
@@ -6494,9 +6867,36 @@ document.addEventListener("change", function(e){
   if(t.getAttribute&&t.getAttribute("data-action")==="cmd-clientsel"){ if(ui.commandeDraft) ui.commandeDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="fac-clientsel"){ if(ui.factureDraft) ui.factureDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="site-clientsel"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.clientId=t.value; captureSiteSaleDraft(); } return; }
-  if(t.getAttribute&&t.getAttribute("data-action")==="site-activite-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.activite=t.value; captureSiteSaleDraft(); render(); } return; }
-  if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.atelierId=t.value; captureSiteSaleDraft(); } return; }
-  if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-pay-change"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.atelierPaiementType=t.value; captureSiteSaleDraft(); render(); } return; }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-activite-change"){
+    if(ui.siteSaleDraft){
+      captureSiteSaleDraft(); ui.siteSaleDraft.activite=t.value;
+      if(t.value==="Atelier"){
+        ui.siteSaleDraft.nature="atelier_payment"; ui.siteSaleDraft.caContractuelInclus=true;
+        setSiteDraftAtelier(ui.siteSaleDraft,ui.siteSaleDraft.atelierId,true);
+      }else{
+        ui.siteSaleDraft.nature="independent_sale"; ui.siteSaleDraft.caContractuelInclus=false;
+        ui.siteSaleDraft.atelierId=""; ui.siteSaleDraft.atelierLabel=""; ui.siteSaleDraft.atelierParticipantId="";
+      }
+      render();
+    }
+    return;
+  }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-change"){
+    if(ui.siteSaleDraft){ captureSiteSaleDraft(); setSiteDraftAtelier(ui.siteSaleDraft,t.value,true); render(); }
+    return;
+  }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-pay-change"){
+    if(ui.siteSaleDraft){ captureSiteSaleDraft(); ui.siteSaleDraft.atelierPaiementType=t.value; ui.siteSaleDraft.atelierPrixTotal=siteContractTotal(ui.siteSaleDraft.atelierPrixUnitaire,ui.siteSaleDraft.nbPlaces); ui.siteSaleDraft.montant=siteSuggestedPayment(ui.siteSaleDraft.atelierPrixTotal,t.value); render(); }
+    return;
+  }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-places-change"){
+    if(ui.siteSaleDraft){ captureSiteSaleDraft(); ui.siteSaleDraft.nbPlaces=sitePlacesCount(t.value); ui.siteSaleDraft.atelierPrixTotal=siteContractTotal(ui.siteSaleDraft.atelierPrixUnitaire,ui.siteSaleDraft.nbPlaces); ui.siteSaleDraft.montant=siteSuggestedPayment(ui.siteSaleDraft.atelierPrixTotal,ui.siteSaleDraft.atelierPaiementType); render(); }
+    return;
+  }
+  if(t.getAttribute&&t.getAttribute("data-action")==="site-atelier-price-change"){
+    if(ui.siteSaleDraft){ captureSiteSaleDraft(); ui.siteSaleDraft.atelierPrixUnitaire=num(t.value); ui.siteSaleDraft.atelierPrixTotal=siteContractTotal(ui.siteSaleDraft.atelierPrixUnitaire,ui.siteSaleDraft.nbPlaces); ui.siteSaleDraft.montant=siteSuggestedPayment(ui.siteSaleDraft.atelierPrixTotal,ui.siteSaleDraft.atelierPaiementType); render(); }
+    return;
+  }
   if(t.getAttribute&&t.getAttribute("data-action")==="wz-clientsel"){ if(ui.wizard) ui.wizard.clientId=t.value; return; }
   if(t.id==="logoInput"){ onLogoFile(t.files[0]); t.value=""; return; }
   if(t.id==="marMedia"){ onMarMediaFiles(t.files); t.value=""; return; }
