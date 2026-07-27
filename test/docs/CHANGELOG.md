@@ -1,3 +1,8 @@
+## V4.1.4 TEST
+- Statut visuel vert pour les participantes soldées.
+- Statut orange avec montant restant pour les participantes ayant encore un solde.
+- Remplissage X/Y et badge COMPLET dans la liste des ateliers.
+
 # V4.1.3 TEST — Participantes Squarespace visibles dans les ateliers
 
 - Affichage des réservations Squarespace dans tous les types d’ateliers, y compris privés et structures.

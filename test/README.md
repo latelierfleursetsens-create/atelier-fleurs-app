@@ -1,4 +1,4 @@
-# MyBusiness — V4.1.3 TEST
+# MyBusiness — V4.1.4 TEST
 
 ## Correction apportée
 
@@ -26,3 +26,9 @@ La version répare également automatiquement les anciennes liaisons : à l’ou
 5. Le nom de la cliente et le nombre de places doivent apparaître.
 
 > Toujours tester cette version dans le dossier `/test/` avant de la passer en production.
+
+
+## V4.1.4 TEST
+- Différenciation visuelle des participantes ayant tout payé et de celles ayant encore un solde à régler le jour de l’atelier.
+- Affichage du remplissage directement dans la liste des ateliers.
+- Badge **COMPLET** lorsque le nombre de places réservées atteint la capacité prévue.

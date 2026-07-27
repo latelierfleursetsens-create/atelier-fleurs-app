@@ -1,9 +1,10 @@
-/* V4.1.3 TEST MODULAIRE — Affichage et réparation automatique des participantes Squarespace dans les ateliers. */
+/* V4.1.4 TEST MODULAIRE — Statut visuel des paiements participantes et remplissage visible dans la liste des ateliers. */
 "use strict";
 
 var APP_VERSION = "TEST V4.1.3 MODULAIRE";
-var APP_VERSION_NOTE = "Les participantes Squarespace apparaissent dans la fiche du bon atelier, quel que soit son type, avec réparation automatique des anciens rattachements.";
+var APP_VERSION_NOTE = "Les participantes soldées et celles ayant encore un solde à régler sont différenciées visuellement. Le remplissage et le statut COMPLET apparaissent dans la liste des ateliers.";
 var APP_CHANGELOG = [
+  "V4.1.4 TEST — Statut visuel payé / reste à régler dans les participantes et remplissage visible dans la liste des ateliers.",
   "V4.1.3 TEST — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
   "V4.1.2 TEST — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
   "V4.1.1 TEST — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
@@ -3447,7 +3448,8 @@ function viewAteliers(){
       '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(st)+'</span></div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'+
         '<span class="chip">🏷️ '+esc(atelierModeLabel(mode))+'</span>'+ 
-        '<span class="chip">👥 '+(mode==="thematique"?(cap.reserved+' réservée(s) / '+cap.planned+' prévue(s)'):(t.participants+' personne(s) prévue(s)'))+'</span>'+ 
+        '<span class="chip">👥 '+(cap.planned?(cap.reserved+'/'+cap.planned+' place(s) réservée(s)'):(cap.reserved?cap.reserved+' place(s) réservée(s)':t.participants+' personne(s) prévue(s)'))+'</span>'+ 
+        (cap.planned && cap.reserved>=cap.planned?'<span class="pill" style="background:#dff3e5;color:#23663a;font-weight:800;">✓ COMPLET</span>':(cap.planned && cap.reserved>0?'<span class="pill" style="background:#fff1d6;color:#8a5a00;font-weight:700;">'+cap.remaining+' place(s) restante(s)</span>':''))+
       '</div>'+
       '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
     });
@@ -3520,7 +3522,15 @@ function viewAtelierParticipantsSection(a,mode){
     return html;
   }
 
+  var paymentSummary=a.participants.reduce(function(acc,p){
+    var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0);
+    if(!isSite) return acc;
+    var due=Math.max(0,Number(p.soldeSite)||0);
+    if(due>0.009) acc.due++; else acc.paid++;
+    return acc;
+  },{paid:0,due:0});
   html+='<div class="card"><div class="flexb"><h3 style="margin:0;">'+(canAdd?'Participantes / commandes':'Réservations site / participantes')+'</h3><span class="muted">'+atelierReservedCount(a)+' place(s) réservée(s) · '+atelierCapacityInfo(a).remaining+' restante(s)</span></div>'+ 
+    ((paymentSummary.paid||paymentSummary.due)?'<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 6px;"><span class="pill" style="background:#dff3e5;color:#23663a;font-weight:700;">✓ '+paymentSummary.paid+' paiement(s) soldé(s)</span><span class="pill" style="background:#fff1d6;color:#8a5a00;font-weight:700;">€ '+paymentSummary.due+' solde(s) à encaisser</span></div>':'')+
     (!canAdd?'<p class="muted" style="margin:8px 0 4px;">Les réservations provenant de Squarespace sont affichées même si le détail nominatif n’est normalement pas requis pour ce type d’atelier.</p>':'');
 
   a.participants.forEach(function(p){
@@ -3536,8 +3546,11 @@ function viewAtelierParticipantsSection(a,mode){
       if(p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId) actions+='<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>';
       actions+='<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>';
     }
-    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+ 
-      '<div><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b> · '+esc(p.prestation||"Prestation")+' · <b>'+sitePlacesCount(p.nbPlaces)+' place(s)</b></div>'+ 
+    var siteSoldeRestant=Math.max(0,r2(Number(p.soldeSite)||0));
+    var paymentDone=isSite && siteSoldeRestant<=0.009;
+    var rowStyle=isSite?(paymentDone?'align-items:flex-start;background:#f2fbf5;border:1px solid #b9dfc5;border-radius:12px;padding:12px;margin-top:8px;':'align-items:flex-start;background:#fff8e8;border:1px solid #efd39a;border-radius:12px;padding:12px;margin-top:8px;'):'align-items:flex-start;';
+    html+='<div class="checkrow" style="'+rowStyle+'"><div style="flex:1;">'+ 
+      '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;"><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b><span>· '+esc(p.prestation||"Prestation")+' · <b>'+sitePlacesCount(p.nbPlaces)+' place(s)</b></span>'+(isSite?(paymentDone?'<span class="pill" style="background:#dff3e5;color:#23663a;font-weight:800;">✓ PAYÉ EN TOTALITÉ</span>':'<span class="pill" style="background:#ffe4ad;color:#7b4c00;font-weight:800;">€ RESTE '+euro(siteSoldeRestant)+' À RÉGLER</span>'):'')+'</div>'+ 
       '<div class="muted" style="font-size:12px;">Montant contractuel : '+euro(p.montant||0)+(p.prixUnitaire?' · '+euro(p.prixUnitaire)+' / place':'')+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"paiement total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+ 
       (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+ 
       (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+ 
