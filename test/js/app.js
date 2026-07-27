@@ -1,9 +1,10 @@
-/* V4.1.2 TEST MODULAIRE — Correction des rattachements Squarespace depuis l’historique. */
+/* V4.1.3 TEST MODULAIRE — Affichage et réparation automatique des participantes Squarespace dans les ateliers. */
 "use strict";
 
-var APP_VERSION = "TEST V4.1.2 MODULAIRE";
-var APP_VERSION_NOTE = "Chaque encaissement Squarespace peut être modifié depuis l’historique afin de corriger l’atelier, les places, le type de paiement et le montant, avec recalcul automatique.";
+var APP_VERSION = "TEST V4.1.3 MODULAIRE";
+var APP_VERSION_NOTE = "Les participantes Squarespace apparaissent dans la fiche du bon atelier, quel que soit son type, avec réparation automatique des anciens rattachements.";
 var APP_CHANGELOG = [
+  "V4.1.3 TEST — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
   "V4.1.2 TEST — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
   "V4.1.1 TEST — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
   "V4.1.0 TEST — Nouveaux ateliers visibles dans les réservations site, séparation paiements atelier / ventes indépendantes, suivi des places et suppression du double affichage du CA.",
@@ -169,6 +170,7 @@ function applyData(d){
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
   state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
   normalizeSiteSalesData();
+  reconcileSiteSaleParticipants();
 }
 function applyRemote(d){
   var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
@@ -1627,7 +1629,7 @@ function viewAchatsPreview(){
 }
 
 
-/* ===================== Ventes site internet V4.1.2 ===================== */
+/* ===================== Ventes site internet V4.1.3 ===================== */
 var SITE_ACTIVITES=["Atelier","Produit","Box DIY","Mariage","Autre"];
 
 function isSiteSaleAtelierPayment(s){
@@ -1977,7 +1979,10 @@ function syncSiteSaleToAtelier(s){
   var a=getAtelier(s.atelierId);
   if(!a) return;
   a.participants=a.participants||[];
-  var existing=a.participants.find(function(p){return p.siteSaleId===s.id;});
+  var existing=a.participants.find(function(p){
+    var siteParticipant=(p&&(p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0));
+    return p&&(p.siteSaleId===s.id||(s.atelierParticipantId&&p.id===s.atelierParticipantId)||(siteParticipant&&s.commande&&p.commande===s.commande));
+  });
   var prestation=s.prestation||s.produit||"Réservation site internet";
   var places=sitePlacesCount(s.nbPlaces);
   var prixUnitaire=num(s.atelierPrixUnitaire)||(places?num(s.atelierPrixTotal)/places:0)||num(s.montant)||0;
@@ -1987,6 +1992,7 @@ function syncSiteSaleToAtelier(s){
   var facturationSite=s.atelierPaiementType==="acompte30"?"site_acompte":"site_total";
 
   if(existing){
+    existing.siteSaleId=s.id;
     existing.nom=s.client;
     existing.email=s.email;
     existing.tel=s.tel;
@@ -2018,6 +2024,32 @@ function removeSiteSaleFromAtelier(s){
   if(!s) return;
   (state.ateliers||[]).forEach(function(a){
     a.participants=(a.participants||[]).filter(function(p){return p.siteSaleId!==s.id;});
+  });
+}
+function reconcileSiteSaleParticipants(){
+  var salesById={}, salesByParticipantId={}, salesByCommande={};
+  (state.ventesSite||[]).forEach(function(s){
+    if(!s||!s.id) return;
+    salesById[s.id]=s;
+    if(s.atelierParticipantId) salesByParticipantId[s.atelierParticipantId]=s;
+    if(s.commande) salesByCommande[String(s.commande).trim().toLowerCase()]=s;
+  });
+  (state.ateliers||[]).forEach(function(a){
+    if(!a) return;
+    a.participants=(a.participants||[]).filter(function(p){
+      if(!p) return false;
+      var linked=p.siteSaleId?salesById[p.siteSaleId]:null;
+      if(!linked&&p.id) linked=salesByParticipantId[p.id]||null;
+      var siteParticipant=(p.source==="site"||p.payeSite||String(p.facturation||"").indexOf("site")===0);
+      if(!linked&&siteParticipant&&p.commande) linked=salesByCommande[String(p.commande).trim().toLowerCase()]||null;
+      if(!linked) return !p.siteSaleId;
+      if(!isSiteSaleAtelierPayment(linked)) return false;
+      p.siteSaleId=linked.id;
+      return linked.atelierId===a.id;
+    });
+  });
+  (state.ventesSite||[]).forEach(function(s){
+    if(isSiteSaleAtelierPayment(s)&&s.atelierId) syncSiteSaleToAtelier(s);
   });
 }
 function saveSiteSale(){
@@ -3462,6 +3494,60 @@ function captureAtelier(a){
   a.materiel=val("atMateriel")||"";
   a.description=val("atDescription")||"";
 }
+function viewAtelierParticipantsSection(a,mode){
+  a.participants=a.participants||[];
+  var canAdd=mode==="thematique";
+  var html="";
+
+  if(canAdd){
+    html+='<div class="card"><h3 style="margin-top:0;">Ajouter une participante</h3>'+ 
+      '<p class="muted" style="margin-top:0;">Pour les ateliers thématiques du site, les participantes peuvent aussi être ajoutées automatiquement depuis Paiements et ventes du site.</p>'+ 
+      '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+ 
+      '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+ 
+      '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+ 
+      '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+ 
+      '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'"><div class="hint">Prérempli avec le tarif par personne de l’atelier.</div></label></div>'+ 
+      '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+ 
+      '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
+  }
+
+  if(!a.participants.length){
+    if(canAdd){
+      html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Participantes / commandes</h3><span class="muted">0 place réservée · '+atelierCapacityInfo(a).remaining+' restante(s)</span></div><p class="muted">Aucune participante renseignée.</p></div>';
+    }else{
+      html+='<div class="card"><h3 style="margin-top:0;">Réservations site / participantes</h3><p class="muted" style="margin:0;">Aucune réservation nominative liée à cet atelier. Les participantes ajoutées depuis les ventes du site apparaîtront automatiquement ici.</p></div>';
+    }
+    return html;
+  }
+
+  html+='<div class="card"><div class="flexb"><h3 style="margin:0;">'+(canAdd?'Participantes / commandes':'Réservations site / participantes')+'</h3><span class="muted">'+atelierReservedCount(a)+' place(s) réservée(s) · '+atelierCapacityInfo(a).remaining+' restante(s)</span></div>'+ 
+    (!canAdd?'<p class="muted" style="margin:8px 0 4px;">Les réservations provenant de Squarespace sont affichées même si le détail nominatif n’est normalement pas requis pour ce type d’atelier.</p>':'');
+
+  a.participants.forEach(function(p){
+    var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0);
+    var siteAcompte=(p.facturation==='site_acompte');
+    var acompte=r2((Number(p.montant)||0)*0.30);
+    var solde=r2((Number(p.montant)||0)-acompte);
+    var actions='';
+    if(isSite){
+      if(p.siteSaleId) actions+='<button class="btn small ghost" data-action="site-edit-'+p.siteSaleId+'">Corriger la vente</button>';
+    }else{
+      if(!p.factureId) actions+='<button class="btn small primary" data-action="at-fac-'+p.facturation+'-'+a.id+'-'+p.id+'">Créer facture '+(p.facturation==="total"?"totale":"acompte "+euro(acompte))+'</button>';
+      if(p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId) actions+='<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>';
+      actions+='<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>';
+    }
+    html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+ 
+      '<div><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b> · '+esc(p.prestation||"Prestation")+' · <b>'+sitePlacesCount(p.nbPlaces)+' place(s)</b></div>'+ 
+      '<div class="muted" style="font-size:12px;">Montant contractuel : '+euro(p.montant||0)+(p.prixUnitaire?' · '+euro(p.prixUnitaire)+' / place':'')+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"paiement total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+ 
+      (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+ 
+      (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+ 
+      (isSite?'<div class="muted" style="font-size:12px;">✅ Payé via Squarespace : '+euro(p.payeSiteMontant||p.montant||0)+(p.soldeSite?' · Solde à payer le jour de l’atelier : '+euro(p.soldeSite):'')+(p.commande?' · Commande '+esc(p.commande):'')+'</div>':'')+ 
+      '</div><div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+actions+'</div></div>';
+  });
+  html+='</div>';
+  return html;
+}
+
 function viewAtelierDetail(a){
   if(!a){ ui.atelierOpen=null; return viewAteliers(); }
   a.participants=a.participants||[];
@@ -3520,39 +3606,7 @@ function viewAtelierDetail(a){
 
   if(mode==="thematique") html+=viewAtelierPaymentSummary(a);
 
-  if(mode==="thematique"){
-    html+='<div class="card"><h3 style="margin-top:0;">Ajouter une participante</h3>'+
-      '<p class="muted" style="margin-top:0;">Pour les ateliers thématiques du site, les participantes peuvent aussi être ajoutées automatiquement depuis Paiements et ventes du site.</p>'+
-      '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+
-      '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+
-      '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+
-      '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'"><div class="hint">Prérempli avec le tarif par personne de l’atelier.</div></label></div>'+
-      '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+
-      '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
-
-    html+='<div class="card"><div class="flexb"><h3 style="margin:0;">Participantes / commandes</h3><span class="muted">'+atelierReservedCount(a)+' place(s) réservée(s) · '+atelierCapacityInfo(a).remaining+' restante(s)</span></div>';
-    if(!a.participants.length){ html+='<p class="muted">Aucune participante renseignée.</p>'; }
-    else {
-      a.participants.forEach(function(p){
-        var isSite=(p.source==='site'||p.payeSite||String(p.facturation||'').indexOf('site')===0), siteAcompte=(p.facturation==='site_acompte'), acompte=r2((Number(p.montant)||0)*0.30), solde=r2((Number(p.montant)||0)-acompte);
-        html+='<div class="checkrow" style="align-items:flex-start;"><div style="flex:1;">'+
-          '<div><b style="color:var(--bordeaux);">'+esc(p.nom||"Participante")+'</b> · '+esc(p.prestation||"Prestation")+' · <b>'+sitePlacesCount(p.nbPlaces)+' place(s)</b></div>'+
-          '<div class="muted" style="font-size:12px;">Montant contractuel : '+euro(p.montant||0)+(p.prixUnitaire?' · '+euro(p.prixUnitaire)+' / place':'')+' · Choix : '+(isSite?(siteAcompte?"acompte 30 % via Squarespace":"paiement total via Squarespace"):(p.facturation==="total"?"totalité":"acompte 30 %"))+(p.email?' · '+esc(p.email):'')+'</div>'+
-          (p.factureNumero?'<div class="muted" style="font-size:12px;">Facture acompte/total : '+esc(p.factureNumero)+'</div>':'')+
-          (p.factureSoldeNumero?'<div class="muted" style="font-size:12px;">Facture solde : '+esc(p.factureSoldeNumero)+'</div>':'')+
-          (isSite?'<div class="muted" style="font-size:12px;">✅ Payé via Squarespace : '+euro(p.payeSiteMontant||p.montant||0)+(p.soldeSite?' · Solde à payer le jour de l’atelier : '+euro(p.soldeSite):'')+(p.commande?' · Commande '+esc(p.commande):'')+'</div>':'')+
-          '</div><div class="row-actions" style="margin-top:0;justify-content:flex-end;">'+
-            (!p.factureId&&!isSite?'<button class="btn small primary" data-action="at-fac-'+p.facturation+'-'+a.id+'-'+p.id+'">Créer facture '+(p.facturation==="total"?"totale":"acompte "+euro(acompte))+'</button>':'')+
-            (p.factureId&&p.facturation==="acompte30"&&!p.factureSoldeId&&!isSite?'<button class="btn small soft" data-action="at-fac-solde-'+a.id+'-'+p.id+'">Créer facture solde '+euro(solde)+'</button>':'')+
-            '<button class="btn small danger" data-action="at-part-del-'+a.id+'-'+p.id+'">Supprimer</button>'+
-          '</div></div>';
-      });
-    }
-    html+='</div>';
-  }else{
-    html+='<div class="card"><h3 style="margin-top:0;">Participants</h3><p class="muted" style="margin:0;">Pour ce type d’atelier, le détail nominatif des participants n’est pas nécessaire. Le budget est basé sur le montant renseigné ci-dessus.</p></div>';
-  }
+  html+=viewAtelierParticipantsSection(a,mode);
   return html;
 }
 function atelierClientFromParticipant(p){

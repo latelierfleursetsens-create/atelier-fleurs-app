@@ -1,3 +1,14 @@
+# V4.1.3 TEST — Participantes Squarespace visibles dans les ateliers
+
+- Affichage des réservations Squarespace dans tous les types d’ateliers, y compris privés et structures.
+- Réparation automatique des participantes manquantes à partir de l’historique des ventes du site.
+- Nettoyage automatique des anciennes liaisons lorsqu’une vente a été déplacée vers un autre atelier.
+- Affichage du nom, du nombre de places, du type de paiement, du montant encaissé et du solde.
+- Bouton **Corriger la vente** dans la fiche atelier.
+- Suppression du bouton de suppression directe pour une participante liée à Squarespace afin de préserver la cohérence avec l’encaissement.
+
+---
+
 # V4.1.2 TEST — Correction des encaissements Squarespace
 
 - Ajout d’un bouton **Modifier** dans l’historique Squarespace.

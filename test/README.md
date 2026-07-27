@@ -1,26 +1,28 @@
-# MyBusiness — V4.1.2 TEST
+# MyBusiness — V4.1.3 TEST
 
-## Nouveauté
+## Correction apportée
 
-Les encaissements Squarespace déjà enregistrés peuvent maintenant être **corrigés depuis l’historique**.
+Une réservation Squarespace rattachée à un atelier apparaît maintenant dans la fiche de cet atelier, **même lorsque l’atelier est classé comme atelier privé ou atelier en structure**.
 
-Le bouton **Modifier** permet de changer :
+La fiche affiche :
 
-- l’atelier auquel l’encaissement est rattaché ;
-- le nombre de places réservées ;
+- le nom de la cliente ;
+- le nombre de places achetées ;
 - le paiement total ou l’acompte de 30 % ;
-- le prix par place ;
 - le montant réellement encaissé ;
-- la cliente, la date, le numéro de commande et le libellé.
+- le solde restant pour la commande ;
+- le numéro de commande Squarespace.
 
-Lors de l’enregistrement, MyBusiness retire automatiquement la réservation de l’ancien atelier, puis la rattache au bon atelier. Les places réservées, les places restantes, le montant encaissé et le reste à encaisser sont recalculés immédiatement.
+Un bouton **Corriger la vente** permet de revenir directement à l’encaissement concerné.
+
+La version répare également automatiquement les anciennes liaisons : à l’ouverture des données, une participante manquante est recréée dans le bon atelier et une ancienne liaison erronée est retirée.
 
 ## Test conseillé
 
-1. Ouvrir **Clients → Paiements et ventes du site**.
-2. Dans **Historique Squarespace**, cliquer sur **Modifier** sur une commande mal rattachée.
-3. Choisir le bon atelier et corriger le nombre de places.
-4. Enregistrer les corrections.
-5. Vérifier dans les deux fiches ateliers que les décomptes ont été retirés de l’ancien atelier et ajoutés au nouveau.
+1. Dans **Paiements et ventes du site**, modifier une commande et sélectionner le bon atelier.
+2. Enregistrer la correction.
+3. Ouvrir la fiche du nouvel atelier.
+4. Vérifier la section **Réservations site / participantes**.
+5. Le nom de la cliente et le nombre de places doivent apparaître.
 
-> Toujours tester cette version sur la branche `/test/` avant de la passer en production.
+> Toujours tester cette version dans le dossier `/test/` avant de la passer en production.
