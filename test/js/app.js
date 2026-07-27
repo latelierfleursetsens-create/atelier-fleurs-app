@@ -1,10 +1,11 @@
-/* V4.1.5 TEST MODULAIRE — Correction du remplissage des ateliers privés dans la liste. */
+/* V4.2.0 TEST MODULAIRE — Correction du remplissage des ateliers privés dans la liste. */
 "use strict";
 
 var APP_VERSION = "TEST V4.1.3 MODULAIRE";
 var APP_VERSION_NOTE = "Les participantes soldées et celles ayant encore un solde à régler sont différenciées visuellement. Le remplissage et le statut COMPLET apparaissent dans la liste des ateliers.";
 var APP_CHANGELOG = [
-  "V4.1.5 TEST — Correction du compteur réservé/capacité et du badge COMPLET pour les ateliers privés.",
+  "V4.2.0 TEST — Ateliers multi-activités : plusieurs choix à une même date, capacité et tarif par choix, réservations et stock ventilés par activité.",
+  "V4.2.0 TEST — Correction du compteur réservé/capacité et du badge COMPLET pour les ateliers privés.",
   "V4.1.3 TEST — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
   "V4.1.2 TEST — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
   "V4.1.1 TEST — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
@@ -1661,7 +1662,46 @@ function normalizeSiteSalesData(){
   });
 }
 function siteSaleNatureLabel(s){ return isSiteSaleAtelierPayment(s)?"Paiement atelier":"Vente indépendante"; }
-function atelierDefaultSitePrice(a){ return r2(Number(a&&a.tarifParPersonne)||0); }
+function atelierChoiceOptions(a){
+  if(!a) return [];
+  var ids=atelierSelectedModelIds(a), counts=atelierModelParticipantCounts(a);
+  var prices=(a.atelierModelPrices&&typeof a.atelierModelPrices==="object")?a.atelierModelPrices:{};
+  if(!ids.length) return [];
+  return ids.map(function(id,index){
+    var m=atelierModeleById(id);
+    var fallback=(ids.length===1?Number(a.tarifParPersonne)||0:0);
+    return {id:id,modelId:id,label:(m&&m.label)||("Choix "+(index+1)),capacity:Math.max(0,Number(counts[id])||0),price:r2(Number(prices[id])||fallback)};
+  });
+}
+function atelierChoiceById(a,id){
+  var opts=atelierChoiceOptions(a);
+  return opts.find(function(o){return o.id===id;})||opts[0]||null;
+}
+function atelierIsMultiChoice(a){ return atelierChoiceOptions(a).length>1; }
+function atelierDefaultSitePrice(a,choiceId){
+  var choice=atelierChoiceById(a,choiceId);
+  return r2(choice?choice.price:(Number(a&&a.tarifParPersonne)||0));
+}
+function atelierChoiceReservedCount(a,choiceId){
+  return ((a&&a.participants)||[]).reduce(function(total,p){
+    if((p.atelierOptionId||p.atelierModeleId||"")!==choiceId) return total;
+    return total+sitePlacesCount(p&&p.nbPlaces);
+  },0);
+}
+function atelierChoiceCapacityInfo(a,choiceId){
+  var choice=atelierChoiceById(a,choiceId);
+  if(!choice) return {planned:0,reserved:0,remaining:0,overbooked:0};
+  var reserved=atelierChoiceReservedCount(a,choice.id), planned=choice.capacity;
+  return {planned:planned,reserved:reserved,remaining:Math.max(0,planned-reserved),overbooked:Math.max(0,reserved-planned)};
+}
+function atelierChoicesSummaryHtml(a){
+  var opts=atelierChoiceOptions(a);
+  if(opts.length<2) return '';
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">'+opts.map(function(o){
+    var c=atelierChoiceCapacityInfo(a,o.id), full=c.planned>0&&c.reserved>=c.planned;
+    return '<span class="pill" style="background:'+(full?'#dff3e5':'#fff1d6')+';color:'+(full?'#23663a':'#8a5a00')+';font-weight:700;">'+esc(o.label)+' : '+c.reserved+'/'+c.planned+(full?' · COMPLET':'')+' · '+euro(o.price)+'</span>';
+  }).join('')+'</div>';
+}
 function sitePlacesCount(value){ return Math.max(1,parseInt(value||1,10)||1); }
 function siteContractTotal(unitPrice,places){ return r2((Number(unitPrice)||0)*sitePlacesCount(places)); }
 function siteSuggestedPayment(total,paymentType){ return paymentType==="acompte30"?r2((Number(total)||0)*0.30):r2(Number(total)||0); }
@@ -1697,11 +1737,15 @@ function setSiteDraftAtelier(s,atelierId,resetAmount){
   s.atelierId=a?a.id:"";
   s.atelierLabel=a?siteAtelierDisplayLabel(a):"";
   if(a){
-    var price=atelierDefaultSitePrice(a);
+    var choices=atelierChoiceOptions(a);
+    if(!s.atelierOptionId || !choices.some(function(o){return o.id===s.atelierOptionId;})) s.atelierOptionId=choices[0]?choices[0].id:"";
+    var choice=atelierChoiceById(a,s.atelierOptionId);
+    var price=atelierDefaultSitePrice(a,s.atelierOptionId);
+    s.atelierOptionLabel=choice?choice.label:"";
     s.nbPlaces=sitePlacesCount(s.nbPlaces);
     s.atelierPrixUnitaire=price;
     s.atelierPrixTotal=siteContractTotal(price,s.nbPlaces);
-    if(!s.prestation || s.prestation==="Place atelier") s.prestation="Place · "+(a.theme||a.type||"Atelier");
+    if(!s.prestation || s.prestation==="Place atelier" || String(s.prestation).indexOf("Place · ")===0) s.prestation="Place · "+(choice?choice.label:(a.theme||a.type||"Atelier"));
     if(!s.produit || s.produit==="Réservation atelier" || s.produit==="Place atelier") s.produit=s.prestation;
     if(resetAmount) s.montant=siteSuggestedPayment(s.atelierPrixTotal,s.atelierPaiementType);
   }else{
@@ -1741,6 +1785,8 @@ function newSiteSaleDraft(){
     nature:"atelier_payment",
     caContractuelInclus:true,
     atelierId:firstAtelier?firstAtelier.id:"",
+    atelierOptionId:"",
+    atelierOptionLabel:"",
     atelierParticipantId:"",
     atelierLabel:"",
     prestation:"Place atelier",
@@ -1773,7 +1819,7 @@ function editSiteSale(id){
     var unit=Number(s.atelierPrixUnitaire)||Number(s.prixUnitaire)||0;
     if(!unit) unit=storedTotal?safeSiteUnitPrice(storedTotal,s.nbPlaces):0;
     var linkedAtelier=getAtelier(s.atelierId);
-    if(!unit&&linkedAtelier) unit=atelierDefaultSitePrice(linkedAtelier);
+    if(!unit&&linkedAtelier) unit=atelierDefaultSitePrice(linkedAtelier,s.atelierOptionId);
     s.atelierPrixUnitaire=r2(unit);
     s.atelierPrixTotal=siteContractTotal(s.atelierPrixUnitaire,s.nbPlaces);
     s.atelierPaiementType=s.atelierPaiementType==="acompte30"?"acompte30":"total";
@@ -1824,6 +1870,7 @@ function captureSiteSaleDraft(){
     s.nature="atelier_payment";
     s.caContractuelInclus=true;
     s.atelierId=val("siteAtelierId")||s.atelierId||"";
+    s.atelierOptionId=val("siteAtelierOptionId")||s.atelierOptionId||"";
     s.atelierPaiementType=val("siteAtelierPaiementType")||s.atelierPaiementType||"total";
     var placesField=document.getElementById("siteNbPlaces");
     if(placesField) s.nbPlaces=sitePlacesCount(placesField.value);
@@ -1897,7 +1944,12 @@ function viewSiteSaleForm(){
       if(upcomingSite.length) opts+='<optgroup label="Ateliers thématiques / site à venir">'+upcomingSite.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc(siteAtelierDisplayLabel(a))+'</option>';}).join('')+'</optgroup>';
       if(upcomingOther.length) opts+='<optgroup label="Autres ateliers à venir">'+upcomingOther.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc(siteAtelierDisplayLabel(a))+'</option>';}).join('')+'</optgroup>';
       if(older.length) opts+='<optgroup label="Ateliers passés / terminés">'+older.map(function(a){return '<option value="'+esc(a.id)+'"'+(a.id===s.atelierId?' selected':'')+'>'+esc(siteAtelierDisplayLabel(a))+'</option>';}).join('')+'</optgroup>';
+      var selectedAtelier=ateliers.find(function(a){return a.id===s.atelierId;})||ateliers[0];
+      var choiceList=atelierChoiceOptions(selectedAtelier);
+      if(choiceList.length && !choiceList.some(function(o){return o.id===s.atelierOptionId;})) s.atelierOptionId=choiceList[0].id;
+      var choiceOpts=choiceList.map(function(o){var ci=atelierChoiceCapacityInfo(selectedAtelier,o.id);return '<option value="'+esc(o.id)+'"'+(o.id===s.atelierOptionId?' selected':'')+'>'+esc(o.label)+' · '+ci.reserved+'/'+ci.planned+' · '+euro(o.price)+'</option>';}).join('');
       atelierPart+='<label class="field"><span>Atelier concerné</span><select id="siteAtelierId" data-action="site-atelier-change">'+opts+'</select><div class="hint">Tous les ateliers non annulés sont proposés : thématiques, privés et structures, avec les prochains en premier.</div></label>'+
+      (choiceList.length?'<label class="field"><span>Activité choisie par la participante</span><select id="siteAtelierOptionId" data-action="site-atelier-option-change">'+choiceOpts+'</select><div class="hint">Chaque choix possède son propre tarif, sa capacité et son décompte de stock.</div></label>':'')+
       '<label class="field"><span>Prestation / places réservées</span><input id="sitePrestation" value="'+esc(s.prestation||"")+'" placeholder="Ex : Places atelier couronne"></label>'+
       '<div class="inline"><div><label class="field"><span>Nombre de places réservées</span><input id="siteNbPlaces" data-action="site-places-change" type="number" min="1" step="1" value="'+esc(nbPlaces)+'"><div class="hint">Une seule commande peut contenir plusieurs places.</div></label></div>'+
       '<div><label class="field"><span>Prix par place (€)</span><input id="siteAtelierPrixUnitaire" data-action="site-atelier-price-change" type="number" min="0" step="0.01" value="'+esc(prixUnitaire||"")+'"><div class="hint">Prérempli avec le tarif par personne enregistré dans l’atelier.</div></label></div></div>'+
@@ -1998,6 +2050,9 @@ function syncSiteSaleToAtelier(s){
     existing.email=s.email;
     existing.tel=s.tel;
     existing.prestation=prestation;
+    existing.atelierOptionId=s.atelierOptionId||"";
+    existing.atelierOptionLabel=s.atelierOptionLabel||((atelierChoiceById(a,s.atelierOptionId)||{}).label)||"";
+    existing.atelierModeleId=s.atelierOptionId||"";
     existing.nbPlaces=places;
     existing.prixUnitaire=prixUnitaire;
     existing.montant=prixTotal;
@@ -2009,7 +2064,7 @@ function syncSiteSaleToAtelier(s){
     existing.commande=s.commande||"";
     s.atelierParticipantId=existing.id;
   } else {
-    var p={id:uid(),nom:s.client,email:s.email||"",tel:s.tel||"",prestation:prestation,nbPlaces:places,prixUnitaire:prixUnitaire,montant:prixTotal,payeSiteMontant:paye,soldeSite:solde,facturation:facturationSite,source:"site",payeSite:true,siteSaleId:s.id,commande:s.commande||""};
+    var p={id:uid(),nom:s.client,email:s.email||"",tel:s.tel||"",prestation:prestation,atelierOptionId:s.atelierOptionId||"",atelierOptionLabel:s.atelierOptionLabel||((atelierChoiceById(a,s.atelierOptionId)||{}).label)||"",atelierModeleId:s.atelierOptionId||"",nbPlaces:places,prixUnitaire:prixUnitaire,montant:prixTotal,payeSiteMontant:paye,soldeSite:solde,facturation:facturationSite,source:"site",payeSite:true,siteSaleId:s.id,commande:s.commande||""};
     a.participants.push(p);
     s.atelierParticipantId=p.id;
   }
@@ -2019,6 +2074,7 @@ function syncSiteSaleToAtelier(s){
   s.atelierPrixUnitaire=prixUnitaire;
   s.atelierPrixTotal=prixTotal;
   s.atelierSolde=solde;
+  s.atelierOptionLabel=((atelierChoiceById(a,s.atelierOptionId)||{}).label)||s.atelierOptionLabel||"";
   s.atelierLabel=siteAtelierDisplayLabel(a);
 }
 function removeSiteSaleFromAtelier(s){
@@ -2066,6 +2122,14 @@ function saveSiteSale(){
   if(s.activite==="Atelier"){
     if(!s.atelierId){ toast("Choisis l’atelier concerné."); return; }
     s.nbPlaces=sitePlacesCount(s.nbPlaces);
+    var saleAtelier=getAtelier(s.atelierId), saleChoice=atelierChoiceById(saleAtelier,s.atelierOptionId);
+    if(saleChoice){
+      s.atelierOptionId=saleChoice.id; s.atelierOptionLabel=saleChoice.label;
+      if(!(num(s.atelierPrixUnitaire)>0)) s.atelierPrixUnitaire=saleChoice.price;
+      var choiceCap=atelierChoiceCapacityInfo(saleAtelier,saleChoice.id);
+      var previousPlaces=oldSale&&oldSale.atelierId===s.atelierId&&oldSale.atelierOptionId===saleChoice.id?sitePlacesCount(oldSale.nbPlaces):0;
+      if(choiceCap.planned>0 && s.nbPlaces>choiceCap.remaining+previousPlaces){ toast("Il ne reste que "+(choiceCap.remaining+previousPlaces)+" place(s) pour « "+saleChoice.label+" »."); return; }
+    }
     if(!(num(s.atelierPrixUnitaire)>0)){ toast("Indique le prix par place."); return; }
     s.atelierPrixTotal=siteContractTotal(s.atelierPrixUnitaire,s.nbPlaces);
     if(!(num(s.montant)>0)) s.montant=siteSuggestedPayment(s.atelierPrixTotal,s.atelierPaiementType);
@@ -2649,7 +2713,7 @@ function atelierModelMultiSelector(a,mode){
     var checked=selected.indexOf(m.id)>=0;
     return '<div style="border:1px solid var(--line);border-radius:12px;padding:10px;background:'+(checked?'#fff8f5':'#fff')+';">'+
       '<label style="display:flex;gap:8px;align-items:flex-start;"><input type="checkbox" data-atelier-model-id="'+esc(m.id)+'" data-action="at-stock-config-change"'+(checked?' checked':'')+'> <span><b>'+esc(m.label)+'</b><small class="muted" style="display:block;">'+(m.category?esc(m.category)+' · ':'')+(m.duree?esc(m.duree):m.modes.map(atelierModeLabel).join(' / '))+'</small></span></label>'+
-      (checked?'<label class="field" style="margin:9px 0 0;"><span>Participants pour cette création <b style="color:var(--red);">*</b></span><input type="number" min="1" step="1" data-atelier-model-participants="'+esc(m.id)+'" data-action="at-stock-config-change" value="'+esc(counts[m.id]||'')+'" placeholder="Ex. 8"></label>':'')+'</div>';
+      (checked?'<label class="field" style="margin:9px 0 0;"><span>'+(mode==='thematique'?'Nombre de places proposées':'Participants pour cette création')+' <b style="color:var(--red);">*</b></span><input type="number" min="1" step="1" data-atelier-model-participants="'+esc(m.id)+'" data-action="at-stock-config-change" value="'+esc(counts[m.id]||'')+'" placeholder="Ex. 8"></label>'+(mode==='thematique'?'<label class="field" style="margin:9px 0 0;"><span>Tarif de cette activité (€) <b style="color:var(--red);">*</b></span><input type="number" min="0" step="0.01" data-atelier-model-price="'+esc(m.id)+'" value="'+esc(((a.atelierModelPrices||{})[m.id])||(selected.length===1?a.tarifParPersonne:'')||'')+'" placeholder="Ex. 39"></label>':''):'')+'</div>';
   }).join('');
   var info=atelierAllocationSummary(a), status=selected.length?('<div class="summary" style="margin-top:10px;background:'+(info.ok?'#eef7ef':'#fff2ed')+';"><b>Répartition : '+info.allocated+' / '+(total||0)+' participant(s)</b><div class="muted">'+(info.ok?'La répartition est correcte pour le calcul du stock.':'La somme des créations doit être exactement égale au nombre total de participants.')+'</div></div>'):'';
   return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;">'+cards+'</div>'+status;
@@ -3398,8 +3462,9 @@ function atelierTotals(a){
   var parts=(a&&a.participants)||[];
   var participantTotal=parts.reduce(function(s,p){return s+(Number(p.montant)||0);},0);
   var tarifThematique=Number(a.tarifParPersonne)||0;
-  var totalThematique=(Number(a.nbParticipantsPrevu)||0)*tarifThematique;
-  var total=(mode==="thematique" && tarifThematique>0)?totalThematique:participantTotal;
+  var choices=atelierChoiceOptions(a);
+  var totalThematique=choices.length?choices.reduce(function(sum,o){return sum+(Number(o.capacity)||0)*(Number(o.price)||0);},0):(Number(a.nbParticipantsPrevu)||0)*tarifThematique;
+  var total=(mode==="thematique" && (totalThematique>0||tarifThematique>0))?totalThematique:participantTotal;
   if(mode==="structure") total=Number(a.montantPrestation)||0;
   if(mode==="prive") total=Number(a.montantForfait)||0;
   if(mode!=="thematique") total+=atelierPrestationsTotal(a);
@@ -3453,7 +3518,7 @@ function viewAteliers(){
         '<span class="chip">🏷️ '+esc(atelierModeLabel(mode))+'</span>'+ 
         '<span class="chip">👥 '+(cap.planned?(cap.reserved+'/'+cap.planned+' place(s) réservée(s)'):(cap.reserved?cap.reserved+' place(s) réservée(s)':t.participants+' personne(s) prévue(s)'))+'</span>'+ 
         (cap.planned && cap.reserved>=cap.planned?'<span class="pill" style="background:#dff3e5;color:#23663a;font-weight:800;">✓ COMPLET</span>':(cap.planned && cap.reserved>0?'<span class="pill" style="background:#fff1d6;color:#8a5a00;font-weight:700;">'+cap.remaining+' place(s) restante(s)</span>':''))+
-      '</div>'+
+      '</div>'+atelierChoicesSummaryHtml(a)+
       '<div class="row-actions"><button class="btn small gold" data-action="at-open-'+a.id+'">Ouvrir / compléter</button><button class="btn small danger" data-action="at-del-'+a.id+'">Supprimer</button></div></div>';
     });
   });
@@ -3481,6 +3546,8 @@ function captureAtelier(a){
   var modelChecks=document.querySelectorAll("[data-atelier-model-id]");
   a.atelierModeleIds=[]; modelChecks.forEach(function(el){if(el.checked)a.atelierModeleIds.push(el.getAttribute("data-atelier-model-id"));});
   a.atelierModeleId=a.atelierModeleIds[0]||"";
+  a.atelierModelPrices=a.atelierModelPrices||{};
+  a.atelierModeleIds.forEach(function(id){ var pin=document.querySelector('[data-atelier-model-price="'+id.replace(/"/g,'\"')+'"]'); if(pin) a.atelierModelPrices[id]=num(pin.value); });
   var previousCounts=(a.atelierModelParticipantCounts&&typeof a.atelierModelParticipantCounts==="object")?a.atelierModelParticipantCounts:{};
   a.atelierModelParticipantCounts={};
   a.atelierModeleIds.forEach(function(id){
@@ -3510,7 +3577,7 @@ function viewAtelierParticipantsSection(a,mode){
       '<div class="inline"><div><label class="field"><span>Nom cliente</span><input id="atPNom" placeholder="Nom de la participante / cliente"></label></div>'+ 
       '<div><label class="field"><span>Email</span><input id="atPEmail" type="email"></label></div></div>'+ 
       '<div class="inline"><div><label class="field"><span>Téléphone</span><input id="atPTel"></label></div>'+ 
-      '<div><label class="field"><span>Prestation choisie</span><input id="atPPrestation" placeholder="Ex : demi-couronne, couronne tête…"></label></div></div>'+ 
+      '<div><label class="field"><span>Activité choisie</span>'+(atelierChoiceOptions(a).length?'<select id="atPOptionId">'+atelierChoiceOptions(a).map(function(o){return '<option value="'+esc(o.id)+'">'+esc(o.label)+' · '+euro(o.price)+'</option>';}).join('')+'</select>':'<input id="atPPrestation" placeholder="Ex : demi-couronne">')+'</label></div></div>'+ 
       '<div class="inline"><div><label class="field"><span>Montant total (€)</span><input id="atPMontant" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'"><div class="hint">Prérempli avec le tarif par personne de l’atelier.</div></label></div>'+ 
       '<div><label class="field"><span>Facture à créer</span><select id="atPFacturation"><option value="acompte30">Acompte 30 %</option><option value="total">Totalité</option></select></label></div></div>'+ 
       '<div class="row-actions"><button class="btn gold" data-action="at-part-add">+ Ajouter la participante</button></div></div>';
@@ -3583,8 +3650,9 @@ function viewAtelierDetail(a){
 
   if(mode==="thematique"){
     html+='<div class="card" style="background:var(--cream);"><h3 style="margin-top:0;">Atelier thématique</h3>'+ 
-      '<div class="inline"><div><label class="field"><span>Nombre de participants prévu <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||'')+'" placeholder="Obligatoire pour calculer le stock"><div class="hint">Ce nombre pilote le calcul et le décompte du matériel.</div></label></div>'+ 
-      '<div><label class="field"><span>Tarif par personne (€)</span><input id="atTarifParPersonne" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'" placeholder="Ex : 35"><div class="hint">Le montant de référence est calculé automatiquement et reste visible uniquement dans Finances.</div></label></div></div>'+ 
+      '<div class="inline"><div><label class="field"><span>Nombre total de places proposées <b style="color:var(--red);">*</b></span><input id="atNbParticipantsPrevu" type="number" min="1" required value="'+esc(a.nbParticipantsPrevu||'')+'" placeholder="Somme de toutes les activités"><div class="hint">Doit correspondre à la somme des places indiquées pour chaque activité ci-dessus.</div></label></div>'+ 
+      '<div><label class="field"><span>Tarif par défaut (€)</span><input id="atTarifParPersonne" type="number" min="0" step="0.01" value="'+esc(a.tarifParPersonne||'')+'" placeholder="Utilisé pour un atelier à choix unique"><div class="hint">Pour plusieurs activités, le tarif propre à chaque choix est saisi dans « Types d’atelier ».</div></label></div></div>'+
+      '<div class="summary"><b>Atelier multi-activités</b><div class="muted">Chaque activité possède son nombre de places, son tarif et sa recette de stock. Le CA prévu est la somme : places × tarif de chaque choix.</div></div>'+ 
       '</div>';
   }
 
@@ -6246,7 +6314,7 @@ function handleAction(action){
   if(action.indexOf("at-extra-add-")===0){ var ax=getAtelier(ui.atelierOpen); if(ax){ captureAtelier(ax); var pi=Number(action.slice(13)); var list=prestationsActives(); var preset=list[pi]||list[list.length-1]||{label:"Autre / champ libre",type:"service",qte:1,prix:0}; ax.prestationsComplementaires=ax.prestationsComplementaires||[]; var ptype=preset.type==="bien"?"bien":"service"; ax.prestationsComplementaires.push({id:uid(),designation:preset.label,type:ptype,urssafType:ptype,qte:preset.qte||1,prix:num(preset.prix)}); saveCache(); render(); toast("Ligne ajoutée au devis atelier."); } return; }
   if(action.indexOf("at-extra-del-")===0){ var axd=getAtelier(ui.atelierOpen); if(axd){ captureAtelier(axd); var xid=action.slice(13); axd.prestationsComplementaires=(axd.prestationsComplementaires||[]).filter(function(l){return l.id!==xid;}); saveCache(); render(); toast("Ligne supprimée."); } return; }
   if(action.indexOf("at-del-")===0){ var adid=action.slice(7), akey="atelier:"+adid; if(ui.confirmDelete!==akey){ ui.confirmDelete=akey; render(); toast("Retouche Supprimer pour confirmer."); return; } var adel=getAtelier(adid); if(adel&&adel.stockPrepared) atelierRestoreStock(adel,false); state.ateliers=(state.ateliers||[]).filter(function(a){return a.id!==adid;}); ui.confirmDelete=null; ui.atelierOpen=null; saveCache(); render(); toast("Atelier supprimé · stock réintégré automatiquement."); return; }
-  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var montant=num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } aa.participants=aa.participants||[]; var np={id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:val("atPPrestation"),nbPlaces:1,prixUnitaire:montant,montant:montant,facturation:val("atPFacturation")||"acompte30"}; aa.participants.push(np); if(aa.stockPrepared){var apr=atelierReconcilePreparedStock(aa,false);if(!apr.ok){aa.participants=aa.participants.filter(function(p){return p.id!==np.id;});if(apr.message)alert(apr.message);render();return;}} ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée"+(aa.stockPrepared?" · stock ajusté.":".")); } return; }
+  if(action==="at-part-add"){ var aa=getAtelier(ui.atelierOpen); if(aa){ captureAtelier(aa); var nom=val("atPNom").trim(); if(!nom){ toast("Indique le nom de la participante."); return; } var optionId=val("atPOptionId"), option=atelierChoiceById(aa,optionId); var montant=option?option.price:num(val("atPMontant")); if(montant<=0){ toast("Indique le montant de la prestation."); return; } if(option){var oc=atelierChoiceCapacityInfo(aa,option.id);if(oc.planned>0&&oc.remaining<1){toast("Cette activité est complète.");return;}} aa.participants=aa.participants||[]; var np={id:uid(),nom:nom,email:val("atPEmail"),tel:val("atPTel"),prestation:option?option.label:val("atPPrestation"),atelierOptionId:option?option.id:"",atelierOptionLabel:option?option.label:"",atelierModeleId:option?option.id:"",nbPlaces:1,prixUnitaire:montant,montant:montant,facturation:val("atPFacturation")||"acompte30"}; aa.participants.push(np); if(aa.stockPrepared){var apr=atelierReconcilePreparedStock(aa,false);if(!apr.ok){aa.participants=aa.participants.filter(function(p){return p.id!==np.id;});if(apr.message)alert(apr.message);render();return;}} ensureClients([nom]); saveCache(); render(); toast("Participante ajoutée"+(aa.stockPrepared?" · stock ajusté.":".")); } return; }
   if(action.indexOf("at-part-del-")===0){ var pp=action.slice(12).split("-"), at=getAtelier(pp[0]); if(at){ var oldParts=(at.participants||[]).slice(); at.participants=(at.participants||[]).filter(function(p){return p.id!==pp[1];}); if(at.stockPrepared){var adr=atelierReconcilePreparedStock(at,false);if(!adr.ok){at.participants=oldParts;if(adr.message)alert(adr.message);render();return;}} saveCache(); render(); toast("Participante supprimée"+(at.stockPrepared?" · stock ajusté.":".")); } return; }
   if(action.indexOf("at-fac-")===0){ var parts=action.slice(7).split("-"), mode=parts[0], aid=parts[1], pid=parts[2]; if(mode==="solde"){ aid=parts[1]; pid=parts[2]; } var afat=getAtelier(aid); var ap=afat&&(afat.participants||[]).find(function(p){return p.id===pid;}); if(afat&&ap){ captureAtelier(afat); var fac=atelierCreateFacture(afat,ap,mode); if(fac){ saveCache(); render(); toast("Facture "+fac.numero+" créée dans la section Factures."); } } return; }
 
@@ -6257,8 +6325,9 @@ function handleAction(action){
   if(action==="site-mode-nouveau"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="nouveau"; render(); return; }
   if(action==="site-mode-existant"){ captureSiteSaleDraft(); ui.siteSaleDraft.clientMode="existant"; if(!ui.siteSaleDraft.clientId&&state.clients[0]) ui.siteSaleDraft.clientId=state.clients[0].id; render(); return; }
   if(action==="site-activite-change"){ captureSiteSaleDraft(); render(); return; }
-  if(action==="site-atelier-change"){ return; }
-  if(action==="site-atelier-pay-change"){ return; }
+  if(action==="site-atelier-change"){ captureSiteSaleDraft(); setSiteDraftAtelier(ui.siteSaleDraft,val("siteAtelierId"),true); render(); return; }
+  if(action==="site-atelier-option-change"){ captureSiteSaleDraft(); var sa=getAtelier(ui.siteSaleDraft.atelierId); var ch=atelierChoiceById(sa,val("siteAtelierOptionId")); if(ch){ui.siteSaleDraft.atelierOptionId=ch.id;ui.siteSaleDraft.atelierOptionLabel=ch.label;ui.siteSaleDraft.atelierPrixUnitaire=ch.price;ui.siteSaleDraft.prestation="Place · "+ch.label;ui.siteSaleDraft.atelierPrixTotal=siteContractTotal(ch.price,ui.siteSaleDraft.nbPlaces);ui.siteSaleDraft.montant=siteSuggestedPayment(ui.siteSaleDraft.atelierPrixTotal,ui.siteSaleDraft.atelierPaiementType);} render(); return; }
+  if(action==="site-atelier-pay-change"){ captureSiteSaleDraft(); ui.siteSaleDraft.montant=siteSuggestedPayment(ui.siteSaleDraft.atelierPrixTotal,ui.siteSaleDraft.atelierPaiementType); render(); return; }
   if(action==="site-save"){ saveSiteSale(); return; }
   if(action.indexOf("site-del-")===0){
     var sid=action.slice(9), skey="site:"+sid;

@@ -1,3 +1,10 @@
+# V4.2.0 TEST
+- Ateliers multi-activités à une date et un lieu communs.
+- Capacité, tarif, réservations et stock distincts par activité.
+- Choix de l’activité dans les ventes Squarespace et les ajouts manuels.
+- CA prévu calculé par activité, sans double comptage.
+- Compatibilité conservée avec les ateliers à choix unique.
+
 ## V4.1.5 TEST
 
 - Correction du remplissage dans la liste des ateliers privés.
