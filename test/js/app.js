@@ -167,7 +167,7 @@ firebase.initializeApp(firebaseConfig);
 var auth=firebase.auth();
 var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
-var docRef=null, cloudTimer=null;
+var docRef=null, cloudTimer=null, lastLocalMutationAt=0;
 
 function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, demandesMariage:state.demandesMariage, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, stockItems:state.stockItems, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
@@ -225,6 +225,7 @@ function saveTodoCloudDelayed(){
 }
 
 function saveCache(){
+  lastLocalMutationAt=Date.now();
   try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
   if(ui && ui.todoEditing) return;
   saveCloud();
@@ -240,11 +241,31 @@ function saveCloud(){
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
 }
+function saveCloudNow(){
+  if(!docRef) return Promise.resolve();
+  clearTimeout(cloudTimer);
+  cloudStatus("☁️ Enregistrement…");
+  var payload=serializeCloud();
+  return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
+    .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
+}
 function startSync(uidStr){
   docRef=db.collection("bases").doc(uidStr);
   docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
     if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
-    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
+    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{
+      if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; }
+      var remoteData=JSON.parse(d.data);
+      var remoteSavedAt=Date.parse(remoteData&&remoteData._meta&&remoteData._meta.savedAt||"")||0;
+      // Une mutation locale récente ne doit jamais être écrasée par un ancien instantané Firebase
+      // reçu pendant le délai d'enregistrement cloud.
+      if(lastLocalMutationAt && remoteSavedAt && remoteSavedAt < lastLocalMutationAt){
+        cloudStatus("☁️ Enregistrement…");
+        return;
+      }
+      applyRemote(remoteData); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
+    }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
 }
@@ -6208,7 +6229,7 @@ async function envoyerDocumentEmail(kind, doc){
 
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
-function handleAction(action){
+async function handleAction(action){
   if(action==="dem-import"){ var n=importPortalRequests(); render(); toast(n?n+" nouvelle(s) demande(s) importée(s).":"Aucune nouvelle demande."); return; }
   if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
   if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
@@ -6228,6 +6249,9 @@ function handleAction(action){
       ui.mariageDetailTab="resume";
       ui.demandeMariageOpen=null;
       saveCache();
+      try{ await saveCloudNow(); }catch(e){
+        // La fiche reste conservée dans le cache local et sera resynchronisée ensuite.
+      }
       render();
       window.scrollTo(0,0);
       toast("Fiche mariage créée et ajoutée à la liste des mariages.");

@@ -100,35 +100,49 @@
   </form>
   <div id="result"></div>
 </main>
-<script src="js/mariage-creations.js?v=5.0.8-test"></script>
+<script src="js/mariage-creations.js?v=5.0.10-test"></script>
 <script>
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function escHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function filesToData(files){return Promise.all(Array.from(files).slice(0,3).map(function(f){return new Promise(function(res,rej){if(f.size>1500000){return rej(new Error('Chaque photo doit faire moins de 1,5 Mo.'));}var r=new FileReader();r.onload=function(){res({name:f.name,dataUrl:r.result,data:r.result})};r.onerror=rej;r.readAsDataURL(f)})}))}
 
 
-var selectedPhotoFiles=[];
+var selectedPhotos=[];
 var photoInput=document.getElementById('photos');
 var photoPreviews=document.getElementById('photoPreviews');
+function photoKey(file){return [file.name,file.size,file.lastModified].join('|')}
+function readPhotoFile(file){
+  return new Promise(function(resolve,reject){
+    if(file.size>1500000){return reject(new Error('Chaque photo doit faire moins de 1,5 Mo.'));}
+    var reader=new FileReader();
+    reader.onload=function(){resolve({name:file.name,size:file.size,lastModified:file.lastModified,dataUrl:reader.result,data:reader.result,key:photoKey(file)})};
+    reader.onerror=function(){reject(new Error('Impossible de lire la photo '+file.name+'.'));};
+    reader.readAsDataURL(file);
+  });
+}
 function renderPhotoPreviews(){
   photoPreviews.innerHTML='';
-  selectedPhotoFiles.forEach(function(file,index){
+  selectedPhotos.forEach(function(photo,index){
     var card=document.createElement('div');card.className='photo-preview';
-    var img=document.createElement('img');img.alt='Aperçu de '+file.name;
-    var url=URL.createObjectURL(file);img.src=url;img.onload=function(){URL.revokeObjectURL(url)};
-    var name=document.createElement('div');name.className='photo-preview-name';name.textContent=file.name;
-    var remove=document.createElement('button');remove.type='button';remove.className='photo-remove';remove.setAttribute('aria-label','Supprimer '+file.name);remove.textContent='×';
-    remove.addEventListener('click',function(){selectedPhotoFiles.splice(index,1);renderPhotoPreviews();});
+    var img=document.createElement('img');img.alt='Aperçu de '+photo.name;img.src=photo.dataUrl;
+    var name=document.createElement('div');name.className='photo-preview-name';name.textContent=photo.name;
+    var remove=document.createElement('button');remove.type='button';remove.className='photo-remove';remove.setAttribute('aria-label','Supprimer '+photo.name);remove.textContent='×';
+    remove.addEventListener('click',function(){selectedPhotos.splice(index,1);renderPhotoPreviews();});
     card.appendChild(img);card.appendChild(name);card.appendChild(remove);photoPreviews.appendChild(card);
   });
 }
-photoInput.addEventListener('change',function(){
+photoInput.addEventListener('change',async function(){
   var incoming=Array.from(photoInput.files||[]);
-  incoming.forEach(function(file){
-    if(selectedPhotoFiles.length<3 && !selectedPhotoFiles.some(function(x){return x.name===file.name&&x.size===file.size&&x.lastModified===file.lastModified;})) selectedPhotoFiles.push(file);
-  });
-  if(incoming.length && selectedPhotoFiles.length>=3) photoInput.value='';
-  else photoInput.value='';
+  photoInput.value='';
+  if(!incoming.length)return;
+  for(var i=0;i<incoming.length;i++){
+    var file=incoming[i];
+    if(selectedPhotos.length>=3){alert('Vous pouvez ajouter 3 photos maximum.');break;}
+    var key=photoKey(file);
+    if(selectedPhotos.some(function(x){return x.key===key;}))continue;
+    try{selectedPhotos.push(await readPhotoFile(file));}
+    catch(err){alert(err.message);}
+  }
   renderPhotoPreviews();
 });
 
@@ -143,8 +157,7 @@ autreInput.addEventListener('input',function(){if(autreInput.value.trim()&&!autr
 
 document.getElementById('portalForm').addEventListener('submit',async function(e){
   e.preventDefault();
-  var fd=new FormData(e.target), photos=[];
-  try{photos=await filesToData(selectedPhotoFiles)}catch(err){alert(err.message);return}
+  var fd=new FormData(e.target), photos=selectedPhotos.map(function(p){return {name:p.name,dataUrl:p.dataUrl,data:p.dataUrl};});
   var autre=autreCheck.checked?String(fd.get('autrePrestation')||'').trim():'';
   var d={
     id:'DEM-'+uid(),prenom:fd.get('prenom'),nom:fd.get('nom'),email:fd.get('email'),tel:fd.get('tel'),

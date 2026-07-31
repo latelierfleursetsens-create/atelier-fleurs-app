@@ -1,9 +1,8 @@
-# MyBusiness V5.0.8 TEST
+# MyBusiness V5.0.10 TEST
 
-Correctif de transformation d’une demande portail en fiche mariage.
+## Correctif photos du portail mariage
 
-- ajout garanti dans `state.mariages` ;
-- contrôle immédiat de la création ;
-- ouverture forcée de Clients > Mariages > Fiches ;
-- filtre « Toutes » activé pour rendre la nouvelle fiche visible ;
-- enregistrement local et cloud relancé après la transformation.
+- Les photos sont désormais converties et mémorisées dès leur sélection.
+- Ajouter une deuxième ou une troisième photo ne remplace plus les précédentes, notamment sur iPhone/Safari.
+- Chaque photo peut toujours être supprimée individuellement avant l’envoi.
+- Limite conservée à 3 photos et 1,5 Mo par photo.
