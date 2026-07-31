@@ -2,7 +2,7 @@
 "use strict";
 
 var APP_VERSION="V5.0.11 TEST";
-var APP_VERSION_NOTE = "Correction durable de la transformation des demandes portail en fiches mariage et sécurisation du stockage des photos.";
+var APP_VERSION_NOTE = "Récupération durable des photos du portail dans la fiche mariage sans alourdir Firebase.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 TEST — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
@@ -178,6 +178,38 @@ function serializeCloud(){
   d.demandesMariage=(d.demandesMariage||[]).map(function(x){ var c=Object.assign({},x); c.photos=[]; return c; });
   return d;
 }
+
+function portalRequestsLocalRead(){
+  try{
+    var list=JSON.parse(localStorage.getItem("afs_portal_requests")||"[]");
+    return Array.isArray(list)?list:[];
+  }catch(e){ return []; }
+}
+function portalRequestLocalById(id){
+  if(!id) return null;
+  return portalRequestsLocalRead().find(function(x){return x&&x.id===id;})||null;
+}
+function portalPhotosToMariageMedias(photos){
+  return (Array.isArray(photos)?photos:[]).map(function(p){
+    var src=(p&&typeof p==="object")?(p.dataUrl||p.data||""):String(p||"");
+    if(!src) return null;
+    return {id:(p&&p.mediaId)||uid(),name:(p&&p.name)||"Inspiration portail",type:(p&&p.type)||"image",dataUrl:src};
+  }).filter(Boolean);
+}
+function restorePortalMarriageMedias(){
+  var localRequests=portalRequestsLocalRead();
+  if(!localRequests.length || !Array.isArray(state.mariages)) return 0;
+  var byId={}; localRequests.forEach(function(d){if(d&&d.id) byId[d.id]=d;});
+  var restored=0;
+  state.mariages.forEach(function(m){
+    if(!m||!m.sourceDemandeId||(Array.isArray(m.medias)&&m.medias.length)) return;
+    var d=byId[m.sourceDemandeId] || (state.demandesMariage||[]).find(function(x){return x&&x.id===m.sourceDemandeId;});
+    var medias=portalPhotosToMariageMedias(d&&d.photos);
+    if(medias.length){ m.medias=medias; restored++; }
+  });
+  return restored;
+}
+
 function pendingMariagesRead(){
   try{ var a=JSON.parse(localStorage.getItem("afs_pending_mariages")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; }
 }
@@ -203,6 +235,7 @@ function applyData(d){
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
   state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.demandesMariage=d.demandesMariage||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
   mergePendingMariages();
+  restorePortalMarriageMedias();
   normalizeSiteSalesData();
   reconcileSiteSaleParticipants();
 }
@@ -4776,13 +4809,14 @@ function transformDemandeToMariage(d){
   var full=((d.prenom||"")+" "+(d.nom||"")).trim();
   var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
   if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
-  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:(d.photos||[]).map(function(p){var src=(p&&typeof p==="object")?(p.dataUrl||p.data):p;return {id:uid(),name:(p&&p.name)||"Inspiration portail",type:"image",dataUrl:src||""};}),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id};
+  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id};
   if(!Array.isArray(state.mariages)) state.mariages=[];
   state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
   d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
   // Sauvegarde de secours légère avant toute écriture globale : même si une photo sature
   // localStorage ou Firebase, la fiche mariage reste récupérable dans la liste.
   pendingMariageRemember(m);
+  restorePortalMarriageMedias();
   saveCache();
   // Vérification locale immédiate : la transformation ne doit jamais être validée
   // si la fiche n'est pas réellement présente dans la collection des mariages.
