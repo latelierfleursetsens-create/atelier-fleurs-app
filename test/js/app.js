@@ -1,8 +1,8 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.0.5 TEST";
-var APP_VERSION_NOTE = "Le portail mariage et la création manuelle utilisent le même référentiel détaillé de créations, avec un champ Autre.";
+var APP_VERSION="V5.0.11 TEST";
+var APP_VERSION_NOTE = "Correction durable de la transformation des demandes portail en fiches mariage et sécurisation du stockage des photos.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 TEST — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
@@ -170,13 +170,39 @@ try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e)
 var docRef=null, cloudTimer=null, lastLocalMutationAt=0;
 
 function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, demandesMariage:state.demandesMariage, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, stockItems:state.stockItems, _meta:{savedAt:new Date().toISOString()} }; }
-function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
+function serializeCloud(){
+  var d=serialize();
+  // Les images base64 peuvent dépasser la limite Firestore. Elles restent locales et ne doivent
+  // jamais empêcher l’enregistrement des fiches, clients, devis ou demandes.
+  d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; });
+  d.demandesMariage=(d.demandesMariage||[]).map(function(x){ var c=Object.assign({},x); c.photos=[]; return c; });
+  return d;
+}
+function pendingMariagesRead(){
+  try{ var a=JSON.parse(localStorage.getItem("afs_pending_mariages")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+}
+function pendingMariagesWrite(list){
+  try{ localStorage.setItem("afs_pending_mariages",JSON.stringify(list||[])); }catch(e){ console.error("Sauvegarde de secours mariage impossible",e); }
+}
+function pendingMariageRemember(m){
+  if(!m||!m.id) return;
+  var light=Object.assign({},m); light.medias=[];
+  var list=pendingMariagesRead().filter(function(x){return x&&x.id!==light.id;});
+  list.unshift(light); pendingMariagesWrite(list.slice(0,30));
+}
+function mergePendingMariages(){
+  var pending=pendingMariagesRead();
+  if(!pending.length) return;
+  if(!Array.isArray(state.mariages)) state.mariages=[];
+  pending.forEach(function(m){ if(m&&m.id&&!state.mariages.some(function(x){return x&&x.id===m.id;})) state.mariages.unshift(m); });
+}
 function applyData(d){
   if(!d) return;
   state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
   state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.demandesMariage=d.demandesMariage||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
+  mergePendingMariages();
   normalizeSiteSalesData();
   reconcileSiteSaleParticipants();
 }
@@ -226,7 +252,13 @@ function saveTodoCloudDelayed(){
 
 function saveCache(){
   lastLocalMutationAt=Date.now();
-  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
+  try{
+    localStorage.setItem("afs_cache", JSON.stringify({data:serialize()}));
+  }catch(e){
+    // Repli allégé si les images dépassent le quota du navigateur.
+    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serializeCloud()})); }
+    catch(e2){ console.error("Cache local saturé",e2); }
+  }
   if(ui && ui.todoEditing) return;
   saveCloud();
 }
@@ -4748,6 +4780,9 @@ function transformDemandeToMariage(d){
   if(!Array.isArray(state.mariages)) state.mariages=[];
   state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
   d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
+  // Sauvegarde de secours légère avant toute écriture globale : même si une photo sature
+  // localStorage ou Firebase, la fiche mariage reste récupérable dans la liste.
+  pendingMariageRemember(m);
   saveCache();
   // Vérification locale immédiate : la transformation ne doit jamais être validée
   // si la fiche n'est pas réellement présente dans la collection des mariages.
