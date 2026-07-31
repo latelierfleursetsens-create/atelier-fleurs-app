@@ -1,5 +1,120 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mon projet mariage — L’Atelier Fleurs & Sens</title><link rel="stylesheet" href="css/style.css"><style>body{background:#fbf7f4}.portal{max-width:900px;margin:30px auto;padding:18px}.hero{text-align:center;background:white;border-radius:22px;padding:28px;box-shadow:0 8px 30px #7a51451c}.hero img{width:130px;border-radius:50%}.step{background:#fff;border:1px solid #eadfd8;border-radius:18px;padding:22px;margin-top:16px}.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.check{padding:10px;border:1px solid #eadfd8;border-radius:12px}.portal input,.portal select,.portal textarea{width:100%;box-sizing:border-box}.success{background:#edf7ed;border:1px solid #b9d9b9;padding:20px;border-radius:16px;text-align:center}.muted2{color:#806f68;font-size:13px}</style></head><body><main class="portal"><section class="hero"><img src="assets/logo.jpg" alt="Logo"><h1>Parlez-moi de votre mariage 🌸</h1><p>Complétez ce questionnaire pour que je puisse découvrir votre univers et préparer notre premier échange.</p><p class="muted2">Version test du portail mariage — aucune commande n’est validée automatiquement.</p></section><form id="portalForm"><section class="step"><h2>1. Vos coordonnées</h2><div class="form-grid"><label>Prénom *<input name="prenom" required></label><label>Nom *<input name="nom" required></label><label>E-mail *<input name="email" type="email" required></label><label>Téléphone *<input name="tel" required></label></div></section><section class="step"><h2>2. Votre mariage</h2><div class="form-grid"><label>Date du mariage *<input name="dateMariage" type="date" required></label><label>Ville<input name="ville"></label><label>Lieu de réception<input name="lieu"></label><label>Nombre d’invités<input name="invites" type="number" min="0"></label><label>Style<select name="style"><option value="">À préciser</option><option>Bohème</option><option>Champêtre</option><option>Romantique</option><option>Moderne</option><option>Minimaliste</option><option>Nature</option><option>Autre</option></select></label><label>Budget envisagé<select name="budget"><option value="">À préciser</option><option>Moins de 100 €</option><option>100 à 250 €</option><option>250 à 500 €</option><option>500 à 1 000 €</option><option>Plus de 1 000 €</option></select></label></div></section><section class="step"><h2>3. Vos besoins</h2><div class="checks"><label class="check"><input type="checkbox" name="prestations" value="Bouquet de mariée"> Bouquet de mariée</label><label class="check"><input type="checkbox" name="prestations" value="Bouquet à lancer"> Bouquet à lancer</label><label class="check"><input type="checkbox" name="prestations" value="Bouquets demoiselles d’honneur"> Bouquets demoiselles d’honneur</label><label class="check"><input type="checkbox" name="prestations" value="Boutonnières"> Boutonnières</label><label class="check"><input type="checkbox" name="prestations" value="Bracelets"> Bracelets</label><label class="check"><input type="checkbox" name="prestations" value="Peigne ou accessoire fleuri"> Peigne ou accessoire fleuri</label><label class="check"><input type="checkbox" name="prestations" value="Décoration de voiture"> Décoration de voiture</label><label class="check"><input type="checkbox" name="prestations" value="Centres de table"> Centres de table</label><label class="check"><input type="checkbox" name="prestations" value="Table d’honneur"> Table d’honneur</label><label class="check"><input type="checkbox" name="prestations" value="Décoration de cérémonie"> Décoration de cérémonie</label><label class="check"><input type="checkbox" name="prestations" value="Autre demande"> Autre demande</label></div></section><section class="step"><h2>4. Votre univers floral</h2><div class="form-grid"><label>Couleurs souhaitées<textarea name="couleurs" rows="3"></textarea></label><label>Fleurs que vous aimez<textarea name="fleursAimees" rows="3"></textarea></label><label>Fleurs ou éléments refusés<textarea name="fleursRefusees" rows="3"></textarea></label><label>Comment nous avez-vous connue ?<select name="canal"><option value="">Sélectionnez</option><option>TikTok</option><option>Instagram</option><option>Messenger / Facebook</option><option>Google</option><option>Salon du mariage</option><option>Recommandation</option><option>Autre</option></select></label></div><label>Décrivez votre projet<textarea name="description" rows="6" placeholder="Ambiance, attentes, quantités, détails importants..."></textarea></label><label>Photos d’inspiration (3 maximum en version test)<input id="photos" type="file" accept="image/*" multiple></label><p class="muted2">Les images sont enregistrées localement dans cette version de démonstration.</p></section><section class="step"><label class="check"><input type="checkbox" required> J’accepte que mes informations soient utilisées pour étudier ma demande de mariage.</label><button class="btn primary" type="submit" style="margin-top:16px;width:100%;">Envoyer ma demande</button></section></form><div id="result"></div></main><script>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mon projet mariage — L’Atelier Fleurs & Sens</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body{background:#fbf7f4}
+    .portal{max-width:1000px;margin:30px auto;padding:18px}
+    .hero{text-align:center;background:white;border-radius:22px;padding:28px;box-shadow:0 8px 30px #7a51451c}
+    .hero img{width:130px;border-radius:50%}
+    .step{background:#fff;border:1px solid #eadfd8;border-radius:18px;padding:22px;margin-top:16px}
+    .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px}
+    .check{padding:11px;border:1px solid #eadfd8;border-radius:12px;display:flex;gap:9px;align-items:flex-start}
+    .check input{width:auto;margin-top:3px;flex:0 0 auto}
+    .portal input,.portal select,.portal textarea{width:100%;box-sizing:border-box}
+    .success{background:#edf7ed;border:1px solid #b9d9b9;padding:20px;border-radius:16px;text-align:center}
+    .muted2{color:#806f68;font-size:13px}
+    .other-box{margin-top:12px;padding:14px;border:1px dashed #d6c2b8;border-radius:12px;background:#fffaf7}
+  </style>
+</head>
+<body>
+<main class="portal">
+  <section class="hero">
+    <img src="assets/logo.jpg" alt="Logo">
+    <h1>Parlez-moi de votre mariage 🌸</h1>
+    <p>Complétez ce questionnaire pour que je puisse découvrir votre univers et préparer notre premier échange.</p>
+    <p class="muted2">Version V5.0.4 TEST du portail mariage — aucune commande n’est validée automatiquement.</p>
+  </section>
+
+  <form id="portalForm">
+    <section class="step">
+      <h2>1. Vos coordonnées</h2>
+      <div class="form-grid">
+        <label>Prénom *<input name="prenom" required></label>
+        <label>Nom *<input name="nom" required></label>
+        <label>E-mail *<input name="email" type="email" required></label>
+        <label>Téléphone *<input name="tel" required></label>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2>2. Votre mariage</h2>
+      <div class="form-grid">
+        <label>Date du mariage *<input name="dateMariage" type="date" required></label>
+        <label>Ville<input name="ville"></label>
+        <label>Lieu de réception<input name="lieu"></label>
+        <label>Nombre d’invités<input name="invites" type="number" min="0"></label>
+        <label>Style<select name="style"><option value="">À préciser</option><option>Bohème</option><option>Champêtre</option><option>Romantique</option><option>Moderne</option><option>Minimaliste</option><option>Nature</option><option>Autre</option></select></label>
+        <label>Budget envisagé<select name="budget"><option value="">À préciser</option><option>Moins de 100 €</option><option>100 à 250 €</option><option>250 à 500 €</option><option>500 à 1 000 €</option><option>Plus de 1 000 €</option></select></label>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2>3. Vos besoins</h2>
+      <p class="muted2">Vous pouvez sélectionner plusieurs créations.</p>
+      <div class="checks" id="prestationsList"></div>
+      <div class="other-box">
+        <label class="check" style="border:none;padding:0;"><input type="checkbox" id="autreCheck"> <span>Autre création ou demande</span></label>
+        <label id="autreWrap" style="display:none;margin-top:10px;">Précisez votre demande<input name="autrePrestation" id="autrePrestation" placeholder="Ex : fleurs pour urne, décoration particulière…"></label>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2>4. Votre univers floral</h2>
+      <div class="form-grid">
+        <label>Couleurs souhaitées<textarea name="couleurs" rows="3"></textarea></label>
+        <label>Fleurs que vous aimez<textarea name="fleursAimees" rows="3"></textarea></label>
+        <label>Fleurs ou éléments refusés<textarea name="fleursRefusees" rows="3"></textarea></label>
+        <label>Comment nous avez-vous connue ?<select name="canal"><option value="">Sélectionnez</option><option>TikTok</option><option>Instagram</option><option>Messenger / Facebook</option><option>Google</option><option>Salon du mariage</option><option>Recommandation</option><option>Autre</option></select></label>
+      </div>
+      <label>Décrivez votre projet<textarea name="description" rows="6" placeholder="Ambiance, attentes, quantités, détails importants..."></textarea></label>
+      <label>Photos d’inspiration (3 maximum en version test)<input id="photos" type="file" accept="image/*" multiple></label>
+      <p class="muted2">Les images sont enregistrées localement dans cette version de démonstration.</p>
+    </section>
+
+    <section class="step">
+      <label class="check"><input type="checkbox" required> <span>J’accepte que mes informations soient utilisées pour étudier ma demande de mariage.</span></label>
+      <button class="btn primary" type="submit" style="margin-top:16px;width:100%;">Envoyer ma demande</button>
+    </section>
+  </form>
+  <div id="result"></div>
+</main>
+<script src="js/mariage-creations.js"></script>
+<script>
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
-function filesToData(files){return Promise.all(Array.from(files).slice(0,3).map(function(f){return new Promise(function(res,rej){if(f.size>1500000){return rej(new Error('Chaque photo doit faire moins de 1,5 Mo.'));}var r=new FileReader();r.onload=function(){res({name:f.name,data:r.result})};r.onerror=rej;r.readAsDataURL(f)})}))}
-document.getElementById('portalForm').addEventListener('submit',async function(e){e.preventDefault();var fd=new FormData(e.target);var photos=[];try{photos=await filesToData(document.getElementById('photos').files)}catch(err){alert(err.message);return}var d={id:'DEM-'+uid(),prenom:fd.get('prenom'),nom:fd.get('nom'),email:fd.get('email'),tel:fd.get('tel'),dateMariage:fd.get('dateMariage'),ville:fd.get('ville'),lieu:fd.get('lieu'),invites:fd.get('invites'),style:fd.get('style'),budget:fd.get('budget'),prestations:fd.getAll('prestations'),couleurs:fd.get('couleurs'),fleursAimees:fd.get('fleursAimees'),fleursRefusees:fd.get('fleursRefusees'),canal:fd.get('canal'),description:fd.get('description'),photos:photos,statut:'nouvelle',createdAt:new Date().toISOString()};var list=[];try{list=JSON.parse(localStorage.getItem('afs_portal_requests')||'[]')}catch(x){}list.unshift(d);try{localStorage.setItem('afs_portal_requests',JSON.stringify(list))}catch(x){alert('Les photos sont trop lourdes pour cette version test. Réessayez sans photo.');return}e.target.style.display='none';document.getElementById('result').innerHTML='<div class="success"><h2>Merci '+d.prenom+' 🌸</h2><p>Votre demande a bien été enregistrée sous la référence <b>'+d.id+'</b>.</p><p>Vous pouvez maintenant revenir dans MyBusiness, rubrique <b>Clients → Demandes mariage</b>.</p></div>'})
-</script></body></html>
+function escHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function filesToData(files){return Promise.all(Array.from(files).slice(0,3).map(function(f){return new Promise(function(res,rej){if(f.size>1500000){return rej(new Error('Chaque photo doit faire moins de 1,5 Mo.'));}var r=new FileReader();r.onload=function(){res({name:f.name,dataUrl:r.result,data:r.result})};r.onerror=rej;r.readAsDataURL(f)})}))}
+
+var creations=Array.isArray(window.MARIAGE_CREATIONS_STANDARD)?window.MARIAGE_CREATIONS_STANDARD:[];
+document.getElementById('prestationsList').innerHTML=creations.map(function(label){return '<label class="check"><input type="checkbox" name="prestations" value="'+escHtml(label)+'"> <span>'+escHtml(label)+'</span></label>';}).join('');
+
+var autreCheck=document.getElementById('autreCheck');
+var autreWrap=document.getElementById('autreWrap');
+var autreInput=document.getElementById('autrePrestation');
+autreCheck.addEventListener('change',function(){autreWrap.style.display=autreCheck.checked?'block':'none';if(!autreCheck.checked) autreInput.value='';});
+autreInput.addEventListener('input',function(){if(autreInput.value.trim()&&!autreCheck.checked){autreCheck.checked=true;autreWrap.style.display='block';}});
+
+document.getElementById('portalForm').addEventListener('submit',async function(e){
+  e.preventDefault();
+  var fd=new FormData(e.target), photos=[];
+  try{photos=await filesToData(document.getElementById('photos').files)}catch(err){alert(err.message);return}
+  var autre=autreCheck.checked?String(fd.get('autrePrestation')||'').trim():'';
+  var d={
+    id:'DEM-'+uid(),prenom:fd.get('prenom'),nom:fd.get('nom'),email:fd.get('email'),tel:fd.get('tel'),
+    dateMariage:fd.get('dateMariage'),ville:fd.get('ville'),lieu:fd.get('lieu'),invites:fd.get('invites'),
+    style:fd.get('style'),budget:fd.get('budget'),prestations:fd.getAll('prestations'),autrePrestation:autre,
+    couleurs:fd.get('couleurs'),fleursAimees:fd.get('fleursAimees'),fleursRefusees:fd.get('fleursRefusees'),
+    canal:fd.get('canal'),description:fd.get('description'),photos:photos,statut:'nouvelle',createdAt:new Date().toISOString()
+  };
+  var list=[];try{list=JSON.parse(localStorage.getItem('afs_portal_requests')||'[]')}catch(x){}
+  list.unshift(d);
+  try{localStorage.setItem('afs_portal_requests',JSON.stringify(list))}catch(x){alert('Les photos sont trop lourdes pour cette version test. Réessayez sans photo.');return}
+  e.target.style.display='none';
+  document.getElementById('result').innerHTML='<div class="success"><h2>Merci '+escHtml(d.prenom)+' 🌸</h2><p>Votre demande a bien été enregistrée sous la référence <b>'+escHtml(d.id)+'</b>.</p><p>Vous pouvez maintenant revenir dans MyBusiness, rubrique <b>Clients → Demandes mariage</b>.</p></div>';
+});
+</script>
+</body>
+</html>

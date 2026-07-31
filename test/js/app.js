@@ -1,9 +1,13 @@
-/* V4.2.1 PROD MODULAIRE — Correctif synchronisation fiche mariage / devis. */
+/* V5.0.4 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.0 TEST";
-var APP_VERSION_NOTE = "La modification des coordonnées d’une fiche mariage met à jour le devis lié sans jamais écraser ses prix. Un devis à 0 € est désormais protégé avant envoi.";
+var APP_VERSION="V5.0.4 TEST";
+var APP_VERSION_NOTE = "Le portail mariage et la création manuelle utilisent le même référentiel détaillé de créations, avec un champ Autre.";
 var APP_CHANGELOG = [
+  "V5.0.4 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
+  "V5.0.3 TEST — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
+  "V5.0.2 TEST — Synchronisation portail : la fiche mariage et le devis reprennent uniquement les créations choisies par la future mariée.",
+  "V5.0.1 TEST — Correctif d’affichage et de conservation des photos d’inspiration du portail.",
   "V4.2.1 PROD — Correctif mariage : les coordonnées enregistrées sont propagées à la fiche cliente et au devis lié sans reconstruire les lignes tarifées.",
   "V4.2.1 PROD — Protection anti-devis à 0 € : conservation des prix lors des synchronisations et tentative de restauration depuis une facture ou commande liée avant envoi.",
   "V4.2.0 PROD — Ateliers multi-activités : plusieurs choix à une même date, capacité et tarif par choix, réservations et stock ventilés par activité.",
@@ -4587,17 +4591,116 @@ function onLogoFile(file){
 
 /* ===================== V5.0 TEST — Portail demandes mariage ===================== */
 var DEMANDE_STATUTS={nouvelle:"Nouvelle demande",a_etudier:"À étudier",a_contacter:"Cliente à contacter",contactee:"Contactée",rdv:"Rendez-vous programmé",a_completer:"Informations à compléter",validation:"En attente de validation",transformee:"Transformée en mariage",sans_suite:"Sans suite",indisponible:"Date indisponible"};
+function normalizePortalMedia(){
+  (state.demandesMariage||[]).forEach(function(d){ (d.photos||[]).forEach(function(p){ if(p&&typeof p==="object"&&!p.dataUrl&&p.data) p.dataUrl=p.data; }); });
+  (state.mariages||[]).forEach(function(m){ (m.medias||[]).forEach(function(md){ if(md&&!md.dataUrl&&md.data) md.dataUrl=md.data; }); });
+}
 function importPortalRequests(){
   try{
+    normalizePortalMedia();
     var raw=localStorage.getItem("afs_portal_requests"); var list=raw?JSON.parse(raw):[];
     if(!Array.isArray(list)) return 0; var added=0;
     list.forEach(function(r){ if(!(state.demandesMariage||[]).some(function(x){return x.id===r.id;})){ state.demandesMariage.unshift(r); added++; } });
-    if(added){ saveCache(); }
+    normalizePortalMedia();
+    var selectionsFixed=normalizePortalMarriageSelections();
+    if(added||selectionsFixed){ saveCache(); }
     return added;
   }catch(e){ return 0; }
 }
 function demandeById(id){ return (state.demandesMariage||[]).find(function(x){return x.id===id;}); }
-function demandePrestationsText(d){ return (d.prestations||[]).join(", ")||"Non renseigné"; }
+function demandePrestationsText(d){ return portailPrestationsUniques(d).join(", ")||"Non renseigné"; }
+var PORTAIL_CREATIONS_STANDARD=(Array.isArray(window.MARIAGE_CREATIONS_STANDARD)?window.MARIAGE_CREATIONS_STANDARD:[]).slice();
+function portailCreationCanonique(label){
+  var key=normName(label||"");
+  for(var i=0;i<PORTAIL_CREATIONS_STANDARD.length;i++){
+    if(normName(PORTAIL_CREATIONS_STANDARD[i])===key) return PORTAIL_CREATIONS_STANDARD[i];
+  }
+  // Compatibilité avec les demandes créées dans les premières versions test.
+  var aliases={
+    "bouquet de mariee":"Bouquet de mariée taille M — 23 à 25 cm",
+    "bouquet demoiselle d honneur":"Bouquet demoiselle d’honneur ou à lancer — diamètre 18 cm (recommandé adulte)",
+    "bouquets demoiselles d honneur":"Bouquet demoiselle d’honneur ou à lancer — diamètre 18 cm (recommandé adulte)",
+    "bouquet enfant demoiselle":"Bouquet demoiselle d’honneur ou à lancer — diamètre 15 cm (recommandé enfant)",
+    "boutonnieres":"Boutonnière adulte sans mini-rose",
+    "boutonniere s":"Boutonnière adulte sans mini-rose",
+    "couronne de fleurs":"Couronne sur fil de fer adulte",
+    "couronne fleurie":"Couronne sur fil de fer adulte",
+    "centres de table":"Centre de table",
+    "centre s de table":"Centre de table",
+    "decoration de ceremonie":"Décoration cérémonie",
+    "decor ceremonie arche":"Décoration cérémonie"
+  };
+  return aliases[key]||"";
+}
+function portailPrestationsUniques(d){
+  var selected={}, customs=[];
+  (d&&Array.isArray(d.prestations)?d.prestations:[]).forEach(function(x){
+    var canon=portailCreationCanonique(x);
+    if(canon) selected[normName(canon)]=canon;
+    else {
+      var libre=String(x||"").trim();
+      var nk=normName(libre);
+      if(libre && nk!=="autre" && nk!=="autre demande" && nk!=="autre creation ou demande") customs.push(libre);
+    }
+  });
+  String(d&&d.autrePrestation||"").split(/\n/).map(function(x){return x.trim();}).filter(Boolean).forEach(function(x){customs.push(x);});
+  var out=PORTAIL_CREATIONS_STANDARD.filter(function(label){return !!selected[normName(label)];});
+  var seen={}; out.forEach(function(x){seen[normName(x)]=true;});
+  customs.forEach(function(x){var k=normName(x);if(k&&!seen[k]){seen[k]=true;out.push(x);}});
+  return out;
+}
+function applyPortalSelectionsToMariage(m,d){
+  if(!m||!d) return false;
+  var selections=portailPrestationsUniques(d);
+  if(!selections.length) return false;
+  var oldArticles=Array.isArray(m.articles)?m.articles:[];
+  var oldExtras=Array.isArray(m.prestationsComplementaires)?m.prestationsComplementaires:[];
+  var usedArticles={}, usedExtras={};
+  var nextArticles=selections.map(function(label){
+    var key=normName(label), art=null, extra=null, i;
+    for(i=0;i<oldArticles.length;i++){
+      if(usedArticles[i]) continue;
+      if(normName(oldArticles[i].label||"")===key){ art=oldArticles[i]; usedArticles[i]=true; break; }
+    }
+    for(i=0;i<oldExtras.length;i++){
+      if(usedExtras[i]) continue;
+      if(normName(oldExtras[i].designation||"")===key){ extra=oldExtras[i]; usedExtras[i]=true; break; }
+    }
+    var out={id:(art&&art.id)||uid(),label:label,fait:!!(art&&art.fait)};
+    if(art&&art.devisLineId) out.devisLineId=art.devisLineId;
+    else if(extra&&extra.devisLineId) out.devisLineId=extra.devisLineId;
+    if(art&&num(art.prix)>0) out.prix=num(art.prix);
+    else if(extra&&num(extra.prix)>0) out.prix=num(extra.prix);
+    return out;
+  });
+  // Les choix du formulaire sont limités à la liste standard MyBusiness et deviennent les créations principales.
+  // Seules les vraies prestations complémentaires (déplacement, livraison, personnalisation...) restent en bas.
+  var selectedKeys={}; selections.forEach(function(x){selectedKeys[normName(x)]=true;});
+  var nextExtras=oldExtras.filter(function(x){return !selectedKeys[normName(x.designation||"")];});
+  var changed=JSON.stringify(oldArticles.map(function(a){return a.label;}))!==JSON.stringify(nextArticles.map(function(a){return a.label;})) || nextExtras.length!==oldExtras.length;
+  m.articles=nextArticles;
+  m.prestationsComplementaires=nextExtras;
+  m.besoins=demandePrestationsText(d);
+  m.portalSelectionsSyncedV4=true;
+  if(changed){
+    m.historique=m.historique||[];
+    m.historique.unshift({date:new Date().toISOString(),texte:"Créations synchronisées avec les choix du formulaire portail"});
+    m.updatedAt=new Date().toISOString();
+  }
+  return changed;
+}
+function normalizePortalMarriageSelections(){
+  var changed=false;
+  (state.mariages||[]).forEach(function(m){
+    if(!m||!m.sourceDemandeId||m.portalSelectionsSyncedV4||m.portalSelectionsSyncedV3) return;
+    var d=(state.demandesMariage||[]).find(function(x){return x.id===m.sourceDemandeId;});
+    if(!d) return;
+    var didChange=applyPortalSelectionsToMariage(m,d);
+    if(didChange && m.devisLie) syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:true});
+    changed=changed||didChange||m.portalSelectionsSyncedV4;
+  });
+  return changed;
+}
 function viewDemandesMariage(){
   importPortalRequests();
   if(ui.demandeMariageOpen){ var d=demandeById(ui.demandeMariageOpen); if(d) return viewDemandeMariageDetail(d); ui.demandeMariageOpen=null; }
@@ -4609,7 +4712,7 @@ function viewDemandesMariage(){
   return html;
 }
 function viewDemandeMariageDetail(d){
-  var photos=(d.photos||[]).map(function(p){return '<img src="'+esc(p.data||p)+'" alt="Inspiration" style="width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);">';}).join('');
+  var photos=(d.photos||[]).map(function(p){return '<img src="'+esc((p&&typeof p==="object")?(p.dataUrl||p.data||""):p)+'" alt="Inspiration" style="width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);">';}).join('');
   return '<div class="row-actions"><button class="btn ghost" data-action="dem-back">← Retour aux demandes</button><a class="btn ghost" href="portail-mariage.html?dossier='+encodeURIComponent(d.id)+'" target="_blank">Voir le portail cliente</a></div><div class="card"><div class="flexb"><div><h2 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h2><p class="muted">Demande reçue le '+esc((d.createdAt||"").slice(0,10))+'</p></div><select id="demStatut">'+Object.keys(DEMANDE_STATUTS).map(function(k){return '<option value="'+k+'"'+((d.statut||"nouvelle")===k?' selected':'')+'>'+esc(DEMANDE_STATUTS[k])+'</option>';}).join('')+'</select></div><div class="form-grid"><label>Email<input id="demEmail" value="'+esc(d.email||"")+'"></label><label>Téléphone<input id="demTel" value="'+esc(d.tel||"")+'"></label><label>Date du mariage<input id="demDate" type="date" value="'+esc(d.dateMariage||"")+'"></label><label>Lieu / ville<input id="demLieu" value="'+esc(d.lieu||d.ville||"")+'"></label><label>Thème / style<input id="demTheme" value="'+esc(d.style||d.theme||"")+'"></label><label>Budget<input id="demBudget" value="'+esc(d.budget||"")+'"></label></div><p><b>Prestations demandées :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Couleurs :</b> '+esc(d.couleurs||"Non renseignées")+'</p><p><b>Fleurs aimées :</b> '+esc(d.fleursAimees||"Non renseignées")+'</p><p><b>Fleurs refusées :</b> '+esc(d.fleursRefusees||"Non renseignées")+'</p><p><b>Description :</b><br>'+esc(d.description||d.commentaire||"Aucune")+'</p><label>Notes internes<textarea id="demNotes" rows="4">'+esc(d.notesInternes||"")+'</textarea></label>'+(photos?'<h3>Inspirations</h3><div class="row-actions">'+photos+'</div>':'')+'<div class="row-actions"><button class="btn primary" data-action="dem-save-'+d.id+'">Enregistrer</button>'+(d.statut!=="transformee"?'<button class="btn gold" data-action="dem-transform-'+d.id+'">Créer la fiche mariage</button>':'<span class="badge">Fiche mariage créée</span>')+'<button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>';
 }
 function saveDemandeFromView(d){
@@ -4620,7 +4723,7 @@ function transformDemandeToMariage(d){
   var full=((d.prenom||"")+" "+(d.nom||"")).trim();
   var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
   if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
-  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};}),prestationsComplementaires:(d.prestations||[]).map(function(p){return {id:uid(),designation:p,qte:1,prix:0};}),coutMatieres:"",todoMariage:[],medias:(d.photos||[]).map(function(p){return {id:uid(),name:p.name||"Inspiration portail",type:"image",data:p.data||p};}),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id};
+  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:(d.photos||[]).map(function(p){var src=(p&&typeof p==="object")?(p.dataUrl||p.data):p;return {id:uid(),name:(p&&p.name)||"Inspiration portail",type:"image",dataUrl:src||""};}),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id};
   state.mariages.unshift(m); d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString(); saveCache(); return m;
 }
 
@@ -4742,7 +4845,7 @@ function downloadTemplateCSV(){
   downloadJSON(csv,"modele-encaissements.csv"); toast("Modèle téléchargé : remplis-le puis importe-le.");
 }
 
-var DEFAULT_ARTICLES=["Bouquet de mariée","Bouquet demoiselle d'honneur","Boutonnière(s)","Couronne de fleurs","Centre(s) de table","Décor cérémonie / arche"];
+var DEFAULT_ARTICLES=PORTAIL_CREATIONS_STANDARD.slice();
 var STATUT_MAR={
   contact:{l:"Premier contact",c:"var(--ink-s)",b:"#efe7df"},
   devis_envoye:{l:"Devis envoyé",c:"#6a5a2a",b:"#f3ead0"},
@@ -4762,13 +4865,8 @@ function countdown(dateISO){
 }
 function relanceDue(m){ return m.relance && m.relance<=todayISO() && m.statut!=="realise" && m.statut!=="perdu"; }
 function newMariage(){
-  var m={ id:uid(), nom:"", email:"", tel:"", canalCommunication:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"", synthese:"",
-    statut:"contact", livre:false, dateLivree:"", relance:"", devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"",
-    articles:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};}),
-    prestationsComplementaires:[],
-    coutMatieres:"", todoMariage:[],
-    medias:[], historique:[], createdAt:todayISO() };
-  state.mariages.unshift(m); ui.mariageOpen=m.id; ui.mariageDetailTab="resume"; saveCache(); render();
+  // Toute création manuelle passe par l’assistant afin de sélectionner uniquement les créations réellement demandées.
+  mariageRdvStart();
 }
 function captureMariageInputs(){
   var m=getMariage(ui.mariageOpen); if(!m) return null;
@@ -4884,6 +4982,7 @@ function viewMariageGroup(key,label,list,openDefault){
   return html;
 }
 function viewMariages(){
+  if(normalizePortalMarriageSelections()) saveCache();
   if(ui.mariageOpen) return viewMariageDetail(getMariage(ui.mariageOpen));
   var header='<div class="flexb" style="margin-bottom:8px;"><h2 style="margin:0;">Suivi mariages</h2><div class="row-actions" style="margin:0;"><button class="btn primary" data-action="mar-rdv-start">🎯 Préparer mon rendez-vous</button></div></div>'+
     '<div class="row-actions" style="margin-bottom:12px;">'+
@@ -5228,9 +5327,7 @@ function mariageRdvDefault(){
     theme:"", couleurs:"", budget:"",
     inspirations:"", fleursAimees:"", fleursAEviter:"", styleBouquet:"",
     contraintes:"", notes:"", relance:"", medias:[],
-    bouquet:true, bouquetLancer:false, bouquetEnfant:false,
-    nbBoutonnieres:"", nbBracelets:"", nbPeignes:"", couronne:false,
-    decoVoiture:false, nbCentres:"", autresPrestations:""
+    creationSelections:[], autreCreation:""
   };
 }
 function mariageRdvStart(){ ui.mariageRdvDraft=mariageRdvDefault(); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); }
@@ -5239,27 +5336,23 @@ function rdvVal(id){ var e=document.getElementById(id); return e?e.value:""; }
 function rdvChecked(id){ var e=document.getElementById(id); return !!(e&&e.checked); }
 function captureMariageRdvDraft(){
   var d=mariageRdvDraft();
-  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","couleurs","budget","inspirations","fleursAimees","fleursAEviter","styleBouquet","contraintes","notes","relance","nbBoutonnieres","nbBracelets","nbPeignes","nbCentres","autresPrestations"].forEach(function(k){ var id="rdv"+k.charAt(0).toUpperCase()+k.slice(1); d[k]=rdvVal(id); });
-  ["bouquet","bouquetLancer","bouquetEnfant","couronne","decoVoiture"].forEach(function(k){ var id="rdv"+k.charAt(0).toUpperCase()+k.slice(1); d[k]=rdvChecked(id); });
+  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","couleurs","budget","inspirations","fleursAimees","fleursAEviter","styleBouquet","contraintes","notes","relance","autreCreation"].forEach(function(k){ var id="rdv"+k.charAt(0).toUpperCase()+k.slice(1); d[k]=rdvVal(id); });
+  d.creationSelections=Array.prototype.slice.call(document.querySelectorAll('[data-rdv-creation]:checked')).map(function(el){return el.value;});
   return d;
 }
 function mariageRdvArticles(d){
-  var a=[];
-  function add(label){ if(label) a.push({id:uid(),label:label,fait:false}); }
-  if(d.bouquet) add("Bouquet de mariée");
-  if(d.bouquetLancer) add("Mini bouquet à lancer");
-  if(d.bouquetEnfant) add("Bouquet enfant / demoiselle d’honneur");
-  var nbB=num(d.nbBoutonnieres); if(nbB>0) add(nbB+" boutonnière"+(nbB>1?"s":""));
-  var nbBr=num(d.nbBracelets); if(nbBr>0) add(nbBr+" bracelet"+(nbBr>1?"s":"")+" floral"+(nbBr>1?"s":""));
-  var nbP=num(d.nbPeignes); if(nbP>0) add(nbP+" accessoire"+(nbP>1?"s":"")+" cheveux / peigne"+(nbP>1?"s":""));
-  if(d.couronne) add("Couronne fleurie");
-  if(d.decoVoiture) add("Décoration voiture");
-  var nbC=num(d.nbCentres); if(nbC>0) add(nbC+" centre"+(nbC>1?"s":"")+" de table");
-  String(d.autresPrestations||"").split(/\n|,/).map(function(x){return x.trim();}).filter(Boolean).forEach(add);
-  return a.length?a:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};});
+  var labels=[], seen={};
+  (Array.isArray(d.creationSelections)?d.creationSelections:[]).forEach(function(label){
+    var canon=portailCreationCanonique(label)||String(label||"").trim();
+    var k=normName(canon); if(canon&&k&&!seen[k]){seen[k]=true;labels.push(canon);}
+  });
+  String(d.autreCreation||"").split(/\n/).map(function(x){return x.trim();}).filter(Boolean).forEach(function(label){
+    var k=normName(label); if(k&&!seen[k]){seen[k]=true;labels.push(label);}
+  });
+  return labels.map(function(label){return {id:uid(),label:label,fait:false};});
 }
 function mariageRdvSynthese(d){
-  var articles=mariageRdvArticles(d).map(function(a){return "- "+a.label;}).join("\n");
+  var articles=mariageRdvArticles(d).map(function(a){return "- "+a.label;}).join("\n")||"Aucune création sélectionnée";
   var txt=[];
   txt.push("# Synthèse du rendez-vous mariage");
   txt.push("");
@@ -5319,10 +5412,10 @@ function createMariageFromRdv(){
   ui.mariageRdvDraft=null; ui.mariageView="fiches"; ui.mariageOpen=m.id; ui.mariageDetailTab="resume";
   saveCache(); render(); window.scrollTo(0,0); toast("Fiche mariage créée depuis le rendez-vous.");
 }
-function rdvCheck(label,id,checked){ return '<label class="checkrow" style="border-bottom:none;cursor:pointer;"><input type="checkbox" id="'+id+'"'+(checked?' checked':'')+'><div style="flex:1;">'+esc(label)+'</div></label>'; }
+function rdvCreationCheck(label,selected){ var checked=(selected||[]).some(function(x){return normName(x)===normName(label);}); return '<label class="checkrow" style="border-bottom:none;cursor:pointer;align-items:flex-start;"><input type="checkbox" data-rdv-creation value="'+esc(label)+'"'+(checked?' checked':'')+'><div style="flex:1;">'+esc(label)+'</div></label>'; }
 function mariageRdvMediaHtml(d){
   var medias=(d.medias||[]).map(function(md){
-    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+md.dataUrl+'" data-action="mar-rdv-media-open-'+md.id+'" title="Ouvrir '+esc(md.name||"image")+'"><button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
+    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+(md.dataUrl||md.data||"")+'" data-action="mar-rdv-media-open-'+md.id+'" title="Ouvrir '+esc(md.name||"image")+'"><button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
     return '<span class="chip">📄 '+esc(md.name||"fichier")+' <button class="btn small ghost" data-action="mar-rdv-media-open-'+md.id+'" style="padding:2px 8px;">ouvrir</button> <button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="padding:2px 8px;">×</button></span>';
   }).join("");
   return '<div style="margin-top:10px;padding:12px;border:1px dashed var(--gold-s);border-radius:10px;background:#fffdfb;">'+
@@ -5338,7 +5431,7 @@ function viewMariageRdvWizard(){
   '<div class="card"><h3 style="margin:0 0 10px;">1. Contact</h3>'+F("Nom de la cliente / du couple","rdvNom",d.nom,"text","Ex : Camille & Antoine")+'<div class="inline"><div>'+F("Email","rdvEmail",d.email,"email","")+'</div><div>'+F("Téléphone","rdvTel",d.tel,"tel","")+'</div></div><label class="field"><span>Canal de communication</span><select id="rdvCanalCommunication">'+mariageCommunicationOptions(d.canalCommunication||"Téléphone")+'</select></label></div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">2. Informations mariage</h3><div class="inline"><div>'+F("Date du mariage","rdvDateMariage",d.dateMariage,"date","")+'</div><div>'+F("Date de livraison","rdvDateLivraison",d.dateLivraison,"date","")+'</div></div><div class="inline"><div>'+F("Lieu de réception / ville","rdvLieu",d.lieu,"text","")+'</div><div><label class="field"><span>Mode de livraison</span><select id="rdvModeLivraison">'+livraisonOptions(d.modeLivraison||"")+'</select></label></div></div><div class="inline"><div>'+F("Thème","rdvTheme",d.theme,"text","Bohème, champêtre, élégant…")+'</div><div>'+F("Couleurs","rdvCouleurs",d.couleurs,"text","Champagne, beige, sauge…")+'</div></div>'+F("Budget évoqué","rdvBudget",d.budget,"text","")+'</div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">3. Inspirations et style</h3>'+T("Inspirations reçues / à demander","rdvInspirations",d.inspirations,"Photos Pinterest, bouquet préféré, exemples envoyés…")+mariageRdvMediaHtml(d)+'<div class="inline" style="margin-top:12px;"><div>'+T("Fleurs aimées","rdvFleursAimees",d.fleursAimees,"Pivoine, hortensia, rose stabilisée…")+'</div><div>'+T("À éviter","rdvFleursAEviter",d.fleursAEviter,"Couleurs vives, feuillage vert, rose…")+'</div></div>'+T("Style du bouquet","rdvStyleBouquet",d.styleBouquet,"Rond, aérien, sauvage, couché sur l’avant-bras, sans feuillage…")+'</div>'+ 
-  '<div class="card"><h3 style="margin:0 0 10px;">4. Créations souhaitées</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px;">'+rdvCheck("Bouquet de mariée","rdvBouquet",d.bouquet)+rdvCheck("Mini bouquet à lancer","rdvBouquetLancer",d.bouquetLancer)+rdvCheck("Bouquet enfant / demoiselle","rdvBouquetEnfant",d.bouquetEnfant)+rdvCheck("Couronne fleurie","rdvCouronne",d.couronne)+rdvCheck("Décoration voiture","rdvDecoVoiture",d.decoVoiture)+'</div><div class="inline" style="margin-top:10px;"><div>'+F("Nombre de boutonnières","rdvNbBoutonnieres",d.nbBoutonnieres,"number","")+'</div><div>'+F("Nombre de bracelets","rdvNbBracelets",d.nbBracelets,"number","")+'</div><div>'+F("Nombre de peignes / accessoires cheveux","rdvNbPeignes",d.nbPeignes,"number","")+'</div><div>'+F("Nombre de centres de table","rdvNbCentres",d.nbCentres,"number","")+'</div></div>'+T("Autres prestations souhaitées","rdvAutresPrestations",d.autresPrestations,"Une ligne par création : arche, bouquet de table, marque-places…")+'</div>'+ 
+  '<div class="card"><h3 style="margin:0 0 10px;">4. Créations souhaitées</h3><p class="muted" style="margin-top:0;">Sélectionne uniquement les créations demandées par la future mariée.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:6px;">'+PORTAIL_CREATIONS_STANDARD.map(function(label){return rdvCreationCheck(label,d.creationSelections||[]);}).join("")+'</div><label class="field" style="margin-top:12px;"><span>Autre création ou demande</span><input id="rdvAutreCreation" value="'+esc(d.autreCreation||"")+'" placeholder="Ex : décoration particulière, fleurs pour urne…"></label></div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">5. Points à ne pas oublier</h3>'+T("Contraintes / informations importantes","rdvContraintes",d.contraintes,"Délais, transport, photos à recevoir, budget à respecter, livraison…")+T("Notes internes du rendez-vous","rdvNotes",d.notes,"Ce que tu veux garder pour toi : ressenti, choses à relancer, points à vérifier…")+F("Date de relance prévue","rdvRelance",d.relance,"date","")+'<div class="row-actions"><button class="btn primary" data-action="mar-rdv-create">Créer la fiche mariage</button><button class="btn ghost" data-action="mar-rdv-cancel">Annuler</button></div></div>';
 }
 
@@ -5455,7 +5548,7 @@ function viewMariageDetail(m){
     '<div class="inline"><div style="flex:3;"><input id="marArtInput" placeholder="Ex : Bracelet floral demoiselles"></div><div style="flex:0;"><button class="btn primary" data-action="mar-art-add">+ Ajouter</button></div></div></div>';
   // médias
   var medias=(m.medias||[]).map(function(md){
-    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+md.dataUrl+'" data-action="mar-media-open-'+md.id+'"><button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
+    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+(md.dataUrl||md.data||"")+'" data-action="mar-media-open-'+md.id+'"><button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
     return '<span class="chip">📄 '+esc(md.name||"fichier")+' <button class="btn small ghost" data-action="mar-media-open-'+md.id+'" style="padding:2px 8px;">ouvrir</button> <button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="padding:2px 8px;">×</button></span>';
   }).join("");
   var medCard='<div class="card"><h3 style="margin:0 0 8px;">Photos & inspirations</h3>'+ 
@@ -5529,8 +5622,10 @@ function onRdvMediaFiles(files){
 }
 function openMediaItem(md){
   if(!md) return;
-  if(md.type==="image"){ ui.lightbox=md.dataUrl; renderModal(); }
-  else { var a=document.createElement("a"); a.href=md.dataUrl; a.download=md.name||"fichier"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+  var mediaSrc=md.dataUrl||md.data||"";
+  if(!mediaSrc){ toast("Cette image est indisponible. Réimporte-la depuis la demande ou la fiche mariage."); return; }
+  if(md.type==="image"){ ui.lightbox=mediaSrc; renderModal(); }
+  else { var a=document.createElement("a"); a.href=mediaSrc; a.download=md.name||"fichier"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
 }
 function openMedia(id){
   var m=getMariage(ui.mariageOpen); if(!m)return; openMediaItem((m.medias||[]).find(function(x){return x.id===id;}));
@@ -6691,7 +6786,7 @@ function handleAction(action){
   if(action==="mar-rdv-media-pick"){ captureMariageRdvDraft(); var ri=document.getElementById("rdvMedia"); if(ri) ri.click(); return; }
   if(action.indexOf("mar-rdv-media-open-")===0){ openRdvMedia(action.slice(19)); return; }
   if(action.indexOf("mar-rdv-media-del-")===0){ var rd=mariageRdvDraft(); captureMariageRdvDraft(); var rmid=action.slice(18); rd.medias=(rd.medias||[]).filter(function(x){return x.id!==rmid;}); render(); return; }
-  if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);})}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
+  if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); var selected=[],custom=[]; (crm.articles||[]).forEach(function(a){var canon=portailCreationCanonique(a.label||"");if(canon&&normName(canon)===normName(a.label||"")) selected.push(canon);else if(a.label) custom.push(a.label);}); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);}),creationSelections:selected,autreCreation:custom.join("\n")}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
   if(action==="mar-filter-avenir"){ ui.mariageFilter="avenir"; render(); return; }
   if(action==="mar-filter-tous"){ ui.mariageFilter="tous"; render(); return; }
   if(action==="mar-view-fiches"){ ui.mariageView="fiches"; render(); return; }
