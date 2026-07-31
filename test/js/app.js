@@ -4724,7 +4724,13 @@ function transformDemandeToMariage(d){
   var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
   if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
   var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:(d.photos||[]).map(function(p){var src=(p&&typeof p==="object")?(p.dataUrl||p.data):p;return {id:uid(),name:(p&&p.name)||"Inspiration portail",type:"image",dataUrl:src||""};}),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id};
-  state.mariages.unshift(m); d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString(); saveCache(); return m;
+  if(!Array.isArray(state.mariages)) state.mariages=[];
+  state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
+  d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
+  saveCache();
+  // Vérification locale immédiate : la transformation ne doit jamais être validée
+  // si la fiche n'est pas réellement présente dans la collection des mariages.
+  return getMariage(m.id)||m;
 }
 
 /* ===================== Suivi mariages ===================== */
@@ -6207,7 +6213,27 @@ function handleAction(action){
   if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
   if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();render();toast("Demande enregistrée.");} return; }
-  if(action.indexOf("dem-transform-")===0){ var dt=demandeById(action.slice(14)); if(dt){saveDemandeFromView(dt);var mm=transformDemandeToMariage(dt);ui.clientsSub="mariages";ui.mariageOpen=mm.id;ui.demandeMariageOpen=null;render();toast("Fiche mariage créée depuis la demande.");} return; }
+  if(action.indexOf("dem-transform-")===0){
+    var dt=demandeById(action.slice(14));
+    if(dt){
+      saveDemandeFromView(dt);
+      var mm=transformDemandeToMariage(dt);
+      var created=mm&&getMariage(mm.id);
+      if(!created){ toast("La fiche mariage n'a pas pu être créée. Réessaie après actualisation."); return; }
+      ui.tab="clientsModule";
+      ui.clientsSub="mariages";
+      ui.mariageView="fiches";
+      ui.mariageFilter="tous";
+      ui.mariageOpen=created.id;
+      ui.mariageDetailTab="resume";
+      ui.demandeMariageOpen=null;
+      saveCache();
+      render();
+      window.scrollTo(0,0);
+      toast("Fiche mariage créée et ajoutée à la liste des mariages.");
+    }
+    return;
+  }
   if(action.indexOf("dem-delete-")===0){
     var did=action.slice(11);
     state.demandesMariage=(state.demandesMariage||[]).filter(function(x){return x.id!==did;});

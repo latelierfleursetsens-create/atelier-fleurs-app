@@ -23,11 +23,18 @@
       .checks{grid-template-columns:minmax(0,1fr)!important;gap:9px!important}
       .need-option{grid-template-columns:24px minmax(0,1fr)!important;min-height:50px!important;padding:12px!important}
       .need-option .need-text{font-size:16px!important}
+      .photo-previews{grid-template-columns:1fr 1fr}
+      .photo-preview img{height:120px}
     }
     @media(min-width:721px) and (max-width:1050px){.checks{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
     .success{background:#edf7ed;border:1px solid #b9d9b9;padding:20px;border-radius:16px;text-align:center}
     .muted2{color:#806f68;font-size:13px}
     .other-box{margin-top:12px;padding:14px;border:1px dashed #d6c2b8;border-radius:12px;background:#fffaf7}
+    .photo-previews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+    .photo-preview{position:relative;border:1px solid #eadfd8;border-radius:12px;overflow:hidden;background:#fff;min-height:120px}
+    .photo-preview img{display:block;width:100%;height:140px;object-fit:cover}
+    .photo-preview-name{padding:8px 40px 8px 9px;font-size:12px;line-height:1.25;overflow-wrap:anywhere}
+    .photo-remove{position:absolute;top:7px;right:7px;width:32px;height:32px;border:0;border-radius:50%;background:#6d2033;color:#fff;font-size:20px;line-height:30px;cursor:pointer;box-shadow:0 2px 8px #0003}
   </style>
 </head>
 <body>
@@ -36,7 +43,7 @@
     <img src="assets/logo.jpg" alt="Logo">
     <h1>Parlez-moi de votre mariage 🌸</h1>
     <p>Complétez ce questionnaire pour que je puisse découvrir votre univers et préparer notre premier échange.</p>
-    <p class="muted2">Version V5.0.6 TEST du portail mariage — aucune commande n’est validée automatiquement.</p>
+    <p class="muted2">Version V5.0.8 TEST du portail mariage — aucune commande n’est validée automatiquement.</p>
   </section>
 
   <form id="portalForm">
@@ -82,7 +89,8 @@
       </div>
       <label>Décrivez votre projet<textarea name="description" rows="6" placeholder="Ambiance, attentes, quantités, détails importants..."></textarea></label>
       <label>Photos d’inspiration (3 maximum en version test)<input id="photos" type="file" accept="image/*" multiple></label>
-      <p class="muted2">Les images sont enregistrées localement dans cette version de démonstration.</p>
+      <div id="photoPreviews" class="photo-previews" aria-live="polite"></div>
+      <p class="muted2">Vous pouvez supprimer une photo avant l’envoi pour la remplacer. Les images sont enregistrées localement dans cette version de démonstration.</p>
     </section>
 
     <section class="step">
@@ -92,11 +100,37 @@
   </form>
   <div id="result"></div>
 </main>
-<script src="js/mariage-creations.js?v=5.0.6-test"></script>
+<script src="js/mariage-creations.js?v=5.0.8-test"></script>
 <script>
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function escHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function filesToData(files){return Promise.all(Array.from(files).slice(0,3).map(function(f){return new Promise(function(res,rej){if(f.size>1500000){return rej(new Error('Chaque photo doit faire moins de 1,5 Mo.'));}var r=new FileReader();r.onload=function(){res({name:f.name,dataUrl:r.result,data:r.result})};r.onerror=rej;r.readAsDataURL(f)})}))}
+
+
+var selectedPhotoFiles=[];
+var photoInput=document.getElementById('photos');
+var photoPreviews=document.getElementById('photoPreviews');
+function renderPhotoPreviews(){
+  photoPreviews.innerHTML='';
+  selectedPhotoFiles.forEach(function(file,index){
+    var card=document.createElement('div');card.className='photo-preview';
+    var img=document.createElement('img');img.alt='Aperçu de '+file.name;
+    var url=URL.createObjectURL(file);img.src=url;img.onload=function(){URL.revokeObjectURL(url)};
+    var name=document.createElement('div');name.className='photo-preview-name';name.textContent=file.name;
+    var remove=document.createElement('button');remove.type='button';remove.className='photo-remove';remove.setAttribute('aria-label','Supprimer '+file.name);remove.textContent='×';
+    remove.addEventListener('click',function(){selectedPhotoFiles.splice(index,1);renderPhotoPreviews();});
+    card.appendChild(img);card.appendChild(name);card.appendChild(remove);photoPreviews.appendChild(card);
+  });
+}
+photoInput.addEventListener('change',function(){
+  var incoming=Array.from(photoInput.files||[]);
+  incoming.forEach(function(file){
+    if(selectedPhotoFiles.length<3 && !selectedPhotoFiles.some(function(x){return x.name===file.name&&x.size===file.size&&x.lastModified===file.lastModified;})) selectedPhotoFiles.push(file);
+  });
+  if(incoming.length && selectedPhotoFiles.length>=3) photoInput.value='';
+  else photoInput.value='';
+  renderPhotoPreviews();
+});
 
 var creations=Array.isArray(window.MARIAGE_CREATIONS_STANDARD)?window.MARIAGE_CREATIONS_STANDARD:[];
 document.getElementById('prestationsList').innerHTML=creations.map(function(label,i){var id='prestation-'+i;return '<div class="need-option"><input id="'+id+'" type="checkbox" name="prestations" value="'+escHtml(label)+'"><label class="need-text" for="'+id+'">'+escHtml(label)+'</label></div>';}).join('');
@@ -110,7 +144,7 @@ autreInput.addEventListener('input',function(){if(autreInput.value.trim()&&!autr
 document.getElementById('portalForm').addEventListener('submit',async function(e){
   e.preventDefault();
   var fd=new FormData(e.target), photos=[];
-  try{photos=await filesToData(document.getElementById('photos').files)}catch(err){alert(err.message);return}
+  try{photos=await filesToData(selectedPhotoFiles)}catch(err){alert(err.message);return}
   var autre=autreCheck.checked?String(fd.get('autrePrestation')||'').trim():'';
   var d={
     id:'DEM-'+uid(),prenom:fd.get('prenom'),nom:fd.get('nom'),email:fd.get('email'),tel:fd.get('tel'),
