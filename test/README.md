@@ -1,4 +1,4 @@
-# MyBusiness V5.0.5 TEST
+# MyBusiness V5.0.6 TEST
 
 Correctifs :
 
@@ -8,3 +8,8 @@ Correctifs :
 - suppression définitive d’une demande mariage dans MyBusiness et dans le stockage local du portail afin d’empêcher sa réapparition lors de l’actualisation.
 
 Effectuer une sauvegarde avant installation.
+
+## Correctif V5.0.6 TEST
+- Reconstruction complète des choix du portail avec une case fixe et un libellé indépendant.
+- Deux colonnes lisibles sur ordinateur et une colonne sur téléphone.
+- Suppression des grands espaces vides et du texte repoussé hors des cartes.
