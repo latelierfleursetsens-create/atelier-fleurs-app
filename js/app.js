@@ -1,9 +1,11 @@
-/* V4.2.0 PROD MODULAIRE — Ateliers multi-activités validés pour la production. */
+/* V4.2.1 PROD MODULAIRE — Correctif synchronisation fiche mariage / devis. */
 "use strict";
 
-var APP_VERSION = "PROD V4.2.0 MODULAIRE";
-var APP_VERSION_NOTE = "Les participantes soldées et celles ayant encore un solde à régler sont différenciées visuellement. Le remplissage et le statut COMPLET apparaissent dans la liste des ateliers.";
+var APP_VERSION = "PROD V4.2.1 MODULAIRE";
+var APP_VERSION_NOTE = "La modification des coordonnées d’une fiche mariage met à jour le devis lié sans jamais écraser ses prix. Un devis à 0 € est désormais protégé avant envoi.";
 var APP_CHANGELOG = [
+  "V4.2.1 PROD — Correctif mariage : les coordonnées enregistrées sont propagées à la fiche cliente et au devis lié sans reconstruire les lignes tarifées.",
+  "V4.2.1 PROD — Protection anti-devis à 0 € : conservation des prix lors des synchronisations et tentative de restauration depuis une facture ou commande liée avant envoi.",
   "V4.2.0 PROD — Ateliers multi-activités : plusieurs choix à une même date, capacité et tarif par choix, réservations et stock ventilés par activité.",
   "V4.2.0 PROD — Correction du compteur réservé/capacité et du badge COMPLET pour les ateliers privés.",
   "V4.1.3 TEST — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
@@ -597,6 +599,10 @@ function renderModal(){
     document.body.appendChild(pm.firstElementChild);
   }
   if(ui.preview){
+    if(ui.preview.kind==="devis" && recoverDevisLinesIfZero(ui.preview.doc)){
+      saveCache();
+      toast("Montant du devis restauré depuis un document lié.");
+    }
     var d=document.createElement("div");
     d.innerHTML=viewDoc(ui.preview);
     document.body.appendChild(d.firstElementChild);
@@ -4724,12 +4730,14 @@ function newMariage(){
   state.mariages.unshift(m); ui.mariageOpen=m.id; ui.mariageDetailTab="resume"; saveCache(); render();
 }
 function captureMariageInputs(){
-  var m=getMariage(ui.mariageOpen); if(!m) return;
+  var m=getMariage(ui.mariageOpen); if(!m) return null;
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
   ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate","coutMatieres"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
   captureMariagePrestations(m);
+  m.updatedAt=new Date().toISOString();
+  return m;
 }
 function mariagePrestations(m){ return atelierPrestations(m); }
 function mariagePrestationsTotal(m){ return atelierPrestationsTotal(m); }
@@ -5557,13 +5565,16 @@ function docMailMessage(kind, doc){
   var tpl = kind==="devis" ? (s.mailMessageDevis||DEFAULT_SETTINGS.mailMessageDevis) : (s.mailMessageFacture||DEFAULT_SETTINGS.mailMessageFacture);
   return applyDocTemplate(tpl, kind, doc);
 }
-function clientEmailOrPrompt(doc){
+function clientEmailOrPrompt(kind, doc){
   var current=(doc.client&&doc.client.email)||"";
   var email=prompt("Adresse email du client :", current);
   if(email===null) return null;
   email=String(email).trim();
   if(!emailValide(email)){ toast("Adresse email invalide."); return null; }
   if(doc.client) doc.client.email=email;
+  // Si le document appartient à un mariage, l'adresse confirmée devient aussi celle du dossier et de la fiche cliente.
+  var linked=findLinkedMariageForDoc(kind,doc);
+  if(linked){ linked.email=email; syncMariageContactToClient(linked); }
   return email;
 }
 
@@ -5604,6 +5615,8 @@ function findMariageForDoc(kind, doc){
 
 async function testDownloadDocPdf(){
   if(!ui.preview || !ui.preview.doc){ toast("Document introuvable."); return; }
+  if(!prepareDocumentContactAndAmount(ui.preview.kind,ui.preview.doc)) return;
+  saveCache();
   try{
     toast("Préparation du PDF…");
     var b64=await pdfBase64FromDoc(ui.preview.kind, ui.preview.doc);
@@ -5943,6 +5956,47 @@ function addEmailHistory(kind, doc, email){
   if(state.emails.length>500) state.emails=state.emails.slice(0,500);
 }
 
+function findLinkedMariageForDoc(kind, doc){
+  if(!doc) return null;
+  var devisId=kind==="devis"?(doc.id||""):(doc.devisId||doc.devisLie||"");
+  if(!devisId) return null;
+  return (state.mariages||[]).find(function(m){return m.devisLie===devisId;})||null;
+}
+function recoverDevisLinesIfZero(d){
+  if(!d || totals(d.lignes||[],state.settings.partService).total>0) return false;
+  var sources=[];
+  (state.factures||[]).forEach(function(f){
+    if(f.devisId===d.id && totals(f.lignes||[],state.settings.partService).total>0) sources.push({kind:"facture",date:f.datePaiement||f.date||"",lignes:f.lignes});
+  });
+  (state.commandes||[]).forEach(function(c){
+    if(c.devisId===d.id && totals(c.lignes||[],state.settings.partService).total>0) sources.push({kind:"commande",date:c.dateCommande||c.createdAt||"",lignes:c.lignes});
+  });
+  sources.sort(function(a,b){return String(b.date||"").localeCompare(String(a.date||""));});
+  if(!sources.length) return false;
+  d.lignes=(sources[0].lignes||[]).map(function(l){return Object.assign({},l);});
+  d.recoveredAt=new Date().toISOString();
+  d.recoverySource=sources[0].kind;
+  return totals(d.lignes,state.settings.partService).total>0;
+}
+function prepareDocumentContactAndAmount(kind, doc){
+  var linked=findLinkedMariageForDoc(kind,doc);
+  if(linked){
+    if(ui&&ui.mariageOpen===linked.id) captureMariageInputs();
+    syncMariageContactToClient(linked);
+    if(kind==="devis") syncMariageLinkedDevis(linked,{silent:true,updateClient:false,syncLines:false});
+    else if(doc.client) doc.client=Object.assign({},doc.client,devisClientFromMariage(linked));
+  }
+  if(kind==="devis" && totals(doc.lignes||[],state.settings.partService).total===0){
+    if(recoverDevisLinesIfZero(doc)){
+      toast("Montant du devis restauré depuis un document lié avant envoi.");
+    }else{
+      toast("Envoi bloqué : ce devis est à 0 €. Ouvre-le et vérifie ses lignes avant de le renvoyer.");
+      return false;
+    }
+  }
+  return true;
+}
+
 function markDocSent(kind, doc){
   if(kind==="devis"){
     if(doc.statut==="brouillon") doc.statut="envoye";
@@ -5960,10 +6014,11 @@ function markDocSent(kind, doc){
 }
 async function envoyerDocumentEmail(kind, doc){
   if(!doc){ toast("Document introuvable."); return; }
-  var email=clientEmailOrPrompt(doc); if(!email) return;
+  if(!prepareDocumentContactAndAmount(kind,doc)) return;
+  saveCache();
+  var email=clientEmailOrPrompt(kind,doc); if(!email) return;
   var nom=(doc.client&&doc.client.nom)||"Client";
   var titre=docTitle(kind, doc);
-  if(ui && ui.mariageOpen){ try{ captureMariageInputs(); saveCache(); }catch(capErr){ console.warn(capErr); } }
   toast("Préparation des PDF…");
   try{
     var pdf64=await pdfBase64FromDoc(kind, doc);
@@ -6561,7 +6616,7 @@ function handleAction(action){
   }
   if(action.indexOf("cli-open-")===0){ ui.clientOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action==="cli-back"){ ui.clientOpen=null; render(); return; }
-  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); cc.canal=val("cdCanal"); cc.anniversaire=val("cdAnniv"); cc.notes=val("cdNotes"); cc.updatedAt=todayISO(); (state.mariages||[]).forEach(function(m){ var cm=clientContactForMariage(m); if(cm&&cm.id===cc.id){ syncMariageLinkedDevis(m,{silent:true}); } }); saveCache(); render(); toast("Contact enregistré. Devis lié actualisé si nécessaire."); } return; }
+  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); cc.canal=val("cdCanal"); cc.anniversaire=val("cdAnniv"); cc.notes=val("cdNotes"); cc.updatedAt=new Date().toISOString(); (state.mariages||[]).forEach(function(m){ var cm=clientContactForMariage(m); if(cm&&cm.id===cc.id){ m.nom=cc.nom||m.nom||""; m.email=cc.email||""; m.tel=cc.tel||""; m.canalCommunication=cc.canal||m.canalCommunication||""; m.updatedAt=new Date().toISOString(); syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:false}); } }); saveCache(); render(); toast("Contact enregistré. Fiche mariage et devis lié actualisés si nécessaire."); } return; }
   if(action.indexOf("cli-del-")===0){ var clid=action.slice(8); if(confirm("Supprimer cette fiche cliente ? (son historique de ventes n'est pas supprimé)")){ state.clients=state.clients.filter(function(c){return c.id!==clid;}); ui.clientOpen=null; saveCache(); render(); } return; }
 
   // logo
@@ -6603,20 +6658,20 @@ function handleAction(action){
   if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
-  if(action.indexOf("mar-tab-")===0){ captureMariageInputs(); ui.mariageDetailTab=action.slice(8)||"resume"; saveCache(); render(); window.scrollTo(0,0); return; }
-  if(action==="mar-back"){ captureMariageInputs(); saveCache(); ui.mariageOpen=null; ui.mariageDetailTab="resume"; render(); return; }
-  if(action==="mar-save"){ captureMariageInputs(); saveCache(); render(); toast("Fiche enregistrée et synchronisée."); return; }
+  if(action.indexOf("mar-tab-")===0){ persistMariageForm(); ui.mariageDetailTab=action.slice(8)||"resume"; render(); window.scrollTo(0,0); return; }
+  if(action==="mar-back"){ persistMariageForm(); ui.mariageOpen=null; ui.mariageDetailTab="resume"; render(); return; }
+  if(action==="mar-save"){ persistMariageForm(); render(); toast("Fiche, contact et coordonnées du devis enregistrés. Les montants du devis sont conservés."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
     state.mariages=state.mariages.filter(function(x){return x.id!==mid;}); ui.mariageOpen=null; ui.confirmDelete=null; saveCache(); render(); toast("Fiche mariage supprimée."); return; }
-  if(action.indexOf("mar-extra-add-")===0){ var mx=getMariage(ui.mariageOpen); if(mx){ captureMariageInputs(); var mpi=Number(action.slice(14)); var mlist=prestationsActives(); var mpreset=mlist[mpi]||mlist[mlist.length-1]||{label:"Autre / champ libre",type:"bien",qte:1,prix:0}; mx.prestationsComplementaires=mx.prestationsComplementaires||[]; var mptype=mpreset.type==="service"?"service":"bien"; mx.prestationsComplementaires.push({id:uid(),designation:mpreset.label,type:mptype,urssafType:mptype,qte:mpreset.qte||1,prix:num(mpreset.prix)}); syncMariageLinkedDevis(mx,{silent:true}); saveCache(); render(); toast("Ligne ajoutée au devis mariage."); } return; }
-  if(action.indexOf("mar-extra-del-")===0){ var mxd=getMariage(ui.mariageOpen); if(mxd){ captureMariageInputs(); var mxid=action.slice(14); mxd.prestationsComplementaires=(mxd.prestationsComplementaires||[]).filter(function(l){return l.id!==mxid;}); syncMariageLinkedDevis(mxd,{silent:true}); saveCache(); render(); toast("Ligne supprimée."); } return; }
-  if(action==="mar-createdevis"){ var mc=getMariage(ui.mariageOpen); if(mc){ captureMariageInputs(); saveCache(); newWizard(); ui.wizard.clientMode="nouveau"; ui.wizard.client=devisClientFromMariage(mc); ui.wizard.lignes=mariageLinesForDevis(mc); ui.wizard.step = ui.wizard.lignes.length ? 2 : 1; ui.wizard.notes="Devis créé depuis la fiche mariage"+(mc.dateMariage?" du "+frDate(mc.dateMariage):""); ui.wizardLinkMariage=mc.id; ui.tab="devis"; render(); window.scrollTo(0,0); } return; }
+  if(action.indexOf("mar-extra-add-")===0){ var mx=getMariage(ui.mariageOpen); if(mx){ captureMariageInputs(); var mpi=Number(action.slice(14)); var mlist=prestationsActives(); var mpreset=mlist[mpi]||mlist[mlist.length-1]||{label:"Autre / champ libre",type:"bien",qte:1,prix:0}; mx.prestationsComplementaires=mx.prestationsComplementaires||[]; var mptype=mpreset.type==="service"?"service":"bien"; mx.prestationsComplementaires.push({id:uid(),designation:mpreset.label,type:mptype,urssafType:mptype,qte:mpreset.qte||1,prix:num(mpreset.prix)}); syncMariageLinkedDevis(mx,{silent:true,syncLines:true}); saveCache(); render(); toast("Ligne ajoutée au devis mariage."); } return; }
+  if(action.indexOf("mar-extra-del-")===0){ var mxd=getMariage(ui.mariageOpen); if(mxd){ captureMariageInputs(); var mxid=action.slice(14); mxd.prestationsComplementaires=(mxd.prestationsComplementaires||[]).filter(function(l){return l.id!==mxid;}); syncMariageLinkedDevis(mxd,{silent:true,syncLines:true}); saveCache(); render(); toast("Ligne supprimée."); } return; }
+  if(action==="mar-createdevis"){ var mc=getMariage(ui.mariageOpen); if(mc){ captureMariageInputs(); syncMariageContactToClient(mc); saveCache(); newWizard(); ui.wizard.clientMode="nouveau"; ui.wizard.client=devisClientFromMariage(mc); ui.wizard.lignes=mariageLinesForDevis(mc); ui.wizard.step = ui.wizard.lignes.length ? 2 : 1; ui.wizard.notes="Devis créé depuis la fiche mariage"+(mc.dateMariage?" du "+frDate(mc.dateMariage):""); ui.wizardLinkMariage=mc.id; ui.tab="devis"; render(); window.scrollTo(0,0); } return; }
   if(action==="mar-media-pick"){ var mi=document.getElementById("marMedia"); if(mi) mi.click(); return; }
   if(action.indexOf("mar-media-open-")===0){ openMedia(action.slice(15)); return; }
   if(action.indexOf("mar-media-del-")===0){ var m1=getMariage(ui.mariageOpen); if(m1){ captureMariageInputs(); var rid=action.slice(14); m1.medias=(m1.medias||[]).filter(function(x){return x.id!==rid;}); saveCache(); render(); } return; }
-  if(action==="mar-art-add"){ var m2=getMariage(ui.mariageOpen); if(m2){ captureMariageInputs(); var lbl=val("marArtInput"); if(lbl.trim()){ m2.articles=m2.articles||[]; m2.articles.push({id:uid(),label:lbl,fait:false}); syncMariageLinkedDevis(m2,{silent:true}); saveCache(); render(); } } return; }
-  if(action.indexOf("mar-art-del-")===0){ var m3=getMariage(ui.mariageOpen); if(m3){ captureMariageInputs(); var aid=action.slice(12); m3.articles=(m3.articles||[]).filter(function(x){return x.id!==aid;}); syncMariageLinkedDevis(m3,{silent:true}); saveCache(); render(); } return; }
+  if(action==="mar-art-add"){ var m2=getMariage(ui.mariageOpen); if(m2){ captureMariageInputs(); var lbl=val("marArtInput"); if(lbl.trim()){ m2.articles=m2.articles||[]; m2.articles.push({id:uid(),label:lbl,fait:false}); syncMariageLinkedDevis(m2,{silent:true,syncLines:true}); saveCache(); render(); } } return; }
+  if(action.indexOf("mar-art-del-")===0){ var m3=getMariage(ui.mariageOpen); if(m3){ captureMariageInputs(); var aid=action.slice(12); m3.articles=(m3.articles||[]).filter(function(x){return x.id!==aid;}); syncMariageLinkedDevis(m3,{silent:true,syncLines:true}); saveCache(); render(); } return; }
   if(action==="mar-hist-add"){ var m4=getMariage(ui.mariageOpen); if(m4){ captureMariageInputs(); var tx=val("marHistInput"); if(tx.trim()){ m4.historique=m4.historique||[]; m4.historique.unshift({date:todayISO(),texte:tx}); saveCache(); render(); } } return; }
   if(action==="mar-todo-add"){ var mtd=getMariage(ui.mariageOpen); if(mtd){ captureMariageInputs(); var tl=val("marTodoInput"); if(tl.trim()){ mtd.todoMariage=mtd.todoMariage||[]; mtd.todoMariage.push({id:uid(),label:tl.trim(),done:false,createdAt:todayISO()}); mtd.historique=mtd.historique||[]; mtd.historique.unshift({date:todayISO(),texte:"Tâche ajoutée : "+tl.trim()}); saveCache(); render(); } } return; }
   if(action.indexOf("mar-todo-del-")===0){ var mtdel=getMariage(ui.mariageOpen); if(mtdel){ captureMariageInputs(); var delid=action.slice(13); mtdel.todoMariage=(mtdel.todoMariage||[]).filter(function(x){return x.id!==delid;}); saveCache(); render(); } return; }
@@ -6624,7 +6679,7 @@ function handleAction(action){
 
   // doc modal
   if(action==="doc-close"){ ui.preview=null; renderModal(); return; }
-  if(action==="doc-print"){ window.print(); return; }
+  if(action==="doc-print"){ if(ui.preview && prepareDocumentContactAndAmount(ui.preview.kind,ui.preview.doc)){ saveCache(); renderModal(); setTimeout(function(){window.print();},60); } return; }
   if(action==="doc-email"){ if(ui.preview){ envoyerDocumentEmail(ui.preview.kind, ui.preview.doc); } return; }
 }
 
@@ -6667,52 +6722,112 @@ function clientContactForMariage(m){
   }
   return null;
 }
+function syncMariageContactToClient(m){
+  if(!m) return null;
+  var c=clientContactForMariage(m);
+  if(!c){
+    if(!String(m.nom||m.email||m.tel||"").trim()) return null;
+    c={id:uid(),nom:m.nom||"",adresse:m.adresse||m.adresseCliente||"",email:m.email||"",tel:m.tel||"",canal:m.canalCommunication||"",anniversaire:"",notes:"",createdAt:todayISO(),updatedAt:new Date().toISOString()};
+    state.clients.push(c);
+    m.clientId=c.id;
+    return c;
+  }
+  // Une modification volontaire dans la fiche mariage devient la nouvelle référence de contact.
+  c.nom=m.nom||c.nom||"";
+  c.email=m.email==null?(c.email||""):String(m.email);
+  c.tel=m.tel==null?(c.tel||""):String(m.tel);
+  c.canal=m.canalCommunication||c.canal||"";
+  c.updatedAt=new Date().toISOString();
+  m.clientId=c.id;
+  return c;
+}
 function devisClientFromMariage(m){
   var c=clientContactForMariage(m);
-  // Le devis doit reprendre en priorité la fiche cliente.
-  // Le téléphone stocké dans la fiche mariage peut être ancien, surtout pour les dossiers créés avant le CRM.
   return {
     nom:(c&&c.nom)||m.nom||"",
     adresse:(c&&c.adresse)||m.adresse||m.adresseCliente||m.lieu||"",
     email:(c&&c.email)||m.email||"",
-    tel:(c&&c.tel)||""
+    tel:(c&&c.tel)||m.tel||""
   };
 }
-
-
+function mariageLineKey(line){
+  return normName((line&&line.designation)||"");
+}
 function mariageLinesForDevis(m){
   var lignes=[];
   (m.articles||[]).forEach(function(a){
-    lignes.push({id:a.devisLineId||uid(), designation:a.label||"Article mariage", type:"bien", qte:1, prix:num(a.prix||0)});
+    if(!a.devisLineId) a.devisLineId=uid();
+    lignes.push({id:a.devisLineId, designation:a.label||"Article mariage", type:"bien", qte:1, prix:num(a.prix||0), mariageSource:"article"});
   });
   mariagePrestations(m).forEach(function(l){
-    lignes.push({id:l.devisLineId||l.id||uid(), designation:l.designation||"Prestation complémentaire", type:l.type==="service"?"service":"bien", qte:l.qte||1, prix:r2(l.prix)});
+    if(!l.devisLineId) l.devisLineId=l.id||uid();
+    lignes.push({id:l.devisLineId, designation:l.designation||"Prestation complémentaire", type:l.type==="service"?"service":"bien", urssafType:l.type==="service"?"service":"bien", qte:l.qte||1, prix:r2(l.prix), mariageSource:"prestation"});
   });
   return lignes;
+}
+function mergeMariageLinesWithDevis(m, d){
+  var existing=(d.lignes||[]).map(function(l){return Object.assign({},l);});
+  var used={};
+  return mariageLinesForDevis(m).map(function(next){
+    var match=null;
+    for(var i=0;i<existing.length;i++){
+      if(used[i]) continue;
+      if(existing[i].id===next.id || (mariageLineKey(existing[i]) && mariageLineKey(existing[i])===mariageLineKey(next))){ match=existing[i]; used[i]=true; break; }
+    }
+    var out=Object.assign({},match||{},next);
+    // Les tarifs saisis dans le devis restent prioritaires lorsque la fiche mariage ne contient aucun prix.
+    if(match && num(next.prix)===0 && num(match.prix)!==0) out.prix=match.prix;
+    if(next.mariageSource==="article" && match && num(match.qte)>0) out.qte=match.qte;
+    delete out.mariageSource;
+    return out;
+  });
 }
 function syncMariageLinkedDevis(m, opts){
   opts=opts||{};
   if(!m || !m.devisLie) return false;
   var d=findDevis(m.devisLie);
   if(!d) return false;
-  // Sécurité : on ne modifie automatiquement que les devis encore ajustables.
-  // Un devis accepté/refusé/archivé reste figé pour éviter de modifier un document validé.
-  if(["accepte","refuse","archive"].indexOf(d.statut)>=0) return false;
+  if(opts.updateClient!==false) syncMariageContactToClient(m);
   d.client=Object.assign({}, d.client||{}, devisClientFromMariage(m));
-  d.lignes=mariageLinesForDevis(m);
-  d.notes="Devis mis à jour automatiquement depuis la fiche mariage"+(m.dateMariage?" du "+frDate(m.dateMariage):"");
+
+  // Par défaut, une modification de la fiche ne touche qu'aux coordonnées.
+  // Les lignes ne sont resynchronisées que lors d'une action explicite sur les créations/prestations.
+  if(opts.syncLines===true && ["accepte","refuse","archive"].indexOf(d.statut)<0){
+    var oldLines=(d.lignes||[]).map(function(l){return Object.assign({},l);});
+    var oldTotal=totals(oldLines,state.settings.partService).total;
+    var merged=mergeMariageLinesWithDevis(m,d);
+    var newTotal=totals(merged,state.settings.partService).total;
+    // Garde-fou absolu : une synchronisation ne peut plus transformer un devis payant en devis à 0 €.
+    if(!(oldTotal>0 && newTotal===0)) d.lignes=merged;
+    else console.warn("Synchronisation lignes mariage ignorée : elle aurait ramené le devis à 0 €.",d.numero);
+  }
   d.updatedAt=new Date().toISOString();
-  if(!opts.silent) toast("Devis lié mis à jour automatiquement.");
+  if(!opts.silent) toast("Coordonnées du devis lié mises à jour.");
   return true;
 }
+function persistMariageForm(opts){
+  opts=opts||{};
+  var m=captureMariageInputs();
+  if(!m) return null;
+  syncMariageContactToClient(m);
+  syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:opts.syncLines===true});
+  saveCache();
+  return m;
+}
 var mariageAutoSyncTimer=null;
-function scheduleMariageAutoSync(){
+var mariageAutoSyncLines=false;
+function scheduleMariageAutoSync(opts){
+  opts=opts||{};
+  if(opts.syncLines===true) mariageAutoSyncLines=true;
   clearTimeout(mariageAutoSyncTimer);
   mariageAutoSyncTimer=setTimeout(function(){
     var m=getMariage(ui.mariageOpen);
-    if(!m || !m.devisLie) return;
+    if(!m) return;
+    var doLines=mariageAutoSyncLines;
+    mariageAutoSyncLines=false;
     captureMariageInputs();
-    syncMariageLinkedDevis(m,{silent:true});
+    syncMariageContactToClient(m);
+    syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:doLines});
     saveCache();
   },700);
 }
@@ -6845,7 +6960,7 @@ document.addEventListener("input", function(e){
     refreshAtelierExtraTotalsFromDOM();
   } else if(t.hasAttribute&&t.hasAttribute("data-marextra-field")){
     refreshMariageExtraTotalsFromDOM();
-    scheduleMariageAutoSync();
+    scheduleMariageAutoSync({syncLines:true});
   } else if(t.id && /^mar[A-Z]/.test(t.id)){
     scheduleMariageAutoSync();
   }
@@ -6863,7 +6978,7 @@ document.addEventListener("change", function(e){
   if(t.hasAttribute&&t.hasAttribute("data-cmdlinetype")){ var cid=t.getAttribute("data-id"); var cl=ui.commandeDraft&&ui.commandeDraft.lignes.find(function(x){return x.id===cid;}); if(cl){ cl.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-cmdopen-type")){ var oid=t.getAttribute("data-id"); var oc=getCommande(ui.commandeOpen); var ol=oc&&(oc.lignes||[]).find(function(x){return x.id===oid;}); if(ol){ ol.type=t.value; render(); } return; }
   if(t.hasAttribute&&t.hasAttribute("data-atextra-type")){ refreshAtelierExtraTotalsFromDOM(); return; }
-  if(t.hasAttribute&&t.hasAttribute("data-marextra-type")){ refreshMariageExtraTotalsFromDOM(); scheduleMariageAutoSync(); return; }
+  if(t.hasAttribute&&t.hasAttribute("data-marextra-type")){ refreshMariageExtraTotalsFromDOM(); scheduleMariageAutoSync({syncLines:true}); return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="cmd-clientsel"){ if(ui.commandeDraft) ui.commandeDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="fac-clientsel"){ if(ui.factureDraft) ui.factureDraft.clientId=t.value; return; }
   if(t.getAttribute&&t.getAttribute("data-action")==="site-clientsel"){ if(ui.siteSaleDraft){ ui.siteSaleDraft.clientId=t.value; captureSiteSaleDraft(); } return; }

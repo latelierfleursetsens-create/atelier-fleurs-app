@@ -1,3 +1,9 @@
+# V4.2.1 PROD
+- Correction de la synchronisation des coordonnées entre fiche mariage, fiche cliente et devis lié.
+- Une modification de contact ne reconstruit plus les lignes tarifées du devis.
+- Conservation des prix existants lors des synchronisations de créations et prestations.
+- Protection et restauration automatique des devis passés à 0 € depuis une facture ou une commande liée.
+
 # V4.2.0 PROD
 - Correction de l’affichage du numéro de version dans le tableau de bord et l’onglet navigateur.
 - Mise à jour des paramètres de cache CSS/JavaScript vers 4.2.0.

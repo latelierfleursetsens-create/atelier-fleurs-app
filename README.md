@@ -1,9 +1,16 @@
-# MyBusiness — V4.2.0 PROD
+# MyBusiness — V4.2.1 PROD
+
+## Correctif mariage / devis V4.2.1
+
+- Les changements d’e-mail et de téléphone sont maintenant enregistrés dans la fiche mariage, la fiche cliente et le devis lié.
+- La synchronisation des coordonnées ne peut plus remettre les prix du devis à zéro.
+- Les devis à 0 € sont restaurés depuis une facture ou commande liée lorsque cela est possible, sinon leur envoi est bloqué.
+
 
 ## Correction d’affichage de version
 
-- Le tableau de bord affiche désormais **PROD V4.2.0 MODULAIRE**.
-- L’onglet du navigateur affiche désormais **MyBusiness — PROD V4.2.0 MODULAIRE**.
+- Le tableau de bord affiche désormais **PROD V4.2.1 MODULAIRE**.
+- L’onglet du navigateur affiche désormais **MyBusiness — PROD V4.2.1 MODULAIRE**.
 - Les paramètres de cache des fichiers CSS et JavaScript ont été actualisés pour forcer le chargement de cette version.
 
 ## Correction apportée
