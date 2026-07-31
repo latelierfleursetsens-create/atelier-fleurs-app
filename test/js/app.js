@@ -1,10 +1,10 @@
-/* V5.0.4 TEST — Référentiel détaillé des créations mariage. */
+/* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.0.4 TEST";
+var APP_VERSION="V5.0.5 TEST";
 var APP_VERSION_NOTE = "Le portail mariage et la création manuelle utilisent le même référentiel détaillé de créations, avec un champ Autre.";
 var APP_CHANGELOG = [
-  "V5.0.4 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
+  "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 TEST — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
   "V5.0.2 TEST — Synchronisation portail : la fiche mariage et le devis reprennent uniquement les créations choisies par la future mariée.",
   "V5.0.1 TEST — Correctif d’affichage et de conservation des photos d’inspiration du portail.",
@@ -6208,7 +6208,19 @@ function handleAction(action){
   if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();render();toast("Demande enregistrée.");} return; }
   if(action.indexOf("dem-transform-")===0){ var dt=demandeById(action.slice(14)); if(dt){saveDemandeFromView(dt);var mm=transformDemandeToMariage(dt);ui.clientsSub="mariages";ui.mariageOpen=mm.id;ui.demandeMariageOpen=null;render();toast("Fiche mariage créée depuis la demande.");} return; }
-  if(action.indexOf("dem-delete-")===0){ var did=action.slice(11); state.demandesMariage=(state.demandesMariage||[]).filter(function(x){return x.id!==did;});ui.demandeMariageOpen=null;saveCache();render();toast("Demande supprimée.");return; }
+  if(action.indexOf("dem-delete-")===0){
+    var did=action.slice(11);
+    state.demandesMariage=(state.demandesMariage||[]).filter(function(x){return x.id!==did;});
+    try{
+      var stored=JSON.parse(localStorage.getItem("afs_portal_requests")||"[]");
+      if(Array.isArray(stored)){
+        stored=stored.filter(function(x){return x&&x.id!==did;});
+        localStorage.setItem("afs_portal_requests",JSON.stringify(stored));
+      }
+    }catch(e){ console.warn("Suppression portail localStorage impossible",e); }
+    ui.demandeMariageOpen=null;
+    saveCache();render();toast("Demande supprimée définitivement.");return;
+  }
 
   if(action==="version-notes-open"){
     ui.versionNotesModal=true;
