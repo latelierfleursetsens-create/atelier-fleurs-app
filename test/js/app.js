@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.1.5 SECURE TEST";
+var APP_VERSION="V5.1.7 SECURE TEST";
 var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -308,6 +308,15 @@ function pendingMariagesRead(){
 function pendingMariagesWrite(list){
   try{ localStorage.setItem("afs_pending_mariages",JSON.stringify(list||[])); }catch(e){ console.error("Sauvegarde de secours mariage impossible",e); }
 }
+function pendingMariageForget(id){
+  if(!id) return;
+  pendingMariagesWrite(pendingMariagesRead().filter(function(x){return x&&x.id!==id;}));
+}
+function pendingMariagesMarkSaved(){
+  // Les secours ne servent que jusqu'à la confirmation d'une sauvegarde cloud réussie.
+  // Les conserver après synchronisation recréerait une fiche supprimée lors d'un prochain chargement.
+  pendingMariagesWrite([]);
+}
 function pendingMariageRemember(m){
   if(!m||!m.id) return;
   var light=Object.assign({},m); light.medias=[];
@@ -394,7 +403,7 @@ function saveCloud(){
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
     docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); publishSecureClientSpaces(); })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); })
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
 }
@@ -404,7 +413,7 @@ function saveCloudNow(){
   cloudStatus("☁️ Enregistrement…");
   var payload=serializeCloud();
   return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); return publishSecureClientSpaces(); })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); return publishSecureClientSpaces(); })
     .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
 }
 function startSync(uidStr){
@@ -7040,7 +7049,21 @@ async function handleAction(action){
   if(action==="mar-save"){ persistMariageForm(); render(); toast("Fiche, contact et coordonnées du devis enregistrés. Les montants du devis sont conservés."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
-    state.mariages=state.mariages.filter(function(x){return x.id!==mid;}); ui.mariageOpen=null; ui.confirmDelete=null; saveCache(); render(); toast("Fiche mariage supprimée."); return; }
+    var mariageSupprime=getMariage(mid);
+    state.mariages=state.mariages.filter(function(x){return x.id!==mid;});
+    pendingMariageForget(mid);
+    ui.mariageOpen=null; ui.confirmDelete=null; saveCache();
+    if(mariageSupprime&&mariageSupprime.ownerUid){
+      try{
+        await db.collection("portalProjects").doc(mariageSupprime.ownerUid).set({
+          ficheCreee:false,
+          mariageId:firebase.firestore.FieldValue.delete(),
+          statutAdmin:"nouvelle",
+          updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+        },{merge:true});
+      }catch(e){ console.error("Mise à jour du portail après suppression impossible",e); }
+    }
+    render(); toast("Fiche mariage supprimée définitivement."); return; }
   if(action.indexOf("mar-extra-add-")===0){ var mx=getMariage(ui.mariageOpen); if(mx){ captureMariageInputs(); var mpi=Number(action.slice(14)); var mlist=prestationsActives(); var mpreset=mlist[mpi]||mlist[mlist.length-1]||{label:"Autre / champ libre",type:"bien",qte:1,prix:0}; mx.prestationsComplementaires=mx.prestationsComplementaires||[]; var mptype=mpreset.type==="service"?"service":"bien"; mx.prestationsComplementaires.push({id:uid(),designation:mpreset.label,type:mptype,urssafType:mptype,qte:mpreset.qte||1,prix:num(mpreset.prix)}); syncMariageLinkedDevis(mx,{silent:true,syncLines:true}); saveCache(); render(); toast("Ligne ajoutée au devis mariage."); } return; }
   if(action.indexOf("mar-extra-del-")===0){ var mxd=getMariage(ui.mariageOpen); if(mxd){ captureMariageInputs(); var mxid=action.slice(14); mxd.prestationsComplementaires=(mxd.prestationsComplementaires||[]).filter(function(l){return l.id!==mxid;}); syncMariageLinkedDevis(mxd,{silent:true,syncLines:true}); saveCache(); render(); toast("Ligne supprimée."); } return; }
   if(action==="mar-createdevis"){ var mc=getMariage(ui.mariageOpen); if(mc){ captureMariageInputs(); syncMariageContactToClient(mc); saveCache(); newWizard(); ui.wizard.clientMode="nouveau"; ui.wizard.client=devisClientFromMariage(mc); ui.wizard.lignes=mariageLinesForDevis(mc); ui.wizard.step = ui.wizard.lignes.length ? 2 : 1; ui.wizard.notes="Devis créé depuis la fiche mariage"+(mc.dateMariage?" du "+frDate(mc.dateMariage):""); ui.wizardLinkMariage=mc.id; ui.tab="devis"; render(); window.scrollTo(0,0); } return; }
