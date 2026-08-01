@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.1.1 SECURE TEST";
+var APP_VERSION="V5.1.5 SECURE TEST";
 var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -170,9 +170,17 @@ try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e)
 var docRef=null, cloudTimer=null, lastLocalMutationAt=0;
 
 var portalProjectsUnsub=null, portalDocumentsUnsub=null;
+function portalDateISO(v){
+  if(!v) return "";
+  if(typeof v==="string") return v;
+  try{ if(v.toDate) return v.toDate().toISOString(); }catch(e){}
+  if(typeof v.seconds==="number") return new Date(v.seconds*1000).toISOString();
+  if(v instanceof Date) return v.toISOString();
+  return String(v||"");
+}
 function portalProjectToDemande(doc){
   var x=doc.data()||{};
-  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:x.createdAt||new Date().toISOString(),securePortal:true};
+  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:portalDateISO(x.createdAt)||new Date().toISOString(),updatedAt:portalDateISO(x.updatedAt),securePortal:true};
 }
 function startSecurePortalRequests(){
   if(portalProjectsUnsub) portalProjectsUnsub();
@@ -4861,8 +4869,12 @@ function viewDemandesMariage(){
   return html;
 }
 function viewDemandeMariageDetail(d){
-  var photos=(d.photos||[]).map(function(p){return '<img src="'+esc((p&&typeof p==="object")?(p.dataUrl||p.data||""):p)+'" alt="Inspiration" style="width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);">';}).join('');
-  return '<div class="row-actions"><button class="btn ghost" data-action="dem-back">← Retour aux demandes</button><a class="btn ghost" href="portail-mariage.html?dossier='+encodeURIComponent(d.id)+'" target="_blank">Voir le portail cliente</a></div><div class="card"><div class="flexb"><div><h2 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h2><p class="muted">Demande reçue le '+esc((d.createdAt||"").slice(0,10))+'</p></div><select id="demStatut">'+Object.keys(DEMANDE_STATUTS).map(function(k){return '<option value="'+k+'"'+((d.statut||"nouvelle")===k?' selected':'')+'>'+esc(DEMANDE_STATUTS[k])+'</option>';}).join('')+'</select></div><div class="form-grid"><label>Email<input id="demEmail" value="'+esc(d.email||"")+'"></label><label>Téléphone<input id="demTel" value="'+esc(d.tel||"")+'"></label><label>Date du mariage<input id="demDate" type="date" value="'+esc(d.dateMariage||"")+'"></label><label>Lieu / ville<input id="demLieu" value="'+esc(d.lieu||d.ville||"")+'"></label><label>Thème / style<input id="demTheme" value="'+esc(d.style||d.theme||"")+'"></label><label>Budget<input id="demBudget" value="'+esc(d.budget||"")+'"></label></div><p><b>Prestations demandées :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Couleurs :</b> '+esc(d.couleurs||"Non renseignées")+'</p><p><b>Fleurs aimées :</b> '+esc(d.fleursAimees||"Non renseignées")+'</p><p><b>Fleurs refusées :</b> '+esc(d.fleursRefusees||"Non renseignées")+'</p><p><b>Description :</b><br>'+esc(d.description||d.commentaire||"Aucune")+'</p><label>Notes internes<textarea id="demNotes" rows="4">'+esc(d.notesInternes||"")+'</textarea></label>'+(photos?'<h3>Inspirations</h3><div class="row-actions">'+photos+'</div>':'')+'<div class="row-actions"><button class="btn primary" data-action="dem-save-'+d.id+'">Enregistrer</button>'+(d.statut!=="transformee"?'<button class="btn gold" data-action="dem-transform-'+d.id+'">Créer la fiche mariage</button>':'<span class="badge">Fiche mariage créée</span>')+'<button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>';
+  var photos=(d.photos||[]).map(function(p){
+    var src=(p&&typeof p==="object")?(p.url||p.downloadURL||p.dataUrl||p.data||""):p;
+    return src?'<img src="'+esc(src)+'" alt="Inspiration" style="width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);">':'';
+  }).join('');
+  var receivedAt=portalDateISO(d.createdAt);
+  return '<div class="row-actions"><button class="btn ghost" data-action="dem-back">← Retour aux demandes</button><a class="btn ghost" href="portail-mariage.html?dossier='+encodeURIComponent(d.id)+'" target="_blank">Voir le portail cliente</a></div><div class="card"><div class="flexb"><div><h2 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h2><p class="muted">Demande reçue le '+esc(receivedAt?receivedAt.slice(0,10):"Date non renseignée")+'</p></div><select id="demStatut">'+Object.keys(DEMANDE_STATUTS).map(function(k){return '<option value="'+k+'"'+((d.statut||"nouvelle")===k?' selected':'')+'>'+esc(DEMANDE_STATUTS[k])+'</option>';}).join('')+'</select></div><div class="form-grid"><label>Email<input id="demEmail" value="'+esc(d.email||"")+'"></label><label>Téléphone<input id="demTel" value="'+esc(d.tel||"")+'"></label><label>Date du mariage<input id="demDate" type="date" value="'+esc(d.dateMariage||"")+'"></label><label>Lieu / ville<input id="demLieu" value="'+esc(d.lieu||d.ville||"")+'"></label><label>Thème / style<input id="demTheme" value="'+esc(d.style||d.theme||"")+'"></label><label>Budget<input id="demBudget" value="'+esc(d.budget||"")+'"></label></div><p><b>Prestations demandées :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Couleurs :</b> '+esc(d.couleurs||"Non renseignées")+'</p><p><b>Fleurs aimées :</b> '+esc(d.fleursAimees||"Non renseignées")+'</p><p><b>Fleurs refusées :</b> '+esc(d.fleursRefusees||"Non renseignées")+'</p><p><b>Description :</b><br>'+esc(d.description||d.commentaire||"Aucune")+'</p><label>Notes internes<textarea id="demNotes" rows="4">'+esc(d.notesInternes||"")+'</textarea></label>'+(photos?'<h3>Inspirations</h3><div class="row-actions">'+photos+'</div>':'')+'<div class="row-actions"><button class="btn primary" data-action="dem-save-'+d.id+'">Enregistrer</button>'+(d.statut!=="transformee"?'<button class="btn gold" data-action="dem-transform-'+d.id+'">Créer la fiche mariage</button>':'<span class="badge">Fiche mariage créée</span>')+'<button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>';
 }
 function saveDemandeFromView(d){
   d.email=val("demEmail"); d.tel=val("demTel"); d.dateMariage=val("demDate"); d.lieu=val("demLieu"); d.theme=val("demTheme"); d.budget=val("demBudget"); d.notesInternes=val("demNotes"); d.statut=val("demStatut")||d.statut||"nouvelle"; d.updatedAt=new Date().toISOString();
