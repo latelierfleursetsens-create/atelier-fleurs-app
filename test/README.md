@@ -1,4 +1,4 @@
-# MyBusiness V5.1.2 SECURE TEST
+# MyBusiness V5.1.3 SECURE TEST
 
 ## Périmètre figé
 
@@ -53,3 +53,9 @@ Mettre en ligne l’ensemble du dossier, sans modifier les chemins. Le lien tran
 - Écran Demandes mariage clarifié comme file d’attente sécurisée.
 - Les demandes Firestore apparaissent automatiquement, sans import manuel obligatoire.
 - Consultation, enregistrement et transformation en fiche mariage conservés.
+
+## Correctif V5.1.3
+- Isolation complète de la session Firebase de l'espace client grâce à une application Firebase nommée `clientPortal`.
+- Persistance cliente limitée à l'onglet (`SESSION`).
+- Une connexion cliente ne remplace plus la session administratrice MyBusiness ouverte dans un autre onglet.
+- Les erreurs de chargement Firestore ne provoquent plus un retour trompeur à l'écran de connexion.
