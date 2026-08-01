@@ -1,50 +1,31 @@
-# Installation pas à pas — V5.1.3 SECURE TEST
+# Installation V5.1.4 SECURE TEST
 
-## A. Créer le droit administrateur
+## 1. GitHub Pages
 
-1. Firebase > Authentication > Utilisateurs.
-2. Copier l’UID du compte utilisé dans MyBusiness.
-3. Firebase > Firestore Database > Données.
-4. Créer la collection `admins`.
-5. Créer un document dont l’identifiant est exactement l’UID copié.
-6. Ajouter le champ `role`, type chaîne, valeur `admin`.
+Remplacer tous les fichiers du dossier `test` par ceux de cette archive, puis attendre la fin du déploiement GitHub Pages.
 
-## B. Publier les règles Firestore
+## 2. Publier les règles Firestore
 
-1. Firestore Database > Règles.
-2. Sauvegarder le texte actuel dans un fichier local.
-3. Copier tout le contenu de `firestore.rules`.
-4. Remplacer les règles affichées.
-5. Cliquer sur Publier.
+Dans Firebase : **Firestore Database > Règles**.
 
-## C. Publier les règles Storage
+Remplacer tout le contenu par celui du fichier `firestore.rules`, puis cliquer sur **Publier**.
 
-1. Storage > Règles.
-2. Copier tout le contenu de `storage.rules`.
-3. Remplacer les règles affichées.
-4. Cliquer sur Publier.
+Ces règles conservent l'accès à la collection `bases`, reconnaissent l'administrateur et autorisent chaque cliente à créer, lire et modifier uniquement son document `portalProjects/{uid}`.
 
-## D. Mettre les fichiers en ligne
+## 3. Publier les règles Storage
 
-Mettre tous les fichiers du dossier sur l’hébergement de test, en conservant les dossiers `assets`, `css`, `js` et `docs`.
+Dans Firebase : **Storage > Règles**.
 
-Liens :
-- MyBusiness : `index.html`
-- Espace cliente : `espace-client.html`
-- Ancien lien portail : `portail-mariage.html` redirige vers l’espace sécurisé.
+Remplacer tout le contenu par celui du fichier `storage.rules`, puis cliquer sur **Publier**.
 
-## E. Test complet
+Ces règles autorisent chaque cliente à gérer uniquement les images placées dans `clientUploads/{uid}/...`, avec une limite de 5 Mo et uniquement des fichiers image.
 
-1. Ouvrir `espace-client.html` dans une navigation privée.
-2. Créer un compte cliente de test.
-3. Remplir le formulaire et ajouter deux photos.
-4. Enregistrer.
-5. Ouvrir MyBusiness avec le compte administrateur.
-6. Vérifier la demande dans Demandes mariage.
-7. Ouvrir la demande et créer la fiche mariage.
-8. Créer un devis lié, puis passer son statut à Envoyé.
-9. Revenir dans l’espace cliente et ouvrir Devis et factures.
-10. Valider le devis.
-11. Vérifier dans MyBusiness que le devis passe à Accepté.
-12. Créer une facture liée et la passer à Envoyée.
-13. Vérifier qu’elle apparaît dans l’espace cliente.
+## 4. Test
+
+1. Forcer l'actualisation de `espace-client.html`.
+2. Vérifier la mention **V5.1.4 SECURE TEST**.
+3. Créer un compte cliente ou se connecter.
+4. Sélectionner plusieurs photos à la fois.
+5. Ajouter ensuite une autre photo : les premières doivent rester visibles.
+6. Cliquer sur **Enregistrer ma fiche**.
+7. Vérifier que la demande apparaît dans MyBusiness > Clients > Demandes mariage.
