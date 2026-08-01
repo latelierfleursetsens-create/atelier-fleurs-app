@@ -1,8 +1,8 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.0.11 TEST";
-var APP_VERSION_NOTE = "Récupération durable des photos du portail dans la fiche mariage sans alourdir Firebase.";
+var APP_VERSION="V5.1.1 SECURE TEST";
+var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 TEST — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
@@ -169,6 +169,69 @@ var db=firebase.firestore();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null, lastLocalMutationAt=0;
 
+var portalProjectsUnsub=null, portalDocumentsUnsub=null;
+function portalProjectToDemande(doc){
+  var x=doc.data()||{};
+  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:x.createdAt||new Date().toISOString(),securePortal:true};
+}
+function startSecurePortalRequests(){
+  if(portalProjectsUnsub) portalProjectsUnsub();
+  portalProjectsUnsub=db.collection("portalProjects").onSnapshot(function(qs){
+    if(!Array.isArray(state.demandesMariage)) state.demandesMariage=[];
+    var incoming=[]; qs.forEach(function(doc){ incoming.push(portalProjectToDemande(doc)); });
+    var secureIds={}; incoming.forEach(function(x){secureIds[x.id]=true;});
+    state.demandesMariage=state.demandesMariage.filter(function(x){return !x.securePortal || secureIds[x.id];});
+    incoming.forEach(function(x){
+      var i=state.demandesMariage.findIndex(function(d){return d.id===x.id;});
+      if(i>=0){ var old=state.demandesMariage[i]; x.statut=old.statut||x.statut; state.demandesMariage[i]=Object.assign({},old,x); }
+      else state.demandesMariage.unshift(x);
+    });
+    try{render();}catch(e){}
+  },function(err){console.error("Lecture portail sécurisé impossible",err);});
+}
+function startSecurePortalDocumentDecisions(){
+  if(portalDocumentsUnsub) portalDocumentsUnsub();
+  portalDocumentsUnsub=db.collection("portalDocuments").where("kind","==","devis").onSnapshot(function(qs){
+    var changed=false;
+    qs.forEach(function(doc){
+      var x=doc.data()||{};
+      if(!x.sourceId||!x.clientDecision) return;
+      var d=(state.devis||[]).find(function(v){return v.id===x.sourceId;});
+      if(!d) return;
+      if(x.clientDecision==="accepted" && d.statut!=="accepte"){
+        d.statut="accepte";
+        d.accepteParClienteLe=x.clientDecisionAt&&x.clientDecisionAt.toDate?x.clientDecisionAt.toDate().toISOString():new Date().toISOString();
+        d.validationPortail=true;
+        changed=true;
+      }
+      if(x.clientDecision==="changes_requested"){
+        var note="Modification demandée depuis l’espace client"+(x.clientDecisionMessage?" : "+x.clientDecisionMessage:"");
+        if(d.demandeModificationPortail!==note){ d.demandeModificationPortail=note; changed=true; }
+      }
+    });
+    if(changed){ saveCache(); try{render();}catch(e){} }
+  },function(err){console.error("Lecture validations portail impossible",err);});
+}
+function clientSafeLines(lines){return (Array.isArray(lines)?lines:[]).map(function(l){return {description:l.description||l.label||"",quantite:Number(l.quantite||l.qte||1),prix:Number(l.prix||l.prixUnitaire||0),total:Number(l.total||0)};});}
+function publishSecureClientSpaces(){
+  if(!auth.currentUser) return Promise.resolve();
+  var jobs=[];
+  (state.mariages||[]).forEach(function(m){
+    if(!m||!m.ownerUid) return;
+    var devis=m.devisLie?(state.devis||[]).find(function(d){return d.id===m.devisLie;}):null;
+    var facts=devis?(state.factures||[]).filter(function(f){return f.devisId===devis.id;}):[];
+    var project={ownerUid:m.ownerUid,prenom:(m.nom||"").split(" ")[0]||"",nom:m.nom||"",email:m.email||"",tel:m.tel||"",dateMariage:m.dateMariage||"",lieu:m.lieu||"",theme:m.theme||"",budget:m.budget||"",besoins:m.besoins||"",synthese:m.synthese||"",statutClient:m.statut||"contact",updatedAt:firebase.firestore.FieldValue.serverTimestamp(),ficheCreee:true,mariageId:m.id};
+    jobs.push(db.collection("portalProjects").doc(m.ownerUid).set(project,{merge:true}));
+    if(devis && ["envoye","accepte","refuse"].indexOf(devis.statut||"")>=0){
+      var td=totals(devis.lignes||[],state.settings.partService);
+      jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set({ownerUid:m.ownerUid,kind:"devis",sourceId:devis.id,numero:devis.numero||"",date:devis.date||"",statut:devis.statut||"envoye",montant:Number(td.total||0),lignes:clientSafeLines(devis.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}));
+    }
+    facts.filter(function(f){return ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){jobs.push(db.collection("portalDocuments").doc("facture_"+f.id).set({ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}));});
+  });
+  return Promise.all(jobs).catch(function(e){console.error("Publication espace client impossible",e);});
+}
+
+
 function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, demandesMariage:state.demandesMariage, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, stockItems:state.stockItems, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){
   var d=serialize();
@@ -302,7 +365,7 @@ function saveCloud(){
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
     docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); publishSecureClientSpaces(); })
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
 }
@@ -312,7 +375,7 @@ function saveCloudNow(){
   cloudStatus("☁️ Enregistrement…");
   var payload=serializeCloud();
   return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); return publishSecureClientSpaces(); })
     .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
 }
 function startSync(uidStr){
@@ -4792,8 +4855,8 @@ function viewDemandesMariage(){
   if(ui.demandeMariageOpen){ var d=demandeById(ui.demandeMariageOpen); if(d) return viewDemandeMariageDetail(d); ui.demandeMariageOpen=null; }
   var list=(state.demandesMariage||[]).slice().sort(function(a,b){return String(b.createdAt||"").localeCompare(String(a.createdAt||""));});
   var nouvelles=list.filter(function(d){return (d.statut||"nouvelle")==="nouvelle";}).length;
-  var html='<div class="card"><div class="flexb"><div><h3 style="margin:0;">💌 Demandes mariage</h3><p class="muted" style="margin:4px 0 0;">Demandes envoyées depuis le portail client test.</p></div><div class="row-actions"><span class="badge">'+nouvelles+' nouvelle'+(nouvelles>1?'s':'')+'</span><a class="btn small primary" href="portail-mariage.html" target="_blank">Ouvrir le portail test</a><button class="btn small ghost" data-action="dem-import">Actualiser</button></div></div></div>';
-  if(!list.length) return html+'<div class="card empty"><h3>Aucune demande reçue</h3><p>Ouvre le portail test, complète une demande puis reviens ici et clique sur Actualiser.</p></div>';
+  var html='<div class="card"><div class="flexb"><div><h3 style="margin:0;">💌 Demandes mariage</h3><p class="muted" style="margin:4px 0 0;">Demandes sécurisées reçues depuis le portail client et en attente de traitement.</p></div><div class="row-actions"><span class="badge">'+nouvelles+' nouvelle'+(nouvelles>1?'s':'')+'</span><a class="btn small primary" href="portail-mariage.html" target="_blank">Ouvrir le portail cliente</a><button class="btn small ghost" data-action="dem-import">Actualiser</button></div></div></div>';
+  if(!list.length) return html+'<div class="card empty"><h3>Aucune demande en attente</h3><p>Les nouvelles demandes envoyées depuis le portail sécurisé apparaîtront automatiquement ici.</p></div>';
   html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle"; return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span></div><p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Budget :</b> '+esc(d.budget||"Non renseigné")+' · <b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button></div>'; }).join('')+'</div>';
   return html;
 }
@@ -4809,7 +4872,7 @@ function transformDemandeToMariage(d){
   var full=((d.prenom||"")+" "+(d.nom||"")).trim();
   var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
   if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
-  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id};
+  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||""};
   if(!Array.isArray(state.mariages)) state.mariages=[];
   state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
   d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
@@ -6302,7 +6365,7 @@ async function handleAction(action){
   if(action==="dem-import"){ var n=importPortalRequests(); render(); toast(n?n+" nouvelle(s) demande(s) importée(s).":"Aucune nouvelle demande."); return; }
   if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
   if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
-  if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();render();toast("Demande enregistrée.");} return; }
+  if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();if(ds.securePortal&&ds.ownerUid){try{await db.collection("portalProjects").doc(ds.ownerUid).set({statutAdmin:ds.statut||"nouvelle",notesInternes:ds.notesInternes||"",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Enregistré localement, mais la synchronisation portail a échoué.");}}render();toast("Demande enregistrée.");} return; }
   if(action.indexOf("dem-transform-")===0){
     var dt=demandeById(action.slice(14));
     if(dt){
@@ -6321,6 +6384,10 @@ async function handleAction(action){
       try{ await saveCloudNow(); }catch(e){
         // La fiche reste conservée dans le cache local et sera resynchronisée ensuite.
       }
+      if(dt.securePortal&&dt.ownerUid){
+        try{await db.collection("portalProjects").doc(dt.ownerUid).set({statutAdmin:"transformee",ficheCreee:true,mariageId:created.id,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error("Mise à jour demande portail impossible",e);}
+      }
+      try{await publishSecureClientSpaces();}catch(e){}
       render();
       window.scrollTo(0,0);
       toast("Fiche mariage créée et ajoutée à la liste des mariages.");
@@ -6329,6 +6396,7 @@ async function handleAction(action){
   }
   if(action.indexOf("dem-delete-")===0){
     var did=action.slice(11);
+    var demandeSupprimee=demandeById(did);
     state.demandesMariage=(state.demandesMariage||[]).filter(function(x){return x.id!==did;});
     try{
       var stored=JSON.parse(localStorage.getItem("afs_portal_requests")||"[]");
@@ -6337,8 +6405,11 @@ async function handleAction(action){
         localStorage.setItem("afs_portal_requests",JSON.stringify(stored));
       }
     }catch(e){ console.warn("Suppression portail localStorage impossible",e); }
+    var deletedSecure=!!(demandeSupprimee&&demandeSupprimee.securePortal);
     ui.demandeMariageOpen=null;
-    saveCache();render();toast("Demande supprimée définitivement.");return;
+    saveCache();
+    if(deletedSecure){try{await db.collection("portalProjects").doc(did).delete();}catch(e){console.error(e);toast("Suppression locale effectuée, mais la demande cloud n’a pas pu être supprimée.");render();return;}}
+    render();toast("Demande supprimée définitivement.");return;
   }
 
   if(action==="version-notes-open"){
@@ -7320,13 +7391,30 @@ function refreshWizardTotals(){
 }
 
 /* ===================== Démarrage ===================== */
+function verifyMyBusinessAdmin(user){
+  return db.collection("admins").doc(user.uid).get().then(function(snap){
+    var data=snap.exists?(snap.data()||{}):{};
+    if(!snap.exists || data.active!==true || data.role!=="admin") throw new Error("Ce compte n’est pas autorisé à administrer MyBusiness.");
+    return true;
+  });
+}
 auth.onAuthStateChanged(function(user){
   if(user){
-    showApp();
-    loadCache();   // affichage instantané depuis le cache local
-    render();
-    startSync(user.uid);  // puis synchro temps réel avec le cloud
-    setTimeout(maybeAutoGoogleDriveBackup, 2500);
+    verifyMyBusinessAdmin(user).then(function(){
+      showApp();
+      loadCache();   // affichage instantané depuis le cache local
+      render();
+      startSync(user.uid);  // puis synchro temps réel avec le cloud
+      startSecurePortalRequests();
+      startSecurePortalDocumentDecisions();
+      setTimeout(maybeAutoGoogleDriveBackup, 2500);
+    }).catch(function(err){
+      console.error(err);
+      try{ auth.signOut(); }catch(e){}
+      showLogin();
+      var box=document.getElementById("loginErr");
+      if(box){ box.textContent=err&&err.message?err.message:"Accès administrateur refusé."; box.style.display="block"; }
+    });
   } else {
     showLogin();
   }

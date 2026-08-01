@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // Base privée MyBusiness existante.
+    match /bases/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /clientProfiles/{uid} {
+      allow create, read, update: if isOwner(uid);
+      allow read: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /portalProjects/{uid} {
+      allow create: if isOwner(uid)
+        && request.resource.data.ownerUid == uid
+        && request.resource.data.keys().hasOnly([
+          'ownerUid','email','prenom','nom','tel','dateMariage','ville','lieu',
+          'invites','style','budget','couleurs','prestations','autrePrestation',
+          'fleursAimees','fleursRefusees','description','photos','clientStatus',
+          'createdAt','updatedAt'
+        ]);
+
+      allow read: if isOwner(uid) || isAdmin();
+
+      allow update: if isAdmin() || (
+        isOwner(uid)
+        && request.resource.data.ownerUid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email','prenom','nom','tel','dateMariage','ville','lieu','invites',
+          'style','budget','couleurs','prestations','autrePrestation',
+          'fleursAimees','fleursRefusees','description','photos','clientStatus',
+          'updatedAt'
+        ])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /portalDocuments/{docId} {
+      allow read: if signedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && resource.data.kind == 'devis'
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.kind == resource.data.kind
+        && request.resource.data.sourceId == resource.data.sourceId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'clientDecision','clientDecisionAt','clientDecisionMessage','clientDecisionBy'
+        ])
+      );
+    }
+  }
+}
