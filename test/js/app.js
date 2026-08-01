@@ -245,7 +245,14 @@ function serializeCloud(){
   var d=serialize();
   // Les images base64 peuvent dépasser la limite Firestore. Elles restent locales et ne doivent
   // jamais empêcher l’enregistrement des fiches, clients, devis ou demandes.
-  d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; });
+  d.mariages=(d.mariages||[]).map(function(m){
+    var c=Object.assign({},m);
+    c.medias=(m.medias||[]).filter(function(md){
+      var src=md&&(md.dataUrl||md.data||"");
+      return /^https?:\/\//i.test(src);
+    }).map(function(md){return Object.assign({},md,{data:undefined});});
+    return c;
+  });
   d.demandesMariage=(d.demandesMariage||[]).map(function(x){ var c=Object.assign({},x); c.photos=[]; return c; });
   return d;
 }
@@ -262,21 +269,35 @@ function portalRequestLocalById(id){
 }
 function portalPhotosToMariageMedias(photos){
   return (Array.isArray(photos)?photos:[]).map(function(p){
-    var src=(p&&typeof p==="object")?(p.dataUrl||p.data||""):String(p||"");
+    var obj=(p&&typeof p==="object")?p:{};
+    var src=obj.url||obj.downloadURL||obj.dataUrl||obj.data||String(p||"");
     if(!src) return null;
-    return {id:(p&&p.mediaId)||uid(),name:(p&&p.name)||"Inspiration portail",type:(p&&p.type)||"image",dataUrl:src};
+    var mime=obj.mimeType||obj.contentType||obj.type||"image";
+    var mediaType=String(mime).indexOf("image")===0||/^https?:/i.test(src)?"image":mime;
+    return {id:obj.mediaId||obj.id||uid(),name:obj.name||"Inspiration portail",type:mediaType,dataUrl:src,storagePath:obj.path||obj.storagePath||"",source:"portal"};
   }).filter(Boolean);
 }
 function restorePortalMarriageMedias(){
+  if(!Array.isArray(state.mariages)) return 0;
   var localRequests=portalRequestsLocalRead();
-  if(!localRequests.length || !Array.isArray(state.mariages)) return 0;
-  var byId={}; localRequests.forEach(function(d){if(d&&d.id) byId[d.id]=d;});
+  var byId={};
+  localRequests.forEach(function(d){if(d&&d.id) byId[d.id]=d;});
+  (state.demandesMariage||[]).forEach(function(d){if(d&&d.id) byId[d.id]=d;});
   var restored=0;
   state.mariages.forEach(function(m){
-    if(!m||!m.sourceDemandeId||(Array.isArray(m.medias)&&m.medias.length)) return;
-    var d=byId[m.sourceDemandeId] || (state.demandesMariage||[]).find(function(x){return x&&x.id===m.sourceDemandeId;});
-    var medias=portalPhotosToMariageMedias(d&&d.photos);
-    if(medias.length){ m.medias=medias; restored++; }
+    if(!m||!m.sourceDemandeId) return;
+    var d=byId[m.sourceDemandeId];
+    var incoming=portalPhotosToMariageMedias(d&&d.photos);
+    if(!incoming.length) return;
+    m.medias=Array.isArray(m.medias)?m.medias:[];
+    var known={};
+    m.medias.forEach(function(md){known[(md.storagePath||md.dataUrl||md.data||md.id||"")]=true;});
+    var added=0;
+    incoming.forEach(function(md){
+      var key=md.storagePath||md.dataUrl||md.id;
+      if(!known[key]){m.medias.push(md);known[key]=true;added++;}
+    });
+    if(added) restored+=added;
   });
   return restored;
 }

@@ -1,4 +1,4 @@
-# Installation V5.1.5 SECURE TEST
+# Installation V5.1.6 SECURE TEST
 
 ## 1. GitHub Pages
 
@@ -23,7 +23,7 @@ Ces règles autorisent chaque cliente à gérer uniquement les images placées d
 ## 4. Test
 
 1. Forcer l'actualisation de `espace-client.html`.
-2. Vérifier la mention **V5.1.5 SECURE TEST**.
+2. Vérifier la mention **V5.1.6 SECURE TEST**.
 3. Créer un compte cliente ou se connecter.
 4. Sélectionner plusieurs photos à la fois.
 5. Ajouter ensuite une autre photo : les premières doivent rester visibles.
