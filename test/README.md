@@ -1,56 +1,22 @@
-# MyBusiness V5.2.4 SECURE TEST
+# MyBusiness V5.3.0 SECURITY TEST
 
-Correctifs du portail cliente :
+## Sécurité administrateur renforcée
 
-- autorisation sécurisée d'enregistrer uniquement la fiche du compte connecté ;
-- ajout de plusieurs photos d'inspiration, en une ou plusieurs sélections ;
-- limite de 6 photos et 5 Mo par image ;
-- aperçu et suppression individuelle ;
-- stockage des images dans Firebase Storage ;
-- messages d'erreur explicites si les règles Firebase ne sont pas publiées.
+Cette version migre le compte administrateur vers **Se connecter avec Google**. Le portail cliente conserve son accès e-mail/mot de passe inchangé.
 
-## Important
+### Première activation
+1. Dans Firebase > Authentication > Méthode de connexion, activez **Google** et sélectionnez l’adresse d’assistance du projet.
+2. Vérifiez dans Authentication > Paramètres > Domaines autorisés que `latelierfleursetsens-create.github.io` est présent.
+3. Mettez cette version dans le dossier GitHub `test`, puis rechargez avec Ctrl + F5.
+4. Ouvrez « Première activation », connectez-vous une dernière fois avec l’ancien mot de passe administrateur.
+5. Cliquez sur « Lier et sécuriser avec Google » et choisissez exactement le compte Google correspondant à l’adresse administrateur.
+6. Après validation, l’ancien fournisseur mot de passe est retiré du compte administrateur.
 
-Les fichiers `firestore.rules` et `storage.rules` doivent être publiés dans Firebase. Mettre uniquement les fichiers HTML sur GitHub ne suffit pas.
+### Connexions suivantes
+Utilisez uniquement **Se connecter avec Google**. La validation en deux étapes, les clés d’accès et les alertes de connexion inhabituelle sont alors gérées par le compte Google.
 
-## V5.2.4 SECURE TEST
-- Reprise des URL Firebase Storage dans l'onglet Inspirations de la fiche mariage.
-- Restauration automatique des inspirations pour les fiches déjà créées depuis une demande sécurisée.
-- Conservation des médias distants lors de la synchronisation cloud, sans stocker les images base64 volumineuses.
-
-## Correctif V5.2.4
-- Une fiche mariage supprimée est aussi retirée de la sauvegarde locale de secours.
-- Les sauvegardes temporaires sont vidées après confirmation d'une synchronisation Firebase réussie.
-- La suppression d'une fiche liée au portail remet la demande cliente à l'état non transformé, sans recréer automatiquement la fiche.
-
-## V5.2.4 — Notification e-mail
-Lors de la première transmission d'une demande depuis l'espace client, un e-mail est envoyé automatiquement à `latelierfleursetsens@gmail.com` via le Worker Cloudflare déjà utilisé par MyBusiness. Une modification ultérieure de la fiche ne déclenche pas un nouvel e-mail. Si l'envoi de l'alerte échoue, la demande reste enregistrée dans Firebase et apparaît dans MyBusiness.
-
-
-## V5.2.4 SECURE TEST
-- Ajout du choix de rendez-vous téléphonique (Oui/Non) et affichage des disponibilités.
-- Enregistrement de ce choix dans la demande et affichage dans MyBusiness.
-- Fenêtre de confirmation après l’enregistrement de la fiche.
-
-
-## V5.2.4 — Créneaux téléphoniques
-- Si la cliente demande un rendez-vous, elle choisit une date et une heure.
-- Du samedi au lundi : créneaux de 9 h à 20 h, toutes les 30 minutes.
-- Du mardi au vendredi : créneaux de 18 h à 20 h, toutes les 30 minutes.
-- Le créneau est enregistré dans Firestore, affiché dans MyBusiness et repris dans l’e-mail automatique.
-
-
-## Correctif V5.2.4 — alerte e-mail
-L'alerte repose désormais sur `notificationEmailSentAt`. Elle est retentée tant qu'aucun envoi n'a été confirmé. En cas d'échec, le détail est enregistré dans `notificationEmailError` et affiché dans le portail.
-
-
-## Correctif V5.2.4 — notification des modifications
-- Envoi d’un e-mail « Demande mariage mise à jour » lorsqu’une cliente enregistre une modification réelle.
-- Aucun e-mail lors d’une simple ouverture ou d’un enregistrement sans changement.
-- En cas d’échec, l’alerte de modification est retentée lors de l’enregistrement suivant.
-
-
-## Correctif V5.2.4
-- Déclaration de l'adresse de notification.
-- Déclaration de l'URL du Worker Cloudflare.
-- Envoi d'e-mail à la création et lors d'une modification réelle de la fiche.
+### Important
+- Ne supprimez pas le document `admins/{uid}` : la liaison conserve le même UID Firebase.
+- N’utilisez pas une autre adresse Google pendant la migration.
+- Testez exclusivement dans le dossier `test` avant toute mise en production.
+- Cette version ne modifie ni le portail cliente, ni les demandes mariage, ni les devis/factures.

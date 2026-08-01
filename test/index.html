@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>MyBusiness — V5.2.4 SECURE TEST</title>
+<title>MyBusiness — V5.3.0 SECURITY TEST</title>
 <!-- Version PROD V4.2.1 MODULAIRE : correctif fiche mariage / devis -->
 <!-- Version PROD V3.7.1 MODULAIRE : photos d’inspiration pendant le RDV et dans la fiche mariage -->
 <!-- Version PROD V3.6.3 MODULAIRE : CRM Mariage en onglets + retrait du bouton Nouvelle cliente -->
@@ -32,12 +32,36 @@
   <div style="max-width:380px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px;">
     <div class="serif" style="font-size:22px;color:var(--bordeaux);font-weight:700;text-align:center;">L'Atelier Fleurs &amp; Sens</div>
     <p class="muted" style="text-align:center;margin:6px 0 18px;">Connexion à ton espace sécurisé</p>
-    <label class="field"><span>Email</span><input id="loginEmail" type="email" autocomplete="username"></label>
-    <label class="field"><span>Mot de passe</span><input id="loginPwd" type="password" autocomplete="current-password"></label>
-    <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:12px;cursor:pointer;"><input type="checkbox" id="rememberMe" checked style="width:18px;height:18px;"> Se souvenir de moi sur cet appareil</label>
     <div id="loginErr" style="color:#9b3b3b;font-size:13px;margin-bottom:10px;display:none;"></div>
-    <button class="btn primary" data-action="do-login" style="width:100%;">Se connecter</button>
-    <p class="muted" style="font-size:11px;text-align:center;margin:12px 0 0;">Tes données sont chiffrées et privées, accessibles uniquement avec ce compte.</p>
+    <button class="btn primary" data-action="google-login" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;">
+      <span style="display:inline-flex;width:22px;height:22px;border-radius:50%;background:#fff;color:#4285f4;align-items:center;justify-content:center;font-weight:800;">G</span>
+      Se connecter avec Google
+    </button>
+    <p class="muted" style="font-size:12px;text-align:center;margin:10px 0 15px;line-height:1.4;">Connexion administrateur protégée par la validation en deux étapes et les alertes de sécurité de ton compte Google.</p>
+    <details id="legacyLoginBox" style="border-top:1px solid var(--line);padding-top:12px;">
+      <summary style="cursor:pointer;color:var(--ink-s);font-size:12px;text-align:center;">Première activation : utiliser encore mon ancien mot de passe</summary>
+      <div style="margin-top:14px;">
+        <label class="field"><span>Email</span><input id="loginEmail" type="email" autocomplete="username"></label>
+        <label class="field"><span>Mot de passe</span><input id="loginPwd" type="password" autocomplete="current-password"></label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:12px;cursor:pointer;"><input type="checkbox" id="rememberMe" checked style="width:18px;height:18px;"> Se souvenir de moi sur cet appareil</label>
+        <button class="btn soft" data-action="do-login" style="width:100%;">Continuer pour sécuriser mon compte</button>
+      </div>
+    </details>
+    <p class="muted" style="font-size:11px;text-align:center;margin:12px 0 0;">Tes données sont chiffrées et privées, accessibles uniquement avec ton compte administrateur autorisé.</p>
+  </div>
+</div>
+
+<div id="securityUpgrade" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px;">
+  <div style="max-width:480px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px;box-shadow:0 18px 60px rgba(0,0,0,.12);">
+    <div class="serif" style="font-size:25px;color:var(--bordeaux);font-weight:700;text-align:center;">🔐 Sécurisation administrateur</div>
+    <p style="line-height:1.55;text-align:center;">Ton compte utilise encore l’ancien accès par mot de passe. Lie maintenant ton compte Google pour bénéficier de sa validation en deux étapes et de ses protections lors d’une connexion inhabituelle.</p>
+    <div style="background:var(--soft);border-radius:12px;padding:14px;margin:16px 0;font-size:13px;line-height:1.5;">
+      <b>Cette opération est à faire une seule fois.</b><br>
+      Après validation, l’ancien mot de passe MyBusiness sera retiré et la connexion administrateur se fera uniquement avec Google.
+    </div>
+    <div id="securityUpgradeErr" style="display:none;color:#9b3b3b;font-size:13px;margin-bottom:12px;"></div>
+    <button class="btn primary" data-action="secure-link-google" style="width:100%;">Lier et sécuriser avec Google</button>
+    <button class="btn ghost" data-action="do-logout" style="width:100%;margin-top:9px;">Annuler et se déconnecter</button>
   </div>
 </div>
 

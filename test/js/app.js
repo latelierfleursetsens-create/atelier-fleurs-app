@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.2.2 SECURE TEST";
+var APP_VERSION="V5.3.0 SECURITY TEST";
 var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -517,10 +517,56 @@ async function googleDriveRestoreLatest(){
 }
 
 function updateDirty(){}
+/* connexion administrateur sécurisée Google */
+var googleProvider=new firebase.auth.GoogleAuthProvider();
+googleProvider.setCustomParameters({prompt:"select_account"});
+function userHasProvider(user, providerId){
+  return !!(user && Array.isArray(user.providerData) && user.providerData.some(function(p){return p && p.providerId===providerId;}));
+}
+function hideAuthScreens(){
+  var l=document.getElementById("login"); if(l) l.style.display="none";
+  var u=document.getElementById("securityUpgrade"); if(u) u.style.display="none";
+  var a=document.getElementById("appwrap"); if(a) a.style.display="none";
+}
+function showSecurityUpgrade(){
+  hideAuthScreens();
+  var u=document.getElementById("securityUpgrade"); if(u) u.style.display="flex";
+}
+function doGoogleLogin(){
+  var err=document.getElementById("loginErr"); if(err) err.style.display="none";
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(function(){
+    return auth.signInWithPopup(googleProvider);
+  }).catch(function(e){
+    console.error("Connexion Google impossible",e);
+    if(err){ err.style.display="block"; err.textContent="Connexion Google impossible : "+(e&&e.message?e.message:"réessaie ou vérifie que Google est activé dans Firebase."); }
+  });
+}
+function linkAdminToGoogle(){
+  var user=auth.currentUser, box=document.getElementById("securityUpgradeErr");
+  if(box) box.style.display="none";
+  if(!user){ showLogin(); return; }
+  var originalEmail=(user.email||"").toLowerCase();
+  user.linkWithPopup(googleProvider).then(function(result){
+    var linked=result&&result.user?result.user:auth.currentUser;
+    if(!linked || (linked.email||"").toLowerCase()!==originalEmail) throw new Error("Le compte Google choisi ne correspond pas à l’adresse administrateur.");
+    if(userHasProvider(linked, firebase.auth.EmailAuthProvider.PROVIDER_ID)){
+      return linked.unlink(firebase.auth.EmailAuthProvider.PROVIDER_ID).then(function(){ return linked.reload(); });
+    }
+    return linked.reload();
+  }).then(function(){
+    toast("Compte administrateur sécurisé avec Google.");
+    var current=auth.currentUser;
+    if(current) return verifyMyBusinessAdmin(current).then(function(){ showApp(); loadCache(); render(); startSync(current.uid); startSecurePortalRequests(); startSecurePortalDocumentDecisions(); });
+  }).catch(function(e){
+    console.error("Liaison Google impossible",e);
+    if(box){ box.style.display="block"; box.textContent="Sécurisation impossible : "+(e&&e.message?e.message:"réessaie avec le compte Google correspondant à l’adresse administrateur."); }
+  });
+}
+
 /* connexion */
-function showApp(){ var l=document.getElementById("login"); if(l)l.style.display="none"; var a=document.getElementById("appwrap"); if(a)a.style.display="block"; }
+function showApp(){ hideAuthScreens(); var a=document.getElementById("appwrap"); if(a)a.style.display="block"; }
 function showLogin(){
-  var a=document.getElementById("appwrap"); if(a)a.style.display="none";
+  hideAuthScreens();
   var l=document.getElementById("login"); if(l)l.style.display="flex";
   try{ var em=localStorage.getItem("afs_remember_email"); var e=document.getElementById("loginEmail"); if(em && e && !e.value){ e.value=em; var p=document.getElementById("loginPwd"); if(p) p.focus(); } }catch(e){}
 }
@@ -6796,6 +6842,8 @@ async function handleAction(action){
   if(action==="cal-today"){ ui.calMonth=todayISO().slice(0,7); render(); return; }
   if(action.indexOf("email-preview-devis-")===0){ var ed=findDevis(action.slice(20)); if(ed){ ui.preview={kind:"devis",doc:ed}; renderModal(); } return; }
   if(action.indexOf("email-preview-facture-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(22);}); if(ef){ ui.preview={kind:"facture",doc:ef}; renderModal(); } return; }
+  if(action==="google-login"){ doGoogleLogin(); return; }
+  if(action==="secure-link-google"){ linkAdminToGoogle(); return; }
   if(action==="do-login"){ doLogin(); return; }
   if(action==="do-logout"){ if(confirm("Se déconnecter ?")){ auth.signOut(); } return; }
   if(action==="cloud-backup"){ downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); return; }
@@ -7457,6 +7505,10 @@ function verifyMyBusinessAdmin(user){
 auth.onAuthStateChanged(function(user){
   if(user){
     verifyMyBusinessAdmin(user).then(function(){
+      if(!userHasProvider(user, firebase.auth.GoogleAuthProvider.PROVIDER_ID)){
+        showSecurityUpgrade();
+        return;
+      }
       showApp();
       loadCache();   // affichage instantané depuis le cache local
       render();
