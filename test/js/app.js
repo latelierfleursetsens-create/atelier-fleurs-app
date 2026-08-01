@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.2.1 SECURE TEST";
+var APP_VERSION="V5.2.2 SECURE TEST";
 var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
