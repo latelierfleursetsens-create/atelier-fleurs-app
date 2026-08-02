@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.3.2 SECURITY TEST";
+var APP_VERSION="V5.4.0 CLIENT DASHBOARD TEST";
 var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -209,6 +209,8 @@ function startSecurePortalDocumentDecisions(){
       if(x.clientDecision==="accepted" && d.statut!=="accepte"){
         d.statut="accepte";
         d.accepteParClienteLe=x.clientDecisionAt&&x.clientDecisionAt.toDate?x.clientDecisionAt.toDate().toISOString():new Date().toISOString();
+        d.accepteParClienteNom=x.clientDecisionName||"";
+        d.accepteParClienteEmail=x.clientDecisionEmail||"";
         d.validationPortail=true;
         changed=true;
       }
@@ -228,7 +230,7 @@ function publishSecureClientSpaces(){
     if(!m||!m.ownerUid) return;
     var devis=m.devisLie?(state.devis||[]).find(function(d){return d.id===m.devisLie;}):null;
     var facts=devis?(state.factures||[]).filter(function(f){return f.devisId===devis.id;}):[];
-    var project={ownerUid:m.ownerUid,prenom:(m.nom||"").split(" ")[0]||"",nom:m.nom||"",email:m.email||"",tel:m.tel||"",dateMariage:m.dateMariage||"",lieu:m.lieu||"",theme:m.theme||"",budget:m.budget||"",besoins:m.besoins||"",synthese:m.synthese||"",statutClient:m.statut||"contact",updatedAt:firebase.firestore.FieldValue.serverTimestamp(),ficheCreee:true,mariageId:m.id};
+    var project={ownerUid:m.ownerUid,prenom:(m.nom||"").split(" ")[0]||"",nom:m.nom||"",email:m.email||"",tel:m.tel||"",dateMariage:m.dateMariage||"",dateLivraison:m.dateLivraison||"",modeLivraison:m.modeLivraison||"",lieu:m.lieu||"",theme:m.theme||"",budget:m.budget||"",besoins:m.besoins||"",synthese:m.synthese||"",statutClient:m.statut||"contact",updatedAt:firebase.firestore.FieldValue.serverTimestamp(),ficheCreee:true,mariageId:m.id};
     jobs.push(db.collection("portalProjects").doc(m.ownerUid).set(project,{merge:true}));
     if(devis && ["envoye","accepte","refuse"].indexOf(devis.statut||"")>=0){
       var td=totals(devis.lignes||[],state.settings.partService);
@@ -5005,7 +5007,7 @@ function viewDemandesMariage(){
   var nouvelles=list.filter(function(d){return (d.statut||"nouvelle")==="nouvelle";}).length;
   var html='<div class="card"><div class="flexb"><div><h3 style="margin:0;">💌 Demandes mariage</h3><p class="muted" style="margin:4px 0 0;">Demandes sécurisées reçues depuis le portail client et en attente de traitement.</p></div><div class="row-actions"><span class="badge">'+nouvelles+' nouvelle'+(nouvelles>1?'s':'')+'</span><a class="btn small primary" href="portail-mariage.html" target="_blank">Ouvrir le portail cliente</a><button class="btn small ghost" data-action="dem-import">Actualiser</button></div></div></div>';
   if(!list.length) return html+'<div class="card empty"><h3>Aucune demande en attente</h3><p>Les nouvelles demandes envoyées depuis le portail sécurisé apparaîtront automatiquement ici.</p></div>';
-  html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle"; return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span></div><p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Budget :</b> '+esc(d.budget||"Non renseigné")+' · <b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button></div>'; }).join('')+'</div>';
+  html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle"; return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span></div><p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Budget :</b> '+esc(d.budget||"Non renseigné")+' · <b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><div class="row-actions"><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button><button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>'; }).join('')+'</div>';
   return html;
 }
 function viewDemandeMariageDetail(d){
@@ -6549,6 +6551,8 @@ async function handleAction(action){
   if(action.indexOf("dem-delete-")===0){
     var did=action.slice(11);
     var demandeSupprimee=demandeById(did);
+    var demandeNom=demandeSupprimee?((demandeSupprimee.prenom||"")+" "+(demandeSupprimee.nom||"")).trim():"cette demande";
+    if(!window.confirm("Supprimer définitivement la demande de "+demandeNom+" ?\n\nCette action retirera aussi la demande de l’espace sécurisé.")) return;
     state.demandesMariage=(state.demandesMariage||[]).filter(function(x){return x.id!==did;});
     try{
       var stored=JSON.parse(localStorage.getItem("afs_portal_requests")||"[]");

@@ -36,6 +36,7 @@ service cloud.firestore {
           'ownerUid','email','prenom','nom','tel','dateMariage','ville','lieu',
           'invites','style','budget','couleurs','prestations','autrePrestation',
           'fleursAimees','fleursRefusees','description','photos','clientStatus',
+          'souhaiteRdvTelephonique','rdvDateSouhaitee','rdvHeureSouhaitee',
           'createdAt','updatedAt'
         ]);
 
@@ -48,6 +49,9 @@ service cloud.firestore {
           'email','prenom','nom','tel','dateMariage','ville','lieu','invites',
           'style','budget','couleurs','prestations','autrePrestation',
           'fleursAimees','fleursRefusees','description','photos','clientStatus',
+          'souhaiteRdvTelephonique','rdvDateSouhaitee','rdvHeureSouhaitee',
+          'notificationEmailSentAt','notificationEmailError','notificationEmailLastAttemptAt',
+          'notificationUpdateEmailSentAt','notificationUpdateEmailError','notificationUpdateEmailLastAttemptAt',
           'updatedAt'
         ])
       );
@@ -66,7 +70,8 @@ service cloud.firestore {
         && request.resource.data.kind == resource.data.kind
         && request.resource.data.sourceId == resource.data.sourceId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'clientDecision','clientDecisionAt','clientDecisionMessage','clientDecisionBy'
+          'clientDecision','clientDecisionAt','clientDecisionMessage','clientDecisionBy',
+          'clientDecisionName','clientDecisionEmail','clientDecisionUserAgent','clientDecisionText'
         ])
       );
     }

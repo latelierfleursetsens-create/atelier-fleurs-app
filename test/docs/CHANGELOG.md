@@ -1,3 +1,14 @@
+# V5.4.0 CLIENT DASHBOARD TEST
+- Tableau de bord cliente.
+- Planning téléphone, livraison/retrait et mariage.
+- Validation renforcée des devis en ligne.
+- Synchronisation de la date de livraison depuis MyBusiness.
+
+# V5.4.0 CLIENT DASHBOARD TEST
+- Ajout du bouton Supprimer directement sur chaque carte de demande mariage.
+- Confirmation nominative avant suppression définitive.
+- Suppression synchronisée avec Firestore pour éviter la réapparition des demandes sécurisées.
+
 # V4.2.1 PROD
 - Correction de la synchronisation des coordonnées entre fiche mariage, fiche cliente et devis lié.
 - Une modification de contact ne reconstruit plus les lignes tarifées du devis.
