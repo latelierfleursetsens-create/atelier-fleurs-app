@@ -1,4 +1,4 @@
-# Installation V5.4.0 CLIENT DASHBOARD TEST
+# Installation V5.4.1 CLIENT ONBOARDING TEST
 
 ## Espace cliente enrichi
 - Nouveau **tableau de bord cliente** affiché après la connexion.
