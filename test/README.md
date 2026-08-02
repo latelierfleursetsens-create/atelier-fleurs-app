@@ -1,4 +1,4 @@
-# MyBusiness V5.3.1 SECURITY TEST
+# MyBusiness V5.3.2 SECURITY TEST
 
 ## Sécurité administrateur
 - Connexion administrateur uniquement avec Google.
@@ -37,3 +37,10 @@ Utilisez uniquement **Se connecter avec Google**. La validation en deux étapes,
 - N’utilisez pas une autre adresse Google pendant la migration.
 - Testez exclusivement dans le dossier `test` avant toute mise en production.
 - Cette version ne modifie ni le portail cliente, ni les demandes mariage, ni les devis/factures.
+
+
+## Connexion cliente Google
+- Les clientes peuvent se connecter ou créer leur espace avec Google.
+- La connexion e-mail/mot de passe reste disponible.
+- Si une adresse existe déjà avec un mot de passe, le portail demande ce mot de passe une seule fois afin de lier Google au même UID et au même dossier.
+- Aucune modification des règles Firebase n’est nécessaire.

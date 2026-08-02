@@ -1,4 +1,4 @@
-# Installation V5.3.1 SECURITY TEST
+# Installation V5.3.2 SECURITY TEST
 
 1. Vérifier que Google est activé dans Firebase Authentication.
 2. Vérifier que `latelierfleursetsens-create.github.io` figure dans les domaines autorisés.
