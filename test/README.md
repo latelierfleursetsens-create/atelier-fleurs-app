@@ -1,5 +1,11 @@
-# MyBusiness — V5.4.3 CLIENT CONFIRMATION TEST
+# MyBusiness — V5.4.4 DOCUMENTS PORTAIL TEST
 
-Version de test ajoutant l’adresse e-mail automatique dans la fiche cliente et l’e-mail récapitulatif après la première demande.
+Cette version publie automatiquement les devis et les factures dans l’espace client après leur envoi par e-mail.
 
-Déployer d’abord dans le dossier GitHub `test`, puis effectuer une création de demande avec un compte de test.
+- PDF sauvegardé dans Firebase Storage ;
+- métadonnées enregistrées dans `portalDocuments` ;
+- consultation et téléchargement depuis l’espace client ;
+- validation en ligne des devis conservée ;
+- synchronisation en temps réel pendant que la cliente est connectée.
+
+Avant le test, publiez les fichiers `firestore.rules` et `storage.rules` dans Firebase.

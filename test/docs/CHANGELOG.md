@@ -1,3 +1,11 @@
+# V5.4.4 DOCUMENTS PORTAIL TEST
+
+- Publication automatique des devis et factures PDF après l’envoi par e-mail.
+- Stockage sécurisé dans Firebase Storage.
+- Consultation et téléchargement dans l’espace client.
+- Synchronisation en temps réel des documents.
+- Conservation de la validation en ligne des devis.
+
 # V5.4.0 CLIENT DASHBOARD TEST
 - Tableau de bord cliente.
 - Planning téléphone, livraison/retrait et mariage.

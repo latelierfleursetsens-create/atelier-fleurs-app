@@ -1,9 +1,10 @@
-# Installation V5.4.3 CLIENT CONFIRMATION TEST
+# Installation V5.4.4 DOCUMENTS PORTAIL TEST
 
 1. Remplacer les fichiers du dossier GitHub `test` par ceux de cette archive.
-2. Attendre la publication GitHub Pages.
-3. Recharger le portail avec Ctrl + F5.
-4. Créer une nouvelle demande avec une adresse e-mail accessible.
-5. Vérifier la réception du récapitulatif et le fonctionnement du bouton vers l’espace client.
+2. Dans Firebase > Firestore > Règles, publier `firestore.rules`.
+3. Dans Firebase > Storage > Règles, publier `storage.rules`.
+4. Recharger MyBusiness et l’espace client avec `Ctrl + F5`.
+5. Ouvrir le devis déjà lié à la fiche mariage et le renvoyer par e-mail une fois : son PDF sera alors publié dans l’espace client.
+6. Créer puis envoyer une facture pour vérifier le même fonctionnement.
 
-Aucune modification des règles Firebase n’est nécessaire.
+L’e-mail reste envoyé même si la publication portail échoue ; MyBusiness affiche alors le motif de l’échec.

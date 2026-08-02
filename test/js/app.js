@@ -1,8 +1,8 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.4.2 CLIENT FORM TEST";
-var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
+var APP_VERSION="V5.4.4 DOCUMENTS PORTAIL TEST";
+var APP_VERSION_NOTE = "Publication automatique des devis et factures PDF dans l’espace client sécurisé.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 TEST — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
@@ -166,6 +166,7 @@ var firebaseConfig={ apiKey:"AIzaSyCPuUcFt99zQsUI1lBDSEZkX-RJHtgs5BY", authDomai
 firebase.initializeApp(firebaseConfig);
 var auth=firebase.auth();
 var db=firebase.firestore();
+var storage=firebase.storage();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
 var docRef=null, cloudTimer=null, lastLocalMutationAt=0;
 
@@ -223,6 +224,81 @@ function startSecurePortalDocumentDecisions(){
   },function(err){console.error("Lecture validations portail impossible",err);});
 }
 function clientSafeLines(lines){return (Array.isArray(lines)?lines:[]).map(function(l){return {description:l.description||l.label||"",quantite:Number(l.quantite||l.qte||1),prix:Number(l.prix||l.prixUnitaire||0),total:Number(l.total||0)};});}
+
+function portalDocSafeName(value){
+  return String(value||"document").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9._-]+/gi,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").toLowerCase();
+}
+function portalPdfBlob(base64){
+  var raw=atob(String(base64||""));
+  var bytes=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+  return new Blob([bytes],{type:"application/pdf"});
+}
+function portalDocumentAmount(kind,doc){
+  if(kind==="facture" && doc.montant!=null) return Number(doc.montant)||0;
+  return Number(totals(doc.lignes||[],state.settings.partService).total||0);
+}
+async function portalDocumentOwner(kind,doc){
+  var mariage=findLinkedMariageForDoc(kind,doc);
+  if(mariage&&mariage.ownerUid) return {ownerUid:mariage.ownerUid,mariage:mariage};
+  var email=String(doc&&doc.client&&doc.client.email||"").trim().toLowerCase();
+  if(email){
+    var qs=await db.collection("portalProjects").where("email","==",email).limit(1).get();
+    if(!qs.empty){
+      var first=qs.docs[0], data=first.data()||{};
+      return {ownerUid:data.ownerUid||first.id,mariage:mariage||null};
+    }
+  }
+  return {ownerUid:"",mariage:mariage||null};
+}
+async function publishDocumentToClientPortal(kind,doc,pdf64){
+  if(!auth.currentUser) throw new Error("Connexion administrateur requise pour publier le document.");
+  var target=await portalDocumentOwner(kind,doc);
+  if(!target.ownerUid) throw new Error("Aucun espace client n’est relié à ce document.");
+  if(!pdf64||String(pdf64).length<1000) throw new Error("Le PDF à publier est vide.");
+
+  var fileName=docFileName(kind,doc);
+  var storagePath="portalDocuments/"+target.ownerUid+"/"+portalDocSafeName(kind+"-"+(doc.id||doc.numero||"document"))+".pdf";
+  var storageRef=storage.ref().child(storagePath);
+  await storageRef.put(portalPdfBlob(pdf64),{
+    contentType:"application/pdf",
+    customMetadata:{
+      ownerUid:target.ownerUid,
+      kind:kind,
+      sourceId:String(doc.id||""),
+      numero:String(doc.numero||"")
+    }
+  });
+  var pdfUrl=await storageRef.getDownloadURL();
+  var payload={
+    ownerUid:target.ownerUid,
+    kind:kind,
+    sourceId:doc.id||"",
+    numero:doc.numero||"",
+    date:doc.date||"",
+    echeance:doc.echeance||"",
+    statut:doc.statut||(kind==="devis"?"envoye":"envoyee"),
+    montant:portalDocumentAmount(kind,doc),
+    lignes:clientSafeLines(doc.lignes),
+    visibleClient:true,
+    fileName:fileName,
+    storagePath:storagePath,
+    pdfUrl:pdfUrl,
+    publishedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await db.collection("portalDocuments").doc(kind+"_"+doc.id).set(payload,{merge:true});
+
+  doc.portalPublished=true;
+  doc.portalPublishedAt=new Date().toISOString();
+  doc.portalPdfUrl=pdfUrl;
+  doc.portalStoragePath=storagePath;
+  doc.portalFileName=fileName;
+  delete doc.portalPublishError;
+  if(target.mariage&&!target.mariage.ownerUid) target.mariage.ownerUid=target.ownerUid;
+  return payload;
+}
+
 function publishSecureClientSpaces(){
   if(!auth.currentUser) return Promise.resolve();
   var jobs=[];
@@ -234,9 +310,19 @@ function publishSecureClientSpaces(){
     jobs.push(db.collection("portalProjects").doc(m.ownerUid).set(project,{merge:true}));
     if(devis && ["envoye","accepte","refuse"].indexOf(devis.statut||"")>=0){
       var td=totals(devis.lignes||[],state.settings.partService);
-      jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set({ownerUid:m.ownerUid,kind:"devis",sourceId:devis.id,numero:devis.numero||"",date:devis.date||"",statut:devis.statut||"envoye",montant:Number(td.total||0),lignes:clientSafeLines(devis.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}));
+      var quotePortal={ownerUid:m.ownerUid,kind:"devis",sourceId:devis.id,numero:devis.numero||"",date:devis.date||"",statut:devis.statut||"envoye",montant:Number(td.total||0),lignes:clientSafeLines(devis.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+      if(devis.portalPdfUrl) quotePortal.pdfUrl=devis.portalPdfUrl;
+      if(devis.portalStoragePath) quotePortal.storagePath=devis.portalStoragePath;
+      if(devis.portalFileName) quotePortal.fileName=devis.portalFileName;
+      jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set(quotePortal,{merge:true}));
     }
-    facts.filter(function(f){return ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){jobs.push(db.collection("portalDocuments").doc("facture_"+f.id).set({ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}));});
+    facts.filter(function(f){return ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
+      var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+      if(f.portalPdfUrl) invoicePortal.pdfUrl=f.portalPdfUrl;
+      if(f.portalStoragePath) invoicePortal.storagePath=f.portalStoragePath;
+      if(f.portalFileName) invoicePortal.fileName=f.portalFileName;
+      jobs.push(db.collection("portalDocuments").doc("facture_"+f.id).set(invoicePortal,{merge:true}));
+    });
   });
   return Promise.all(jobs).catch(function(e){console.error("Publication espace client impossible",e);});
 }
@@ -6509,9 +6595,20 @@ async function envoyerDocumentEmail(kind, doc){
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
     markDocSent(kind, doc);
+    var portalMessage="";
+    try{
+      await publishDocumentToClientPortal(kind,doc,pdf64);
+      portalMessage=" Le PDF est aussi disponible dans l’espace client.";
+    }catch(portalErr){
+      console.error("Publication portail impossible",portalErr);
+      doc.portalPublishError=(portalErr&&portalErr.message)||String(portalErr||"Erreur inconnue");
+      portalMessage=" L’email est bien parti, mais la publication dans l’espace client a échoué : "+doc.portalPublishError;
+    }
     addEmailHistory(kind, doc, email);
-    saveCache(); render();
-    toast(titre+" envoyé par email à "+email+(attachments.length>1?" avec la synthèse du projet.":"."));
+    saveCache();
+    try{ await saveCloudNow(); }catch(syncErr){ console.error("Synchronisation après envoi impossible",syncErr); }
+    render();
+    toast(titre+" envoyé par email à "+email+(attachments.length>1?" avec la synthèse du projet.":".")+portalMessage);
   } catch(e){ console.error(e); toast("Envoi impossible : "+(e&&e.message?e.message:"vérifie le Worker Cloudflare / Brevo.")); }
 }
 

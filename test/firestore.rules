@@ -52,6 +52,7 @@ service cloud.firestore {
           'souhaiteRdvTelephonique','rdvDateSouhaitee','rdvHeureSouhaitee',
           'notificationEmailSentAt','notificationEmailError','notificationEmailLastAttemptAt',
           'notificationUpdateEmailSentAt','notificationUpdateEmailError','notificationUpdateEmailLastAttemptAt',
+          'clientRecapEmailSentAt','clientRecapEmailError','clientRecapEmailLastAttemptAt',
           'updatedAt'
         ])
       );
