@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.4.5 VALIDATION DEVIS TEST";
+var APP_VERSION="V5.4.6 INSPIRATIONS PLEIN ECRAN TEST";
 var APP_VERSION_NOTE = "Publication automatique des devis et factures PDF dans l’espace client sécurisé.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -5109,9 +5109,9 @@ function viewDemandesMariage(){
   return html;
 }
 function viewDemandeMariageDetail(d){
-  var photos=(d.photos||[]).map(function(p){
+  var photos=(d.photos||[]).map(function(p,index){
     var src=(p&&typeof p==="object")?(p.url||p.downloadURL||p.dataUrl||p.data||""):p;
-    return src?'<img src="'+esc(src)+'" alt="Inspiration" style="width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);">':'';
+    return src?'<button type="button" data-action="dem-photo-open-'+index+'" title="Ouvrir la photo en grand" aria-label="Ouvrir la photo d’inspiration en grand" style="padding:0;border:0;background:transparent;cursor:zoom-in;border-radius:12px;"><img src="'+esc(src)+'" alt="Inspiration" style="display:block;width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);"></button>':'';
   }).join('');
   var receivedAt=portalDateISO(d.createdAt);
   return '<div class="row-actions"><button class="btn ghost" data-action="dem-back">← Retour aux demandes</button><a class="btn ghost" href="portail-mariage.html?dossier='+encodeURIComponent(d.id)+'" target="_blank">Voir le portail cliente</a></div><div class="card"><div class="flexb"><div><h2 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h2><p class="muted">Demande reçue le '+esc(receivedAt?receivedAt.slice(0,10):"Date non renseignée")+'</p></div><select id="demStatut">'+Object.keys(DEMANDE_STATUTS).map(function(k){return '<option value="'+k+'"'+((d.statut||"nouvelle")===k?' selected':'')+'>'+esc(DEMANDE_STATUTS[k])+'</option>';}).join('')+'</select></div><div class="form-grid"><label>Email<input id="demEmail" value="'+esc(d.email||"")+'"></label><label>Téléphone<input id="demTel" value="'+esc(d.tel||"")+'"></label><label>Date du mariage<input id="demDate" type="date" value="'+esc(d.dateMariage||"")+'"></label><label>Lieu / ville<input id="demLieu" value="'+esc(d.lieu||d.ville||"")+'"></label><label>Thème / style<input id="demTheme" value="'+esc(d.style||d.theme||"")+'"></label><label>Budget<input id="demBudget" value="'+esc(d.budget||"")+'"></label></div><p><b>Prestations demandées :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Couleurs :</b> '+esc(d.couleurs||"Non renseignées")+'</p><p><b>Fleurs premium stabilisées souhaitées :</b> '+esc(d.fleursAimees||"Non renseignées")+'</p>'+(d.fleursRefusees?'<p><b>Éléments refusés :</b> '+esc(d.fleursRefusees)+'</p>':'')+((d.description||d.commentaire)?'<p><b>Ancienne description :</b><br>'+esc(d.description||d.commentaire)+'</p>':'')+'<p><b>Rendez-vous téléphonique souhaité :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui":d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p>'+(d.souhaiteRdvTelephonique==="oui"?'<p><b>Créneau demandé :</b> '+esc([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"Non renseigné")+'</p>':'')+'<p class="muted"><b>Disponibilités :</b> du samedi au lundi de 9 h à 20 h ; du mardi au vendredi de 18 h à 20 h.</p><label>Notes internes<textarea id="demNotes" rows="4">'+esc(d.notesInternes||"")+'</textarea></label>'+(photos?'<h3>Inspirations</h3><div class="row-actions">'+photos+'</div>':'')+'<div class="row-actions"><button class="btn primary" data-action="dem-save-'+d.id+'">Enregistrer</button>'+(d.statut!=="transformee"?'<button class="btn gold" data-action="dem-transform-'+d.id+'">Créer la fiche mariage</button>':'<span class="badge">Fiche mariage créée</span>')+'<button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>';
@@ -7266,6 +7266,15 @@ async function handleAction(action){
   if(action==="dash-month-close"){ ui.monthDetail=null; render(); return; }
   if(action==="prep-cmd-add"){ var lbl=val("cmdLabel"); if(!lbl.trim()){ toast("Indique l'article à préparer."); return; } state.commandes.unshift({ id:uid(), label:lbl, client:val("cmdClient"), dateLivraison:val("cmdDate"), fait:false, createdAt:todayISO() }); saveCache(); render(); return; }
   if(action.indexOf("prep-cmd-del-")===0){ var cid=action.slice(13); state.commandes=state.commandes.filter(function(x){return x.id!==cid;}); saveCache(); render(); return; }
+  if(action.indexOf("dem-photo-open-")===0){
+    var demandePhoto=demandeById(ui.demandeMariageOpen);
+    var photoIndex=parseInt(action.slice(15),10);
+    var photo=demandePhoto && (demandePhoto.photos||[])[photoIndex];
+    var photoSrc=(photo&&typeof photo==="object")?(photo.url||photo.downloadURL||photo.dataUrl||photo.data||""):photo;
+    if(photoSrc){ ui.lightbox=photoSrc; renderModal(); }
+    else { toast("Cette photo d’inspiration est indisponible."); }
+    return;
+  }
   if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }

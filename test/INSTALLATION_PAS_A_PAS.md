@@ -1,4 +1,4 @@
-# Installation V5.4.5 VALIDATION DEVIS TEST
+# Installation V5.4.6 INSPIRATIONS PLEIN ECRAN TEST
 
 1. Décompresser l’archive.
 2. Remplacer le contenu du dossier GitHub `test` par les fichiers de cette version.

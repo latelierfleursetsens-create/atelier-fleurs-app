@@ -1,3 +1,9 @@
+# V5.4.6 INSPIRATIONS PLEIN ECRAN TEST
+
+- Miniatures d’inspiration cliquables dans les demandes mariage.
+- Ouverture dans la visionneuse plein écran existante.
+- Fermeture par bouton, touche Échap ou clic sur le fond.
+
 # V5.4.5 VALIDATION DEVIS TEST
 
 - Suppression de la mention « Élodie en est informée dans MyBusiness » dans le message affiché à la cliente.

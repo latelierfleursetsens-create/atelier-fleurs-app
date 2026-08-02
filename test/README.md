@@ -1,4 +1,4 @@
-# MyBusiness — V5.4.5 VALIDATION DEVIS TEST
+# MyBusiness — V5.4.6 INSPIRATIONS PLEIN ECRAN TEST
 
 Cette version conserve la publication automatique des devis et factures dans l’espace client et ajoute :
 
