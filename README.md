@@ -1,4 +1,4 @@
-# MyBusiness — V5.5.1 PROD
+# MyBusiness — V5.5.2 PROD
 
 Version de production avec suivi des mariages simplifié :
 

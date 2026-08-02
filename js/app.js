@@ -4,7 +4,7 @@
 var APP_VERSION="V5.5.0 PROD";
 var APP_VERSION_NOTE = "Statuts des mariages recalculés automatiquement selon les devis, factures et paiements.";
 var APP_CHANGELOG = [
-  "V5.5.1 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
+  "V5.5.2 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
   "V5.5.0 PROD — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
   "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
@@ -1772,6 +1772,14 @@ function mariageTermine(m){ return !!(m && (m.livre || m.statut==="realise")); }
 function mariageGroupKey(m){
   if(mariageTermine(m)) return "archives";
   if(mariageReady(m)) return "livraison";
+
+  // Dès qu'un acompte est encaissé, le dossier quitte l'étude commerciale
+  // et passe automatiquement en préparation de commande.
+  var acomptePaye=mariageFacturesLiees(m).some(function(f){
+    return f && f.type==="acompte" && f.statut==="payee";
+  });
+  if(acomptePaye) return "creation";
+
   var arts=m&&m.articles?m.articles:[];
   if(arts.some(function(a){return !!a.fait;})) return "creation";
   return "preparation";
@@ -5392,7 +5400,6 @@ function mariageDevisLie(m){
 function mariageSimpleStatus(m,stage){
   if(stage==="archives") return {l:"Livré",c:"#3f5236",b:"#dbe6d2"};
   if(stage==="livraison") return {l:"Prêt à livrer",c:"var(--green)",b:"var(--green-s)"};
-  if(stage==="creation") return {l:"En création",c:"var(--bordeaux)",b:"var(--blush-s)"};
 
   var factures=mariageFacturesLiees(m);
   var soldePaye=factures.some(function(f){return (f.type==="solde"||f.type==="totale") && f.statut==="payee";});
@@ -5406,6 +5413,7 @@ function mariageSimpleStatus(m,stage){
   // Le statut le plus avancé prime toujours sur l'ancien statut manuel de la fiche.
   if(soldePaye) return {l:"Payé",c:"var(--green)",b:"var(--green-s)"};
   if(acomptePaye) return {l:"Acompte payé",c:"var(--bordeaux)",b:"var(--blush-s)"};
+  if(stage==="creation") return {l:"Préparation commande",c:"var(--bordeaux)",b:"var(--blush-s)"};
   if(factureEnvoyee) return {l:"Facture envoyée",c:"#6a5a2a",b:"#f3ead0"};
   if(factureCreee && devisAccepte) return {l:"Facture créée",c:"#6a5a2a",b:"#f3ead0"};
   if(devisAccepte) return {l:"Devis accepté",c:"var(--green)",b:"var(--green-s)"};
@@ -5425,8 +5433,8 @@ function mariageCardHTML(m){
 }
 function mariageStageTabs(groups,current){
   var tabs=[
-    {id:"preparation",label:"📋 Préparation"},
-    {id:"creation",label:"🌸 Création"},
+    {id:"preparation",label:"📋 Études mariage"},
+    {id:"creation",label:"🌸 Préparation commande"},
     {id:"livraison",label:"📦 Livraison"},
     {id:"archives",label:"✅ Archives"}
   ];
@@ -5450,8 +5458,8 @@ function viewMariages(){
   if(!groups[current]) current="preparation";
   ui.mariageStageFilter=current;
   var labels={
-    preparation:"Dossiers à préparer avant le début de la fabrication.",
-    creation:"Mariages dont au moins une création a été commencée.",
+    preparation:"Contacts, rendez-vous et devis à étudier.",
+    creation:"Commandes confirmées avec acompte payé, ou dont la fabrication a commencé.",
     livraison:"Toutes les créations sont terminées : il reste la remise, l’envoi ou la livraison.",
     archives:"Mariages livrés et terminés."
   };
