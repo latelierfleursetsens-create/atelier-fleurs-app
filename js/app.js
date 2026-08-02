@@ -1,7 +1,7 @@
 /* V5.0.5 — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.4.6 PROD";
+var APP_VERSION="V5.4.7 PROD";
 var APP_VERSION_NOTE = "Publication automatique des devis et factures PDF dans l’espace client sécurisé.";
 var APP_CHANGELOG = [
   "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -96,7 +96,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -5098,13 +5098,30 @@ function normalizePortalMarriageSelections(){
   });
   return changed;
 }
+function demandeMariageCategorie(d){
+  var st=(d&&d.statut)||"nouvelle";
+  if(st==="transformee") return "transformees";
+  if(st==="sans_suite"||st==="indisponible") return "sans_suite";
+  return "nouvelles";
+}
 function viewDemandesMariage(){
   importPortalRequests();
   if(ui.demandeMariageOpen){ var d=demandeById(ui.demandeMariageOpen); if(d) return viewDemandeMariageDetail(d); ui.demandeMariageOpen=null; }
-  var list=(state.demandesMariage||[]).slice().sort(function(a,b){return String(b.createdAt||"").localeCompare(String(a.createdAt||""));});
-  var nouvelles=list.filter(function(d){return (d.statut||"nouvelle")==="nouvelle";}).length;
-  var html='<div class="card"><div class="flexb"><div><h3 style="margin:0;">💌 Demandes mariage</h3><p class="muted" style="margin:4px 0 0;">Demandes sécurisées reçues depuis le portail client et en attente de traitement.</p></div><div class="row-actions"><span class="badge">'+nouvelles+' nouvelle'+(nouvelles>1?'s':'')+'</span><a class="btn small primary" href="portail-mariage.html" target="_blank">Ouvrir le portail cliente</a><button class="btn small ghost" data-action="dem-import">Actualiser</button></div></div></div>';
-  if(!list.length) return html+'<div class="card empty"><h3>Aucune demande en attente</h3><p>Les nouvelles demandes envoyées depuis le portail sécurisé apparaîtront automatiquement ici.</p></div>';
+  var toutes=(state.demandesMariage||[]).slice().sort(function(a,b){return String(b.createdAt||"").localeCompare(String(a.createdAt||""));});
+  var filtre=ui.demandeMariageFilter||"nouvelles";
+  var compteurs={nouvelles:0,transformees:0,sans_suite:0};
+  toutes.forEach(function(d){compteurs[demandeMariageCategorie(d)]++;});
+  var list=toutes.filter(function(d){return demandeMariageCategorie(d)===filtre;});
+  var html='<div class="card"><div class="flexb"><div><h3 style="margin:0;">💌 Demandes mariage</h3><p class="muted" style="margin:4px 0 0;">Classement des demandes reçues depuis le portail client.</p></div><div class="row-actions"><a class="btn small primary" href="portail-mariage.html" target="_blank">Ouvrir le portail cliente</a><button class="btn small ghost" data-action="dem-import">Actualiser</button></div></div></div>';
+  html+='<div class="card" style="padding:12px;"><div class="row-actions" style="margin:0;">'
+    +'<button class="btn small '+(filtre==="nouvelles"?'primary':'ghost')+'" data-action="dem-filter-nouvelles">Nouvelles demandes <span class="badge" style="margin-left:6px;">'+compteurs.nouvelles+'</span></button>'
+    +'<button class="btn small '+(filtre==="transformees"?'primary':'ghost')+'" data-action="dem-filter-transformees">Transformées en mariage <span class="badge" style="margin-left:6px;">'+compteurs.transformees+'</span></button>'
+    +'<button class="btn small '+(filtre==="sans_suite"?'primary':'ghost')+'" data-action="dem-filter-sans_suite">Sans suite / annulées <span class="badge" style="margin-left:6px;">'+compteurs.sans_suite+'</span></button>'
+    +'</div></div>';
+  if(!list.length){
+    var emptyLabel=filtre==="transformees"?"Aucune demande transformée en mariage":filtre==="sans_suite"?"Aucune demande sans suite ou annulée":"Aucune nouvelle demande";
+    return html+'<div class="card empty"><h3>'+emptyLabel+'</h3><p>Les demandes correspondant à ce classement apparaîtront ici automatiquement.</p></div>';
+  }
   html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle"; return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span></div><p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><div class="row-actions"><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button><button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>'; }).join('')+'</div>';
   return html;
 }
@@ -6626,6 +6643,7 @@ async function envoyerDocumentEmail(kind, doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
   if(action==="dem-import"){ var n=importPortalRequests(); render(); toast(n?n+" nouvelle(s) demande(s) importée(s).":"Aucune nouvelle demande."); return; }
+  if(action.indexOf("dem-filter-")===0){ ui.demandeMariageFilter=action.slice(11)||"nouvelles"; ui.demandeMariageOpen=null; render(); window.scrollTo(0,0); return; }
   if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
   if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();if(ds.securePortal&&ds.ownerUid){try{await db.collection("portalProjects").doc(ds.ownerUid).set({statutAdmin:ds.statut||"nouvelle",notesInternes:ds.notesInternes||"",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Enregistré localement, mais la synchronisation portail a échoué.");}}render();toast("Demande enregistrée.");} return; }

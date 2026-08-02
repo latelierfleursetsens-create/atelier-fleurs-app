@@ -1,4 +1,4 @@
-# MyBusiness — V5.4.6 PROD
+# MyBusiness — V5.4.7 PROD
 
 Version de production validée avec :
 
@@ -16,3 +16,7 @@ Version de production validée avec :
 - `espace-client.html` : espace mariage client
 - `portail-mariage.html` : redirection vers l’espace client
 - `firestore.rules` et `storage.rules` : règles Firebase validées
+
+
+## V5.4.7 PROD
+- Classement des demandes mariage en trois onglets : nouvelles demandes, transformées en mariage, sans suite / annulées.
