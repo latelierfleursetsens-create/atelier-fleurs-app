@@ -1,10 +1,9 @@
-# Installation V5.4.4 DOCUMENTS PORTAIL TEST
+# Installation V5.4.5 VALIDATION DEVIS TEST
 
-1. Remplacer les fichiers du dossier GitHub `test` par ceux de cette archive.
-2. Dans Firebase > Firestore > Règles, publier `firestore.rules`.
-3. Dans Firebase > Storage > Règles, publier `storage.rules`.
-4. Recharger MyBusiness et l’espace client avec `Ctrl + F5`.
-5. Ouvrir le devis déjà lié à la fiche mariage et le renvoyer par e-mail une fois : son PDF sera alors publié dans l’espace client.
-6. Créer puis envoyer une facture pour vérifier le même fonctionnement.
-
-L’e-mail reste envoyé même si la publication portail échoue ; MyBusiness affiche alors le motif de l’échec.
+1. Décompresser l’archive.
+2. Remplacer le contenu du dossier GitHub `test` par les fichiers de cette version.
+3. Dans Firebase, ouvrir **Firestore → Règles**.
+4. Remplacer les règles par le contenu du fichier `firestore.rules`, puis cliquer sur **Publier**.
+5. Ne pas modifier les règles Storage si celles de la V5.4.4 ont déjà été publiées.
+6. Recharger MyBusiness et l’espace client avec **Ctrl + F5**.
+7. Effectuer un test complet de validation de devis.

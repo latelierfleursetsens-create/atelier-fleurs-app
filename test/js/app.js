@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.4.4 DOCUMENTS PORTAIL TEST";
+var APP_VERSION="V5.4.5 VALIDATION DEVIS TEST";
 var APP_VERSION_NOTE = "Publication automatique des devis et factures PDF dans l’espace client sécurisé.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -87,7 +87,7 @@ var DEFAULT_SETTINGS = {
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
-  mailMessageDevis:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>devis</strong> relatif à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance. Si vous avez la moindre question, je reste bien entendu à votre disposition.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
+  mailMessageDevis:"<p>Bonjour {client},</p>\n<p>Veuillez trouver ci-joint votre devis.</p>\n<p>Si vous avez effectué votre demande via <strong>Mon espace mariage</strong>, votre devis est désormais également disponible dans votre espace client sécurisé.</p>\n<p>Depuis cet espace, vous pouvez :</p>\n<ul><li>consulter votre devis à tout moment ;</li><li>retrouver l’ensemble des documents liés à votre projet ;</li><li>suivre l’avancement de votre dossier ;</li><li><strong>valider votre devis directement en ligne</strong>, sans avoir à l’imprimer ni à le renvoyer signé.</li></ul>\n<p>Une fois votre devis validé, vous recevrez automatiquement un e-mail de confirmation.</p>\n<p>Si vous avez la moindre question concernant votre projet floral, je reste naturellement à votre disposition.</p>\n<p>Au plaisir de vous accompagner dans la création de votre projet floral,</p>\n<p>🌸 <strong>Élodie ROUZE</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
   mailMessageFacture:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>facture</strong> relative à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
   mailMessageRelance:"Bonjour {client},\n\nJe me permets de revenir vers vous concernant le devis {numero}.\nN'hésitez pas à me dire si vous avez des questions ou besoin d'un ajustement.\n\nBien chaleureusement,\nÉlodie",
   prestationsBibliotheque:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); }),
@@ -200,7 +200,7 @@ function startSecurePortalRequests(){
 }
 function startSecurePortalDocumentDecisions(){
   if(portalDocumentsUnsub) portalDocumentsUnsub();
-  portalDocumentsUnsub=db.collection("portalDocuments").where("kind","==","devis").onSnapshot(function(qs){
+  portalDocumentsUnsub=db.collection("portalDocuments").where("kind","==","devis").onSnapshot(async function(qs){
     var changed=false;
     qs.forEach(function(doc){
       var x=doc.data()||{};
@@ -220,7 +220,11 @@ function startSecurePortalDocumentDecisions(){
         if(d.demandeModificationPortail!==note){ d.demandeModificationPortail=note; changed=true; }
       }
     });
-    if(changed){ saveCache(); try{render();}catch(e){} }
+    if(changed){
+      saveCache();
+      try{ await saveCloudNow(); }catch(syncErr){ console.error("Sauvegarde de la validation portail impossible",syncErr); }
+      try{render();}catch(e){}
+    }
   },function(err){console.error("Lecture validations portail impossible",err);});
 }
 function clientSafeLines(lines){return (Array.isArray(lines)?lines:[]).map(function(l){return {description:l.description||l.label||"",quantite:Number(l.quantite||l.qte||1),prix:Number(l.prix||l.prixUnitaire||0),total:Number(l.total||0)};});}
@@ -419,7 +423,13 @@ function mergePendingMariages(){
 }
 function applyData(d){
   if(!d) return;
-  state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
+  var savedSettings=d.settings||{};
+  state.settings=Object.assign({},DEFAULT_SETTINGS,savedSettings);
+  // Migration V5.4.5 : applique le nouveau texte du mail devis aux anciens modèles standard.
+  var ancienMailDevis=String(savedSettings.mailMessageDevis||"");
+  if(!ancienMailDevis || (ancienMailDevis.indexOf("Je vous prie de trouver ci-joint votre <strong>devis</strong>")>=0 && ancienMailDevis.indexOf("Mon espace mariage")<0)){
+    state.settings.mailMessageDevis=DEFAULT_SETTINGS.mailMessageDevis;
+  }
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
   state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.demandesMariage=d.demandesMariage||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];

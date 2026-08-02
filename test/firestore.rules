@@ -72,7 +72,9 @@ service cloud.firestore {
         && request.resource.data.sourceId == resource.data.sourceId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'clientDecision','clientDecisionAt','clientDecisionMessage','clientDecisionBy',
-          'clientDecisionName','clientDecisionEmail','clientDecisionUserAgent','clientDecisionText'
+          'clientDecisionName','clientDecisionEmail','clientDecisionUserAgent','clientDecisionText',
+          'clientDecisionAdminEmailSentAt','clientDecisionClientEmailSentAt',
+          'clientDecisionEmailError','clientDecisionEmailLastAttemptAt'
         ])
       );
     }

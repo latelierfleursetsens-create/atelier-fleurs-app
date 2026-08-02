@@ -1,3 +1,13 @@
+# V5.4.5 VALIDATION DEVIS TEST
+
+- Suppression de la mention « Élodie en est informée dans MyBusiness » dans le message affiché à la cliente.
+- Confirmation plus professionnelle après validation du devis.
+- E-mail automatique envoyé à Élodie avec la cliente, le numéro, le montant et l’heure de validation.
+- E-mail automatique de confirmation envoyé à la cliente.
+- Bandeau de validation horodaté dans l’espace client.
+- Sauvegarde cloud du statut « devis accepté » dans MyBusiness.
+- Nouveau corps d’e-mail lors de l’envoi du devis, avec information sur « Mon espace mariage » et la validation en ligne.
+
 # V5.4.4 DOCUMENTS PORTAIL TEST
 
 - Publication automatique des devis et factures PDF après l’envoi par e-mail.
