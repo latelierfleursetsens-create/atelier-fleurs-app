@@ -1,9 +1,8 @@
-# Installation V5.4.6 INSPIRATIONS PLEIN ECRAN TEST
+# Installation V5.5.0 TEST
 
-1. Décompresser l’archive.
-2. Remplacer le contenu du dossier GitHub `test` par les fichiers de cette version.
-3. Dans Firebase, ouvrir **Firestore → Règles**.
-4. Remplacer les règles par le contenu du fichier `firestore.rules`, puis cliquer sur **Publier**.
-5. Ne pas modifier les règles Storage si celles de la V5.4.4 ont déjà été publiées.
-6. Recharger MyBusiness et l’espace client avec **Ctrl + F5**.
-7. Effectuer un test complet de validation de devis.
+1. Sauvegarder le contenu actuel du dossier GitHub `test`.
+2. Remplacer les fichiers du dossier `test` par ceux de cette archive.
+3. Ne pas modifier les règles Firebase : cette version ne change ni Firestore ni Storage.
+4. Ouvrir `https://latelierfleursetsens-create.github.io/atelier-fleurs-app/test/`.
+5. Actualiser avec `Ctrl + F5`.
+6. Vérifier les quatre onglets dans Clients → Mariages.

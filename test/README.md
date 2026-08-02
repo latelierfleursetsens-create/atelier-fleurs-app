@@ -1,29 +1,16 @@
-# MyBusiness — V5.4.6 INSPIRATIONS PLEIN ECRAN TEST
+# MyBusiness — V5.5.0 TEST
 
-Cette version conserve la publication automatique des devis et factures dans l’espace client et ajoute :
+Version de test basée sur la V5.4.7 PROD.
 
-- un message de confirmation client sans mention du fonctionnement interne de MyBusiness ;
-- un e-mail envoyé à Élodie lorsqu’une cliente valide un devis en ligne ;
-- un e-mail de confirmation envoyé à la cliente ;
-- un bandeau horodaté dans l’espace client après validation ;
-- le passage automatique du devis au statut « Accepté » dans MyBusiness, sauvegardé dans la base cloud ;
-- un nouveau texte pour l’e-mail d’envoi des devis, expliquant la disponibilité dans « Mon espace mariage » et la validation en ligne.
+## Suivi mariages simplifié
 
-## Mise en ligne
+Quatre onglets essentiels :
 
-1. Remplacer les fichiers du dossier GitHub `test`.
-2. Publier le fichier `firestore.rules` dans Firebase → Firestore → Règles.
-3. Les règles Storage de la V5.4.4 restent valables.
-4. Recharger MyBusiness et l’espace client avec `Ctrl + F5`.
+- **Préparation** : aucune création commencée ;
+- **Création** : au moins un article est commencé ;
+- **Livraison** : tous les articles sont terminés ;
+- **Archives** : mariage livré ou terminé.
 
-## Test conseillé
+Les cartes affichent uniquement le nom, la date du mariage, la date de livraison, le statut, le compte à rebours et le bouton d’ouverture. Le tri se fait automatiquement par date de livraison.
 
-1. Envoyer un devis lié à une cliente disposant d’un espace mariage.
-2. Ouvrir le devis depuis l’espace client.
-3. Le valider en ligne.
-4. Vérifier :
-   - le nouveau message de confirmation ;
-   - le bandeau de validation horodaté ;
-   - l’e-mail reçu par Élodie ;
-   - l’e-mail reçu par la cliente ;
-   - le devis déplacé dans « Acceptés » dans MyBusiness.
+Cette archive est destinée au dossier GitHub `test`.

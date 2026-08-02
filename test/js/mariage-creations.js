@@ -1,4 +1,4 @@
-/* V5.4.2 CLIENT FORM TEST — Référentiel unique des créations mariage. */
+/* V5.4.2 — Référentiel unique des créations mariage. */
 (function(global){
   "use strict";
   global.MARIAGE_CREATIONS_STANDARD = [
