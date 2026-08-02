@@ -89,3 +89,8 @@
 
 - Les montants à encaisser sont centralisés dans Finances.
 - Les synthèses financières ont été retirées du module Ateliers.
+
+## V5.4.3 CLIENT CONFIRMATION TEST
+- Adresse e-mail de connexion affichée automatiquement dans la fiche cliente.
+- E-mail récapitulatif envoyé à la cliente après la première transmission.
+- Lien direct vers son espace mariage.

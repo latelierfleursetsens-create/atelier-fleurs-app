@@ -1,11 +1,5 @@
-# MyBusiness V5.4.2 CLIENT FORM TEST
+# MyBusiness — V5.4.3 CLIENT CONFIRMATION TEST
 
-Cette version simplifie la fiche de renseignement cliente.
+Version de test ajoutant l’adresse e-mail automatique dans la fiche cliente et l’e-mail récapitulatif après la première demande.
 
-## Modifications
-- Retrait des champs Lieu, Budget, Nombre d’invités, Éléments refusés et Description du projet.
-- Conservation du champ Ville.
-- « Fleurs appréciées » devient une question sur les fleurs premium stabilisées.
-- Bouquet S : 18 à 20 cm.
-- Bouquet M : 20 à 23 cm.
-- Toutes les fonctions de la V5.4.1 sont conservées.
+Déployer d’abord dans le dossier GitHub `test`, puis effectuer une création de demande avec un compte de test.
