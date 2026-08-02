@@ -2,8 +2,9 @@
 "use strict";
 
 var APP_VERSION="V5.5.0 PROD";
-var APP_VERSION_NOTE = "Suivi des mariages simplifié en quatre étapes : Préparation, Création, Livraison et Archives.";
+var APP_VERSION_NOTE = "Statuts des mariages recalculés automatiquement selon les devis, factures et paiements.";
 var APP_CHANGELOG = [
+  "V5.5.1 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
   "V5.5.0 PROD — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
   "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
@@ -5373,10 +5374,42 @@ function viewMariagePrestationsComplementaires(m){
   html+='<p class="muted" style="margin:10px 0 0;font-size:12px;">Ces catégories restent internes : elles ne s’affichent pas sur le devis ni sur la facture client.</p></div>';
   return html;
 }
+function mariageFacturesLiees(m){
+  if(!m) return [];
+  var devisId=m.devisLie||"";
+  return (state.factures||[]).filter(function(f){
+    if(!f) return false;
+    if(devisId && f.devisId===devisId) return true;
+    if(f.mariageId && f.mariageId===m.id) return true;
+    return false;
+  });
+}
+function mariageDevisLie(m){
+  if(!m) return null;
+  if(m.devisLie) return (state.devis||[]).find(function(d){return d.id===m.devisLie;})||null;
+  return null;
+}
 function mariageSimpleStatus(m,stage){
   if(stage==="archives") return {l:"Livré",c:"#3f5236",b:"#dbe6d2"};
   if(stage==="livraison") return {l:"Prêt à livrer",c:"var(--green)",b:"var(--green-s)"};
   if(stage==="creation") return {l:"En création",c:"var(--bordeaux)",b:"var(--blush-s)"};
+
+  var factures=mariageFacturesLiees(m);
+  var soldePaye=factures.some(function(f){return (f.type==="solde"||f.type==="totale") && f.statut==="payee";});
+  var acomptePaye=factures.some(function(f){return f.type==="acompte" && f.statut==="payee";});
+  var factureEnvoyee=factures.some(function(f){return f.statut==="envoyee";});
+  var factureCreee=factures.length>0;
+  var devis=mariageDevisLie(m);
+  var devisAccepte=!!(devis && devis.statut==="accepte");
+  var devisEnvoye=!!(m.devisEnvoye || (devis && devis.statut && devis.statut!=="brouillon"));
+
+  // Le statut le plus avancé prime toujours sur l'ancien statut manuel de la fiche.
+  if(soldePaye) return {l:"Payé",c:"var(--green)",b:"var(--green-s)"};
+  if(acomptePaye) return {l:"Acompte payé",c:"var(--bordeaux)",b:"var(--blush-s)"};
+  if(factureEnvoyee) return {l:"Facture envoyée",c:"#6a5a2a",b:"#f3ead0"};
+  if(factureCreee && devisAccepte) return {l:"Facture créée",c:"#6a5a2a",b:"#f3ead0"};
+  if(devisAccepte) return {l:"Devis accepté",c:"var(--green)",b:"var(--green-s)"};
+  if(devisEnvoye) return {l:"Devis envoyé",c:"#6a5a2a",b:"#f3ead0"};
   return STATUT_MAR[m.statut]||STATUT_MAR.contact;
 }
 function mariageCardHTML(m){

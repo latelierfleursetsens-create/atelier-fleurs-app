@@ -1,4 +1,4 @@
-# Installation V5.5.0 PROD
+# Installation V5.5.1 PROD
 
 1. Sauvegarder la version de production actuelle.
 2. Copier le contenu de cette archive à la racine du dépôt GitHub de production.
