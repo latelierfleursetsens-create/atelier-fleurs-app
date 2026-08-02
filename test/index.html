@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>MyBusiness — V5.3.0 SECURITY TEST</title>
+<title>MyBusiness — V5.3.1 SECURITY TEST</title>
 <!-- Version PROD V4.2.1 MODULAIRE : correctif fiche mariage / devis -->
 <!-- Version PROD V3.7.1 MODULAIRE : photos d’inspiration pendant le RDV et dans la fiche mariage -->
 <!-- Version PROD V3.6.3 MODULAIRE : CRM Mariage en onglets + retrait du bouton Nouvelle cliente -->
@@ -38,15 +38,7 @@
       Se connecter avec Google
     </button>
     <p class="muted" style="font-size:12px;text-align:center;margin:10px 0 15px;line-height:1.4;">Connexion administrateur protégée par la validation en deux étapes et les alertes de sécurité de ton compte Google.</p>
-    <details id="legacyLoginBox" style="border-top:1px solid var(--line);padding-top:12px;">
-      <summary style="cursor:pointer;color:var(--ink-s);font-size:12px;text-align:center;">Première activation : utiliser encore mon ancien mot de passe</summary>
-      <div style="margin-top:14px;">
-        <label class="field"><span>Email</span><input id="loginEmail" type="email" autocomplete="username"></label>
-        <label class="field"><span>Mot de passe</span><input id="loginPwd" type="password" autocomplete="current-password"></label>
-        <label style="display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:12px;cursor:pointer;"><input type="checkbox" id="rememberMe" checked style="width:18px;height:18px;"> Se souvenir de moi sur cet appareil</label>
-        <button class="btn soft" data-action="do-login" style="width:100%;">Continuer pour sécuriser mon compte</button>
-      </div>
-    </details>
+    <div style="display:flex;justify-content:center;margin:0 0 12px;"><span style="display:inline-flex;align-items:center;gap:6px;background:#eef7f0;color:#28743b;border:1px solid #bfe0c7;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:700;">✓ Connexion sécurisée Google</span></div>
     <p class="muted" style="font-size:11px;text-align:center;margin:12px 0 0;">Tes données sont chiffrées et privées, accessibles uniquement avec ton compte administrateur autorisé.</p>
   </div>
 </div>
@@ -68,6 +60,7 @@
 <div id="appwrap" style="display:none;">
 <div class="topbar">
   <span id="cloudStatus">☁️ Connexion…</span>
+  <span style="margin-left:10px;display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:5px 9px;font-size:11px;color:#fff;">🔐 Google sécurisé</span>
   <span style="flex:1"></span>
   <button class="btn small ghost" data-action="cloud-backup" style="color:#fff;border-color:rgba(255,255,255,.4);">Sauvegarde fichier</button>
   <button class="btn small soft" data-action="do-logout">Se déconnecter</button>

@@ -1,3 +1,14 @@
+# Installation V5.3.1 SECURITY TEST
+
+1. Vérifier que Google est activé dans Firebase Authentication.
+2. Vérifier que `latelierfleursetsens-create.github.io` figure dans les domaines autorisés.
+3. Remplacer les fichiers du dossier GitHub `test`.
+4. Publier les nouvelles règles Firestore contenues dans `firestore.rules`.
+5. Ouvrir la version test et effectuer Ctrl + F5.
+6. Se connecter exclusivement avec le compte Google administrateur.
+
+La session est fermée automatiquement après 30 minutes sans activité.
+
 # Installation V5.3.0 SECURITY TEST
 
 ## 1 — Activer Google dans Firebase

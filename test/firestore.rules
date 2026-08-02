@@ -17,6 +17,12 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
+    match /adminSecurityLogs/{logId} {
+      allow create: if isAdmin() && request.resource.data.uid == request.auth.uid;
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
     match /clientProfiles/{uid} {
       allow create, read, update: if isOwner(uid);
       allow read: if isAdmin();

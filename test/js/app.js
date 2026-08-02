@@ -1,7 +1,7 @@
 /* V5.0.5 TEST — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.3.0 SECURITY TEST";
+var APP_VERSION="V5.3.1 SECURITY TEST";
 var APP_VERSION_NOTE = "Espace client Firebase sécurisé : compte personnel, projet, inspirations, devis et factures.";
 var APP_CHANGELOG = [
   "V5.0.5 TEST — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -517,6 +517,63 @@ async function googleDriveRestoreLatest(){
 }
 
 function updateDirty(){}
+/* sécurité de session administrateur */
+var ADMIN_INACTIVITY_MS=30*60*1000;
+var adminInactivityTimer=null;
+var adminActivityBound=false;
+function browserLabel(){
+  var ua=navigator.userAgent||"";
+  if(/Edg\//.test(ua)) return "Microsoft Edge";
+  if(/OPR\//.test(ua)) return "Opera";
+  if(/Chrome\//.test(ua)) return "Google Chrome";
+  if(/Firefox\//.test(ua)) return "Mozilla Firefox";
+  if(/Safari\//.test(ua) && !/Chrome\//.test(ua)) return "Safari";
+  return "Navigateur inconnu";
+}
+function osLabel(){
+  var ua=navigator.userAgent||"", p=navigator.platform||"";
+  if(/Windows NT 10/.test(ua)) return "Windows 10/11";
+  if(/Windows/.test(ua)) return "Windows";
+  if(/iPhone|iPad|iPod/.test(ua)) return "iOS/iPadOS";
+  if(/Android/.test(ua)) return "Android";
+  if(/Mac/.test(p)) return "macOS";
+  if(/Linux/.test(p)) return "Linux";
+  return "Système inconnu";
+}
+function writeAdminSecurityLog(type,status,details){
+  var user=auth.currentUser;
+  if(!user) return Promise.resolve();
+  return db.collection("adminSecurityLogs").add({
+    uid:user.uid,
+    email:user.email||"",
+    type:type||"connexion",
+    status:status||"ok",
+    details:details||"",
+    browser:browserLabel(),
+    os:osLabel(),
+    userAgent:navigator.userAgent||"",
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function(e){ console.warn("Journal de sécurité non enregistré",e); });
+}
+function resetAdminInactivityTimer(){
+  if(!auth.currentUser || !userHasProvider(auth.currentUser, firebase.auth.GoogleAuthProvider.PROVIDER_ID)) return;
+  clearTimeout(adminInactivityTimer);
+  adminInactivityTimer=setTimeout(function(){
+    writeAdminSecurityLog("deconnexion_automatique","ok","30 minutes d’inactivité").finally(function(){
+      try{ sessionStorage.setItem("afs_session_expired","1"); }catch(e){}
+      auth.signOut();
+    });
+  },ADMIN_INACTIVITY_MS);
+}
+function startAdminInactivityProtection(){
+  resetAdminInactivityTimer();
+  if(adminActivityBound) return;
+  adminActivityBound=true;
+  ["click","keydown","mousemove","scroll","touchstart"].forEach(function(evt){
+    document.addEventListener(evt,resetAdminInactivityTimer,{passive:true});
+  });
+}
+function stopAdminInactivityProtection(){ clearTimeout(adminInactivityTimer); adminInactivityTimer=null; }
 /* connexion administrateur sécurisée Google */
 var googleProvider=new firebase.auth.GoogleAuthProvider();
 googleProvider.setCustomParameters({prompt:"select_account"});
@@ -567,8 +624,15 @@ function linkAdminToGoogle(){
 function showApp(){ hideAuthScreens(); var a=document.getElementById("appwrap"); if(a)a.style.display="block"; }
 function showLogin(){
   hideAuthScreens();
+  stopAdminInactivityProtection();
   var l=document.getElementById("login"); if(l)l.style.display="flex";
-  try{ var em=localStorage.getItem("afs_remember_email"); var e=document.getElementById("loginEmail"); if(em && e && !e.value){ e.value=em; var p=document.getElementById("loginPwd"); if(p) p.focus(); } }catch(e){}
+  try{
+    if(sessionStorage.getItem("afs_session_expired")==="1"){
+      sessionStorage.removeItem("afs_session_expired");
+      var box=document.getElementById("loginErr");
+      if(box){ box.style.display="block"; box.textContent="Session fermée automatiquement après 30 minutes d’inactivité. Reconnecte-toi avec Google."; }
+    }
+  }catch(e){}
 }
 function doLogin(){
   var email=(val("loginEmail")||"").trim(), pwd=val("loginPwd"); var err=document.getElementById("loginErr");
@@ -7510,6 +7574,14 @@ auth.onAuthStateChanged(function(user){
         return;
       }
       showApp();
+      startAdminInactivityProtection();
+      try{
+        var logKey="afs_login_logged_"+user.uid;
+        if(sessionStorage.getItem(logKey)!=="1"){
+          sessionStorage.setItem(logKey,"1");
+          writeAdminSecurityLog("connexion_google","ok","Session administrateur validée");
+        }
+      }catch(e){}
       loadCache();   // affichage instantané depuis le cache local
       render();
       startSync(user.uid);  // puis synchro temps réel avec le cloud
@@ -7521,7 +7593,11 @@ auth.onAuthStateChanged(function(user){
       try{ auth.signOut(); }catch(e){}
       showLogin();
       var box=document.getElementById("loginErr");
-      if(box){ box.textContent=err&&err.message?err.message:"Accès administrateur refusé."; box.style.display="block"; }
+      if(box){
+        var raw=err&&err.message?err.message:"Accès administrateur refusé.";
+        box.textContent=raw.indexOf("autorisé")>=0 ? "Ce compte Google n’est pas autorisé à administrer MyBusiness. Utilise uniquement le compte Google administrateur." : raw;
+        box.style.display="block";
+      }
     });
   } else {
     showLogin();

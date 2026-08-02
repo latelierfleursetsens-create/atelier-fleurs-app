@@ -1,3 +1,20 @@
+# MyBusiness V5.3.1 SECURITY TEST
+
+## Sécurité administrateur
+- Connexion administrateur uniquement avec Google.
+- Validation en deux étapes et alertes de connexion gérées par Google.
+- Refus automatique des comptes Google non autorisés par le document `admins/{uid}`.
+- Déconnexion automatique après 30 minutes d’inactivité.
+- Journal des connexions réussies et des déconnexions automatiques dans `adminSecurityLogs`.
+- Badge visuel « Connexion sécurisée Google ».
+
+## Mise en place
+1. Mettre les fichiers dans le dossier GitHub `test`.
+2. Publier également `firestore.rules` afin d’autoriser le journal de sécurité.
+3. Recharger avec Ctrl + F5.
+
+Le portail cliente conserve sa connexion e-mail/mot de passe.
+
 # MyBusiness V5.3.0 SECURITY TEST
 
 ## Sécurité administrateur renforcée
