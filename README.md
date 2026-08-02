@@ -1,22 +1,10 @@
-# MyBusiness — V5.4.7 PROD
+# MyBusiness — V5.5.0 PROD
 
-Version de production validée avec :
+Version de production avec suivi des mariages simplifié :
 
-- portail client sécurisé ;
-- création et validation des demandes mariage ;
-- inspirations avec affichage plein écran ;
-- publication des devis et factures dans l’espace client ;
-- validation des devis en ligne ;
-- notifications e-mail ;
-- connexion administrateur sécurisée avec Google.
+- Préparation
+- Création
+- Livraison
+- Archives
 
-## Fichiers principaux
-
-- `index.html` : MyBusiness administrateur
-- `espace-client.html` : espace mariage client
-- `portail-mariage.html` : redirection vers l’espace client
-- `firestore.rules` et `storage.rules` : règles Firebase validées
-
-
-## V5.4.7 PROD
-- Classement des demandes mariage en trois onglets : nouvelles demandes, transformées en mariage, sans suite / annulées.
+Les fiches sont triées automatiquement par date de livraison.

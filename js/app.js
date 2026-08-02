@@ -1,9 +1,10 @@
 /* V5.0.5 — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.4.7 PROD";
-var APP_VERSION_NOTE = "Publication automatique des devis et factures PDF dans l’espace client sécurisé.";
+var APP_VERSION="V5.5.0 PROD";
+var APP_VERSION_NOTE = "Suivi des mariages simplifié en quatre étapes : Préparation, Création, Livraison et Archives.";
 var APP_CHANGELOG = [
+  "V5.5.0 PROD — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
   "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
   "V5.0.2 — Synchronisation portail : la fiche mariage et le devis reprennent uniquement les créations choisies par la future mariée.",
@@ -96,7 +97,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -1768,9 +1769,11 @@ function mariageReady(m){
 }
 function mariageTermine(m){ return !!(m && (m.livre || m.statut==="realise")); }
 function mariageGroupKey(m){
-  if(mariageTermine(m)) return "terminee";
-  if(mariageReady(m)) return "prete";
-  return "realiser";
+  if(mariageTermine(m)) return "archives";
+  if(mariageReady(m)) return "livraison";
+  var arts=m&&m.articles?m.articles:[];
+  if(arts.some(function(a){return !!a.fait;})) return "creation";
+  return "preparation";
 }
 
 
@@ -5370,70 +5373,63 @@ function viewMariagePrestationsComplementaires(m){
   html+='<p class="muted" style="margin:10px 0 0;font-size:12px;">Ces catégories restent internes : elles ne s’affichent pas sur le devis ni sur la facture client.</p></div>';
   return html;
 }
-function mariageCardHTML(m){
-  var cd=mariageCountdown(m), st=STATUT_MAR[m.statut]||STATUT_MAR.contact;
-  var prog=mariageWorkflowStats(m);
-  var faits=(m.articles||[]).filter(function(a){return a.fait;}).length, totA=(m.articles||[]).length;
-  var ref=mariageDateRef(m);
-  return '<div class="card"><div class="flexb"><div>'+
-    '<div style="font-weight:700;color:var(--bordeaux);font-size:16px;">'+esc(m.nom||"(sans nom)")+'</div>'+
-    '<div class="muted">'+(m.dateMariage?'Mariage : '+frDate(m.dateMariage):"date mariage à définir")+(m.dateLivraison?' · Livraison : '+frDate(m.dateLivraison):"")+(m.modeLivraison?' · '+esc(m.modeLivraison):"")+(m.canalCommunication?' · Canal : '+esc(m.canalCommunication):"")+(m.lieu?" · "+esc(m.lieu):"")+'</div></div>'+
-    '<div style="text-align:right;"><span class="pill" style="background:'+st.b+';color:'+st.c+';">'+(mariageTermine(m)?"Terminée":st.l)+'</span>'+
-    '<div style="font-weight:700;color:'+cd.c+';margin-top:4px;">'+(ref?cd.txt:"date livraison à définir")+'</div></div></div>'+
-    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center;">'+
-      '<span class="chip">Suivi : '+prog.done+'/'+prog.total+' · '+prog.pct+' %</span>'+
-      '<span class="chip">Articles : '+faits+'/'+totA+' faits</span>'+
-      '<span class="chip">Devis '+(m.devisEnvoye?"✓ envoyé":"— non envoyé")+'</span>'+
-      '<span class="chip">Facture '+(m.factureEnvoyee?"✓ envoyée":"— non envoyée")+'</span>'+
-      (mariageReady(m)&&!mariageTermine(m)?'<span class="chip">✅ Prête à livrer</span>':'')+
-      (mariageTermine(m)?'<span class="chip">📦 Livrée</span>':'')+
-      ((m.medias&&m.medias.length)?'<span class="chip">📎 '+m.medias.length+'</span>':'')+
-      (relanceDue(m)?'<span class="alert">⏰ À relancer</span>':'')+
-    '</div>'+
-    '<div class="row-actions"><button class="btn small gold" data-action="mar-open-'+m.id+'">Ouvrir la fiche</button>'+
-      (mariageReady(m)&&!mariageTermine(m)?'<button class="btn small primary" data-action="mar-livre-'+m.id+'">Marquer livrée</button>':'')+
-    '</div></div>';
+function mariageSimpleStatus(m,stage){
+  if(stage==="archives") return {l:"Livré",c:"#3f5236",b:"#dbe6d2"};
+  if(stage==="livraison") return {l:"Prêt à livrer",c:"var(--green)",b:"var(--green-s)"};
+  if(stage==="creation") return {l:"En création",c:"var(--bordeaux)",b:"var(--blush-s)"};
+  return STATUT_MAR[m.statut]||STATUT_MAR.contact;
 }
-function viewMariageGroup(key,label,list,openDefault){
-  ui.mariageGroups=ui.mariageGroups||{};
-  var open=ui.mariageGroups[key]; if(open===undefined) open=openDefault;
-  var html='<div class="card" style="padding:0;overflow:hidden;">'+
-    '<button data-action="mar-group-toggle-'+key+'" style="width:100%;border:none;background:'+(key==="prete"?"var(--green-s)":key==="terminee"?"#efe7df":"var(--blush-s)")+';padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
-    '<div class="flexb"><div style="font-weight:800;color:var(--bordeaux);">'+(open?'▾':'▸')+' '+esc(label)+' <span class="muted">('+list.length+')</span></div></div></button>';
-  if(open){
-    html+='<div style="padding:12px 12px 2px;">';
-    if(!list.length) html+='<p class="muted" style="margin:0 0 10px;">Aucune fiche dans cette catégorie.</p>';
-    list.forEach(function(m){ html+=mariageCardHTML(m); });
-    html+='</div>';
-  }
-  html+='</div>';
-  return html;
+function mariageCardHTML(m){
+  var stage=mariageGroupKey(m), st=mariageSimpleStatus(m,stage), cd=mariageCountdown(m);
+  var ref=mariageDateRef(m);
+  return '<div class="card" style="padding:16px 18px;"><div class="flexb" style="align-items:flex-start;"><div style="min-width:0;">'+
+    '<div style="font-weight:800;color:var(--bordeaux);font-size:17px;">'+esc(m.nom||"(sans nom)")+'</div>'+
+    '<div class="muted" style="margin-top:7px;">💒 Mariage : <b>'+(m.dateMariage?frDate(m.dateMariage):"à définir")+'</b></div>'+
+    '<div class="muted" style="margin-top:3px;">📦 Livraison : <b>'+(m.dateLivraison?frDate(m.dateLivraison):"à définir")+'</b></div></div>'+
+    '<div style="text-align:right;flex-shrink:0;margin-left:12px;"><span class="pill" style="background:'+st.b+';color:'+st.c+';">'+esc(st.l)+'</span>'+
+    '<div style="font-weight:800;color:'+cd.c+';margin-top:7px;">'+(ref?cd.txt:"—")+'</div></div></div>'+
+    '<div class="row-actions" style="margin-top:12px;"><button class="btn small gold" data-action="mar-open-'+m.id+'">Ouvrir la fiche</button></div></div>';
+}
+function mariageStageTabs(groups,current){
+  var tabs=[
+    {id:"preparation",label:"📋 Préparation"},
+    {id:"creation",label:"🌸 Création"},
+    {id:"livraison",label:"📦 Livraison"},
+    {id:"archives",label:"✅ Archives"}
+  ];
+  return '<div class="row-actions" style="margin-bottom:14px;">'+tabs.map(function(t){
+    return '<button class="btn small '+(current===t.id?'primary':'ghost')+'" data-action="mar-stage-'+t.id+'">'+t.label+' <span style="opacity:.75;">('+(groups[t.id]||[]).length+')</span></button>';
+  }).join('')+'</div>';
 }
 function viewMariages(){
   if(normalizePortalMarriageSelections()) saveCache();
   if(ui.mariageOpen) return viewMariageDetail(getMariage(ui.mariageOpen));
-  var header='<div class="flexb" style="margin-bottom:8px;"><h2 style="margin:0;">Suivi mariages</h2><div class="row-actions" style="margin:0;"><button class="btn primary" data-action="mar-rdv-start">🎯 Préparer mon rendez-vous</button></div></div>'+
-    '<div class="row-actions" style="margin-bottom:12px;">'+
-    '<button class="btn small '+(ui.mariageView==="fiches"?"primary":"ghost")+'" data-action="mar-view-fiches">Fiches</button>'+
-    '<button class="btn small '+(ui.mariageView==="preparer"?"primary":"ghost")+'" data-action="mar-view-preparer">À préparer</button>'+
-    '<button class="btn small '+(ui.mariageView==="rdv"?"primary":"ghost")+'" data-action="mar-rdv-start">Préparer RDV</button></div>';
-  if(ui.mariageView==="preparer") return header+viewPreparer();
+  var header='<div class="flexb" style="margin-bottom:12px;"><h2 style="margin:0;">Suivi mariages</h2><div class="row-actions" style="margin:0;"><button class="btn primary" data-action="mar-rdv-start">🎯 Préparer mon rendez-vous</button></div></div>';
+  if(ui.mariageView==="preparer") return header+'<div class="row-actions" style="margin-bottom:12px;"><button class="btn small ghost" data-action="mar-view-fiches">← Retour aux mariages</button></div>'+viewPreparer();
   if(ui.mariageView==="rdv") return header+viewMariageRdvWizard();
 
-  var list=state.mariages.slice();
-  if(ui.mariageFilter==="avenir") list=list.filter(function(m){ return !mariageTermine(m)&&m.statut!=="perdu"; });
+  var list=state.mariages.filter(function(m){ return m.statut!=="perdu"; });
   list.sort(function(a,b){ var da=mariageDateRef(a)||"9999", db=mariageDateRef(b)||"9999"; return da<db?-1:da>db?1:0; });
-  var groups={ realiser:[], prete:[], terminee:[] };
+  var groups={preparation:[],creation:[],livraison:[],archives:[]};
   list.forEach(function(m){ groups[mariageGroupKey(m)].push(m); });
 
-  var html=header+'<div class="row-actions" style="margin-bottom:14px;">'+
-    '<button class="btn small '+(ui.mariageFilter==="avenir"?"soft":"ghost")+'" data-action="mar-filter-avenir">À venir</button>'+
-    '<button class="btn small '+(ui.mariageFilter==="tous"?"soft":"ghost")+'" data-action="mar-filter-tous">Toutes</button></div>';
-  if(list.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucune fiche. Touchez « Nouvelle cliente » pour créer le dossier d\'un mariage.</p></div>'; return html; }
-  html+='<p class="muted" style="margin-top:-6px;">Les fiches sont classées automatiquement : à réaliser, prête à livrer quand tous les articles sont cochés, puis terminée après livraison.</p>';
-  html+=viewMariageGroup("realiser","À réaliser",groups.realiser,true);
-  html+=viewMariageGroup("prete","Prête à livrer",groups.prete,true);
-  html+=viewMariageGroup("terminee","Terminées / livrées",groups.terminee,false);
+  var current=ui.mariageStageFilter||"preparation";
+  if(!groups[current]) current="preparation";
+  ui.mariageStageFilter=current;
+  var labels={
+    preparation:"Dossiers à préparer avant le début de la fabrication.",
+    creation:"Mariages dont au moins une création a été commencée.",
+    livraison:"Toutes les créations sont terminées : il reste la remise, l’envoi ou la livraison.",
+    archives:"Mariages livrés et terminés."
+  };
+  var html=header+mariageStageTabs(groups,current);
+  html+='<p class="muted" style="margin-top:-5px;">'+labels[current]+' Classement par date de livraison, de la plus proche à la plus éloignée.</p>';
+  var visible=groups[current];
+  if(!visible.length){
+    html+='<div class="card"><p class="muted" style="margin:0;">Aucun mariage dans cette catégorie.</p></div>';
+    return html;
+  }
+  visible.forEach(function(m){ html+=mariageCardHTML(m); });
   return html;
 }
 function mariageDevisAccepte(m){
@@ -7274,6 +7270,11 @@ async function handleAction(action){
   if(action.indexOf("mar-rdv-media-open-")===0){ openRdvMedia(action.slice(19)); return; }
   if(action.indexOf("mar-rdv-media-del-")===0){ var rd=mariageRdvDraft(); captureMariageRdvDraft(); var rmid=action.slice(18); rd.medias=(rd.medias||[]).filter(function(x){return x.id!==rmid;}); render(); return; }
   if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); var selected=[],custom=[]; (crm.articles||[]).forEach(function(a){var canon=portailCreationCanonique(a.label||"");if(canon&&normName(canon)===normName(a.label||"")) selected.push(canon);else if(a.label) custom.push(a.label);}); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);}),creationSelections:selected,autreCreation:custom.join("\n")}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
+  if(action.indexOf("mar-stage-")===0){
+    var stage=action.slice(10);
+    if(["preparation","creation","livraison","archives"].indexOf(stage)>-1) ui.mariageStageFilter=stage;
+    render(); return;
+  }
   if(action==="mar-filter-avenir"){ ui.mariageFilter="avenir"; render(); return; }
   if(action==="mar-filter-tous"){ ui.mariageFilter="tous"; render(); return; }
   if(action==="mar-view-fiches"){ ui.mariageView="fiches"; render(); return; }
