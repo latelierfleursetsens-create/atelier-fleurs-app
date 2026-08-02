@@ -13,5 +13,13 @@ service firebase.storage {
         && request.resource.contentType.matches('image/.*');
       allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
     }
+
+    match /portalDocuments/{uid}/{allPaths=**} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAdmin()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow delete: if isAdmin();
+    }
   }
 }

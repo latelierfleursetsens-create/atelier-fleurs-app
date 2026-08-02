@@ -1,17 +1,21 @@
-/* V4.2.1 PROD MODULAIRE — Correctif synchronisation fiche mariage / devis. */
+/* V5.0.5 — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION = "PROD V4.2.1 MODULAIRE";
-var APP_VERSION_NOTE = "La modification des coordonnées d’une fiche mariage met à jour le devis lié sans jamais écraser ses prix. Un devis à 0 € est désormais protégé avant envoi.";
+var APP_VERSION="V5.4.6 PROD";
+var APP_VERSION_NOTE = "Publication automatique des devis et factures PDF dans l’espace client sécurisé.";
 var APP_CHANGELOG = [
+  "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
+  "V5.0.3 — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
+  "V5.0.2 — Synchronisation portail : la fiche mariage et le devis reprennent uniquement les créations choisies par la future mariée.",
+  "V5.0.1 — Correctif d’affichage et de conservation des photos d’inspiration du portail.",
   "V4.2.1 PROD — Correctif mariage : les coordonnées enregistrées sont propagées à la fiche cliente et au devis lié sans reconstruire les lignes tarifées.",
   "V4.2.1 PROD — Protection anti-devis à 0 € : conservation des prix lors des synchronisations et tentative de restauration depuis une facture ou commande liée avant envoi.",
   "V4.2.0 PROD — Ateliers multi-activités : plusieurs choix à une même date, capacité et tarif par choix, réservations et stock ventilés par activité.",
   "V4.2.0 PROD — Correction du compteur réservé/capacité et du badge COMPLET pour les ateliers privés.",
-  "V4.1.3 TEST — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
-  "V4.1.2 TEST — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
-  "V4.1.1 TEST — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
-  "V4.1.0 TEST — Nouveaux ateliers visibles dans les réservations site, séparation paiements atelier / ventes indépendantes, suivi des places et suppression du double affichage du CA.",
+  "V4.1.3 — Affichage des participantes Squarespace dans tous les types d’ateliers et réparation automatique des liens manquants.",
+  "V4.1.2 — Modification des encaissements Squarespace depuis l’historique et recalcul automatique du bon atelier.",
+  "V4.1.1 — Tous les ateliers non annulés visibles, nombre de places par commande, calcul acompte/total et décompte exact des places.",
+  "V4.1.0 — Nouveaux ateliers visibles dans les réservations site, séparation paiements atelier / ventes indépendantes, suivi des places et suppression du double affichage du CA.",
   "V4.0.9 PROD — Ajout d’un tarif par personne pour les ateliers thématiques site et calcul automatique du montant de référence à partir du nombre de participants prévu.",
   "V4.0.8 PROD — Finances devient la source unique des montants à encaisser ; retrait des synthèses financières dans Ateliers et exclusion des devis en attente de validation.",
   "V4.0.7 PROD — Ajout dans Finances des montants à encaisser Ateliers, Mariages et Total, avec tableau détaillé des dossiers.",
@@ -83,7 +87,7 @@ var DEFAULT_SETTINGS = {
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
-  mailMessageDevis:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>devis</strong> relatif à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance. Si vous avez la moindre question, je reste bien entendu à votre disposition.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
+  mailMessageDevis:"<p>Bonjour {client},</p>\n<p>Veuillez trouver ci-joint votre devis.</p>\n<p>Si vous avez effectué votre demande via <strong>Mon espace mariage</strong>, votre devis est désormais également disponible dans votre espace client sécurisé.</p>\n<p>Depuis cet espace, vous pouvez :</p>\n<ul><li>consulter votre devis à tout moment ;</li><li>retrouver l’ensemble des documents liés à votre projet ;</li><li>suivre l’avancement de votre dossier ;</li><li><strong>valider votre devis directement en ligne</strong>, sans avoir à l’imprimer ni à le renvoyer signé.</li></ul>\n<p>Une fois votre devis validé, vous recevrez automatiquement un e-mail de confirmation.</p>\n<p>Si vous avez la moindre question concernant votre projet floral, je reste naturellement à votre disposition.</p>\n<p>Au plaisir de vous accompagner dans la création de votre projet floral,</p>\n<p>🌸 <strong>Élodie ROUZE</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
   mailMessageFacture:"<p>Bonjour {client},</p>\n<p>J'espère que vous allez bien.</p>\n<p>Je vous prie de trouver ci-joint votre <strong>facture</strong> relative à votre commande auprès de <strong>L'Atelier Fleurs & Sens</strong>.</p>\n<p>Je vous remercie chaleureusement pour votre confiance.</p>\n<p>Bien chaleureusement,</p>\n<p><strong>Élodie Rouzé</strong><br><strong>L'Atelier Fleurs & Sens</strong><br>🌿 Des fleurs, des émotions, un instant pour soi<br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</p>",
   mailMessageRelance:"Bonjour {client},\n\nJe me permets de revenir vers vous concernant le devis {numero}.\nN'hésitez pas à me dire si vous avez des questions ou besoin d'un ajustement.\n\nBien chaleureusement,\nÉlodie",
   prestationsBibliotheque:DEFAULT_PRESTATIONS_BIBLIOTHEQUE.map(function(p){ return Object.assign({},p); }),
@@ -91,8 +95,8 @@ var DEFAULT_SETTINGS = {
 };
 
 /* ===================== État ===================== */
-var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
+var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, mariageFilter:"avenir", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -162,17 +166,275 @@ var firebaseConfig={ apiKey:"AIzaSyCPuUcFt99zQsUI1lBDSEZkX-RJHtgs5BY", authDomai
 firebase.initializeApp(firebaseConfig);
 var auth=firebase.auth();
 var db=firebase.firestore();
+var storage=firebase.storage();
 try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
-var docRef=null, cloudTimer=null;
+var docRef=null, cloudTimer=null, lastLocalMutationAt=0;
 
-function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, stockItems:state.stockItems, _meta:{savedAt:new Date().toISOString()} }; }
-function serializeCloud(){ var d=serialize(); d.mariages=(d.mariages||[]).map(function(m){ var c=Object.assign({},m); c.medias=[]; return c; }); return d; }
+var portalProjectsUnsub=null, portalDocumentsUnsub=null;
+function portalDateISO(v){
+  if(!v) return "";
+  if(typeof v==="string") return v;
+  try{ if(v.toDate) return v.toDate().toISOString(); }catch(e){}
+  if(typeof v.seconds==="number") return new Date(v.seconds*1000).toISOString();
+  if(v instanceof Date) return v.toISOString();
+  return String(v||"");
+}
+function portalProjectToDemande(doc){
+  var x=doc.data()||{};
+  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",souhaiteRdvTelephonique:x.souhaiteRdvTelephonique||"",rdvDateSouhaitee:x.rdvDateSouhaitee||"",rdvHeureSouhaitee:x.rdvHeureSouhaitee||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:portalDateISO(x.createdAt)||new Date().toISOString(),updatedAt:portalDateISO(x.updatedAt),securePortal:true};
+}
+function startSecurePortalRequests(){
+  if(portalProjectsUnsub) portalProjectsUnsub();
+  portalProjectsUnsub=db.collection("portalProjects").onSnapshot(function(qs){
+    if(!Array.isArray(state.demandesMariage)) state.demandesMariage=[];
+    var incoming=[]; qs.forEach(function(doc){ incoming.push(portalProjectToDemande(doc)); });
+    var secureIds={}; incoming.forEach(function(x){secureIds[x.id]=true;});
+    state.demandesMariage=state.demandesMariage.filter(function(x){return !x.securePortal || secureIds[x.id];});
+    incoming.forEach(function(x){
+      var i=state.demandesMariage.findIndex(function(d){return d.id===x.id;});
+      if(i>=0){ var old=state.demandesMariage[i]; x.statut=old.statut||x.statut; state.demandesMariage[i]=Object.assign({},old,x); }
+      else state.demandesMariage.unshift(x);
+    });
+    try{render();}catch(e){}
+  },function(err){console.error("Lecture portail sécurisé impossible",err);});
+}
+function startSecurePortalDocumentDecisions(){
+  if(portalDocumentsUnsub) portalDocumentsUnsub();
+  portalDocumentsUnsub=db.collection("portalDocuments").where("kind","==","devis").onSnapshot(async function(qs){
+    var changed=false;
+    qs.forEach(function(doc){
+      var x=doc.data()||{};
+      if(!x.sourceId||!x.clientDecision) return;
+      var d=(state.devis||[]).find(function(v){return v.id===x.sourceId;});
+      if(!d) return;
+      if(x.clientDecision==="accepted" && d.statut!=="accepte"){
+        d.statut="accepte";
+        d.accepteParClienteLe=x.clientDecisionAt&&x.clientDecisionAt.toDate?x.clientDecisionAt.toDate().toISOString():new Date().toISOString();
+        d.accepteParClienteNom=x.clientDecisionName||"";
+        d.accepteParClienteEmail=x.clientDecisionEmail||"";
+        d.validationPortail=true;
+        changed=true;
+      }
+      if(x.clientDecision==="changes_requested"){
+        var note="Modification demandée depuis l’espace client"+(x.clientDecisionMessage?" : "+x.clientDecisionMessage:"");
+        if(d.demandeModificationPortail!==note){ d.demandeModificationPortail=note; changed=true; }
+      }
+    });
+    if(changed){
+      saveCache();
+      try{ await saveCloudNow(); }catch(syncErr){ console.error("Sauvegarde de la validation portail impossible",syncErr); }
+      try{render();}catch(e){}
+    }
+  },function(err){console.error("Lecture validations portail impossible",err);});
+}
+function clientSafeLines(lines){return (Array.isArray(lines)?lines:[]).map(function(l){return {description:l.description||l.label||"",quantite:Number(l.quantite||l.qte||1),prix:Number(l.prix||l.prixUnitaire||0),total:Number(l.total||0)};});}
+
+function portalDocSafeName(value){
+  return String(value||"document").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9._-]+/gi,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").toLowerCase();
+}
+function portalPdfBlob(base64){
+  var raw=atob(String(base64||""));
+  var bytes=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+  return new Blob([bytes],{type:"application/pdf"});
+}
+function portalDocumentAmount(kind,doc){
+  if(kind==="facture" && doc.montant!=null) return Number(doc.montant)||0;
+  return Number(totals(doc.lignes||[],state.settings.partService).total||0);
+}
+async function portalDocumentOwner(kind,doc){
+  var mariage=findLinkedMariageForDoc(kind,doc);
+  if(mariage&&mariage.ownerUid) return {ownerUid:mariage.ownerUid,mariage:mariage};
+  var email=String(doc&&doc.client&&doc.client.email||"").trim().toLowerCase();
+  if(email){
+    var qs=await db.collection("portalProjects").where("email","==",email).limit(1).get();
+    if(!qs.empty){
+      var first=qs.docs[0], data=first.data()||{};
+      return {ownerUid:data.ownerUid||first.id,mariage:mariage||null};
+    }
+  }
+  return {ownerUid:"",mariage:mariage||null};
+}
+async function publishDocumentToClientPortal(kind,doc,pdf64){
+  if(!auth.currentUser) throw new Error("Connexion administrateur requise pour publier le document.");
+  var target=await portalDocumentOwner(kind,doc);
+  if(!target.ownerUid) throw new Error("Aucun espace client n’est relié à ce document.");
+  if(!pdf64||String(pdf64).length<1000) throw new Error("Le PDF à publier est vide.");
+
+  var fileName=docFileName(kind,doc);
+  var storagePath="portalDocuments/"+target.ownerUid+"/"+portalDocSafeName(kind+"-"+(doc.id||doc.numero||"document"))+".pdf";
+  var storageRef=storage.ref().child(storagePath);
+  await storageRef.put(portalPdfBlob(pdf64),{
+    contentType:"application/pdf",
+    customMetadata:{
+      ownerUid:target.ownerUid,
+      kind:kind,
+      sourceId:String(doc.id||""),
+      numero:String(doc.numero||"")
+    }
+  });
+  var pdfUrl=await storageRef.getDownloadURL();
+  var payload={
+    ownerUid:target.ownerUid,
+    kind:kind,
+    sourceId:doc.id||"",
+    numero:doc.numero||"",
+    date:doc.date||"",
+    echeance:doc.echeance||"",
+    statut:doc.statut||(kind==="devis"?"envoye":"envoyee"),
+    montant:portalDocumentAmount(kind,doc),
+    lignes:clientSafeLines(doc.lignes),
+    visibleClient:true,
+    fileName:fileName,
+    storagePath:storagePath,
+    pdfUrl:pdfUrl,
+    publishedAt:firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await db.collection("portalDocuments").doc(kind+"_"+doc.id).set(payload,{merge:true});
+
+  doc.portalPublished=true;
+  doc.portalPublishedAt=new Date().toISOString();
+  doc.portalPdfUrl=pdfUrl;
+  doc.portalStoragePath=storagePath;
+  doc.portalFileName=fileName;
+  delete doc.portalPublishError;
+  if(target.mariage&&!target.mariage.ownerUid) target.mariage.ownerUid=target.ownerUid;
+  return payload;
+}
+
+function publishSecureClientSpaces(){
+  if(!auth.currentUser) return Promise.resolve();
+  var jobs=[];
+  (state.mariages||[]).forEach(function(m){
+    if(!m||!m.ownerUid) return;
+    var devis=m.devisLie?(state.devis||[]).find(function(d){return d.id===m.devisLie;}):null;
+    var facts=devis?(state.factures||[]).filter(function(f){return f.devisId===devis.id;}):[];
+    var project={ownerUid:m.ownerUid,prenom:(m.nom||"").split(" ")[0]||"",nom:m.nom||"",email:m.email||"",tel:m.tel||"",dateMariage:m.dateMariage||"",dateLivraison:m.dateLivraison||"",modeLivraison:m.modeLivraison||"",lieu:m.lieu||"",theme:m.theme||"",budget:m.budget||"",besoins:m.besoins||"",synthese:m.synthese||"",statutClient:m.statut||"contact",updatedAt:firebase.firestore.FieldValue.serverTimestamp(),ficheCreee:true,mariageId:m.id};
+    jobs.push(db.collection("portalProjects").doc(m.ownerUid).set(project,{merge:true}));
+    if(devis && ["envoye","accepte","refuse"].indexOf(devis.statut||"")>=0){
+      var td=totals(devis.lignes||[],state.settings.partService);
+      var quotePortal={ownerUid:m.ownerUid,kind:"devis",sourceId:devis.id,numero:devis.numero||"",date:devis.date||"",statut:devis.statut||"envoye",montant:Number(td.total||0),lignes:clientSafeLines(devis.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+      if(devis.portalPdfUrl) quotePortal.pdfUrl=devis.portalPdfUrl;
+      if(devis.portalStoragePath) quotePortal.storagePath=devis.portalStoragePath;
+      if(devis.portalFileName) quotePortal.fileName=devis.portalFileName;
+      jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set(quotePortal,{merge:true}));
+    }
+    facts.filter(function(f){return ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
+      var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+      if(f.portalPdfUrl) invoicePortal.pdfUrl=f.portalPdfUrl;
+      if(f.portalStoragePath) invoicePortal.storagePath=f.portalStoragePath;
+      if(f.portalFileName) invoicePortal.fileName=f.portalFileName;
+      jobs.push(db.collection("portalDocuments").doc("facture_"+f.id).set(invoicePortal,{merge:true}));
+    });
+  });
+  return Promise.all(jobs).catch(function(e){console.error("Publication espace client impossible",e);});
+}
+
+
+function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, demandesMariage:state.demandesMariage, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, stockItems:state.stockItems, _meta:{savedAt:new Date().toISOString()} }; }
+function serializeCloud(){
+  var d=serialize();
+  // Les images base64 peuvent dépasser la limite Firestore. Elles restent locales et ne doivent
+  // jamais empêcher l’enregistrement des fiches, clients, devis ou demandes.
+  d.mariages=(d.mariages||[]).map(function(m){
+    var c=Object.assign({},m);
+    c.medias=(m.medias||[]).filter(function(md){
+      var src=md&&(md.dataUrl||md.data||"");
+      return /^https?:\/\//i.test(src);
+    }).map(function(md){return Object.assign({},md,{data:undefined});});
+    return c;
+  });
+  d.demandesMariage=(d.demandesMariage||[]).map(function(x){ var c=Object.assign({},x); c.photos=[]; return c; });
+  return d;
+}
+
+function portalRequestsLocalRead(){
+  try{
+    var list=JSON.parse(localStorage.getItem("afs_portal_requests")||"[]");
+    return Array.isArray(list)?list:[];
+  }catch(e){ return []; }
+}
+function portalRequestLocalById(id){
+  if(!id) return null;
+  return portalRequestsLocalRead().find(function(x){return x&&x.id===id;})||null;
+}
+function portalPhotosToMariageMedias(photos){
+  return (Array.isArray(photos)?photos:[]).map(function(p){
+    var obj=(p&&typeof p==="object")?p:{};
+    var src=obj.url||obj.downloadURL||obj.dataUrl||obj.data||String(p||"");
+    if(!src) return null;
+    var mime=obj.mimeType||obj.contentType||obj.type||"image";
+    var mediaType=String(mime).indexOf("image")===0||/^https?:/i.test(src)?"image":mime;
+    return {id:obj.mediaId||obj.id||uid(),name:obj.name||"Inspiration portail",type:mediaType,dataUrl:src,storagePath:obj.path||obj.storagePath||"",source:"portal"};
+  }).filter(Boolean);
+}
+function restorePortalMarriageMedias(){
+  if(!Array.isArray(state.mariages)) return 0;
+  var localRequests=portalRequestsLocalRead();
+  var byId={};
+  localRequests.forEach(function(d){if(d&&d.id) byId[d.id]=d;});
+  (state.demandesMariage||[]).forEach(function(d){if(d&&d.id) byId[d.id]=d;});
+  var restored=0;
+  state.mariages.forEach(function(m){
+    if(!m||!m.sourceDemandeId) return;
+    var d=byId[m.sourceDemandeId];
+    var incoming=portalPhotosToMariageMedias(d&&d.photos);
+    if(!incoming.length) return;
+    m.medias=Array.isArray(m.medias)?m.medias:[];
+    var known={};
+    m.medias.forEach(function(md){known[(md.storagePath||md.dataUrl||md.data||md.id||"")]=true;});
+    var added=0;
+    incoming.forEach(function(md){
+      var key=md.storagePath||md.dataUrl||md.id;
+      if(!known[key]){m.medias.push(md);known[key]=true;added++;}
+    });
+    if(added) restored+=added;
+  });
+  return restored;
+}
+
+function pendingMariagesRead(){
+  try{ var a=JSON.parse(localStorage.getItem("afs_pending_mariages")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+}
+function pendingMariagesWrite(list){
+  try{ localStorage.setItem("afs_pending_mariages",JSON.stringify(list||[])); }catch(e){ console.error("Sauvegarde de secours mariage impossible",e); }
+}
+function pendingMariageForget(id){
+  if(!id) return;
+  pendingMariagesWrite(pendingMariagesRead().filter(function(x){return x&&x.id!==id;}));
+}
+function pendingMariagesMarkSaved(){
+  // Les secours ne servent que jusqu'à la confirmation d'une sauvegarde cloud réussie.
+  // Les conserver après synchronisation recréerait une fiche supprimée lors d'un prochain chargement.
+  pendingMariagesWrite([]);
+}
+function pendingMariageRemember(m){
+  if(!m||!m.id) return;
+  var light=Object.assign({},m); light.medias=[];
+  var list=pendingMariagesRead().filter(function(x){return x&&x.id!==light.id;});
+  list.unshift(light); pendingMariagesWrite(list.slice(0,30));
+}
+function mergePendingMariages(){
+  var pending=pendingMariagesRead();
+  if(!pending.length) return;
+  if(!Array.isArray(state.mariages)) state.mariages=[];
+  pending.forEach(function(m){ if(m&&m.id&&!state.mariages.some(function(x){return x&&x.id===m.id;})) state.mariages.unshift(m); });
+}
 function applyData(d){
   if(!d) return;
-  state.settings=Object.assign({},DEFAULT_SETTINGS,d.settings||{});
+  var savedSettings=d.settings||{};
+  state.settings=Object.assign({},DEFAULT_SETTINGS,savedSettings);
+  // Migration V5.4.5 : applique le nouveau texte du mail devis aux anciens modèles standard.
+  var ancienMailDevis=String(savedSettings.mailMessageDevis||"");
+  if(!ancienMailDevis || (ancienMailDevis.indexOf("Je vous prie de trouver ci-joint votre <strong>devis</strong>")>=0 && ancienMailDevis.indexOf("Mon espace mariage")<0)){
+    state.settings.mailMessageDevis=DEFAULT_SETTINGS.mailMessageDevis;
+  }
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
-  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
+  state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.demandesMariage=d.demandesMariage||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
+  mergePendingMariages();
+  restorePortalMarriageMedias();
   normalizeSiteSalesData();
   reconcileSiteSaleParticipants();
 }
@@ -221,7 +483,14 @@ function saveTodoCloudDelayed(){
 }
 
 function saveCache(){
-  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
+  lastLocalMutationAt=Date.now();
+  try{
+    localStorage.setItem("afs_cache", JSON.stringify({data:serialize()}));
+  }catch(e){
+    // Repli allégé si les images dépassent le quota du navigateur.
+    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serializeCloud()})); }
+    catch(e2){ console.error("Cache local saturé",e2); }
+  }
   if(ui && ui.todoEditing) return;
   saveCloud();
 }
@@ -232,15 +501,35 @@ function saveCloud(){
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
     docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); })
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
+}
+function saveCloudNow(){
+  if(!docRef) return Promise.resolve();
+  clearTimeout(cloudTimer);
+  cloudStatus("☁️ Enregistrement…");
+  var payload=serializeCloud();
+  return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); return publishSecureClientSpaces(); })
+    .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
 }
 function startSync(uidStr){
   docRef=db.collection("bases").doc(uidStr);
   docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
     if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
-    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{ if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; } applyRemote(JSON.parse(d.data)); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200); }catch(e){ console.error(e); } } }
+    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{
+      if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; }
+      var remoteData=JSON.parse(d.data);
+      var remoteSavedAt=Date.parse(remoteData&&remoteData._meta&&remoteData._meta.savedAt||"")||0;
+      // Une mutation locale récente ne doit jamais être écrasée par un ancien instantané Firebase
+      // reçu pendant le délai d'enregistrement cloud.
+      if(lastLocalMutationAt && remoteSavedAt && remoteSavedAt < lastLocalMutationAt){
+        cloudStatus("☁️ Enregistrement…");
+        return;
+      }
+      applyRemote(remoteData); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
+    }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
 }
@@ -326,12 +615,122 @@ async function googleDriveRestoreLatest(){
 }
 
 function updateDirty(){}
+/* sécurité de session administrateur */
+var ADMIN_INACTIVITY_MS=30*60*1000;
+var adminInactivityTimer=null;
+var adminActivityBound=false;
+function browserLabel(){
+  var ua=navigator.userAgent||"";
+  if(/Edg\//.test(ua)) return "Microsoft Edge";
+  if(/OPR\//.test(ua)) return "Opera";
+  if(/Chrome\//.test(ua)) return "Google Chrome";
+  if(/Firefox\//.test(ua)) return "Mozilla Firefox";
+  if(/Safari\//.test(ua) && !/Chrome\//.test(ua)) return "Safari";
+  return "Navigateur inconnu";
+}
+function osLabel(){
+  var ua=navigator.userAgent||"", p=navigator.platform||"";
+  if(/Windows NT 10/.test(ua)) return "Windows 10/11";
+  if(/Windows/.test(ua)) return "Windows";
+  if(/iPhone|iPad|iPod/.test(ua)) return "iOS/iPadOS";
+  if(/Android/.test(ua)) return "Android";
+  if(/Mac/.test(p)) return "macOS";
+  if(/Linux/.test(p)) return "Linux";
+  return "Système inconnu";
+}
+function writeAdminSecurityLog(type,status,details){
+  var user=auth.currentUser;
+  if(!user) return Promise.resolve();
+  return db.collection("adminSecurityLogs").add({
+    uid:user.uid,
+    email:user.email||"",
+    type:type||"connexion",
+    status:status||"ok",
+    details:details||"",
+    browser:browserLabel(),
+    os:osLabel(),
+    userAgent:navigator.userAgent||"",
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(function(e){ console.warn("Journal de sécurité non enregistré",e); });
+}
+function resetAdminInactivityTimer(){
+  if(!auth.currentUser || !userHasProvider(auth.currentUser, firebase.auth.GoogleAuthProvider.PROVIDER_ID)) return;
+  clearTimeout(adminInactivityTimer);
+  adminInactivityTimer=setTimeout(function(){
+    writeAdminSecurityLog("deconnexion_automatique","ok","30 minutes d’inactivité").finally(function(){
+      try{ sessionStorage.setItem("afs_session_expired","1"); }catch(e){}
+      auth.signOut();
+    });
+  },ADMIN_INACTIVITY_MS);
+}
+function startAdminInactivityProtection(){
+  resetAdminInactivityTimer();
+  if(adminActivityBound) return;
+  adminActivityBound=true;
+  ["click","keydown","mousemove","scroll","touchstart"].forEach(function(evt){
+    document.addEventListener(evt,resetAdminInactivityTimer,{passive:true});
+  });
+}
+function stopAdminInactivityProtection(){ clearTimeout(adminInactivityTimer); adminInactivityTimer=null; }
+/* connexion administrateur sécurisée Google */
+var googleProvider=new firebase.auth.GoogleAuthProvider();
+googleProvider.setCustomParameters({prompt:"select_account"});
+function userHasProvider(user, providerId){
+  return !!(user && Array.isArray(user.providerData) && user.providerData.some(function(p){return p && p.providerId===providerId;}));
+}
+function hideAuthScreens(){
+  var l=document.getElementById("login"); if(l) l.style.display="none";
+  var u=document.getElementById("securityUpgrade"); if(u) u.style.display="none";
+  var a=document.getElementById("appwrap"); if(a) a.style.display="none";
+}
+function showSecurityUpgrade(){
+  hideAuthScreens();
+  var u=document.getElementById("securityUpgrade"); if(u) u.style.display="flex";
+}
+function doGoogleLogin(){
+  var err=document.getElementById("loginErr"); if(err) err.style.display="none";
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).then(function(){
+    return auth.signInWithPopup(googleProvider);
+  }).catch(function(e){
+    console.error("Connexion Google impossible",e);
+    if(err){ err.style.display="block"; err.textContent="Connexion Google impossible : "+(e&&e.message?e.message:"réessaie ou vérifie que Google est activé dans Firebase."); }
+  });
+}
+function linkAdminToGoogle(){
+  var user=auth.currentUser, box=document.getElementById("securityUpgradeErr");
+  if(box) box.style.display="none";
+  if(!user){ showLogin(); return; }
+  var originalEmail=(user.email||"").toLowerCase();
+  user.linkWithPopup(googleProvider).then(function(result){
+    var linked=result&&result.user?result.user:auth.currentUser;
+    if(!linked || (linked.email||"").toLowerCase()!==originalEmail) throw new Error("Le compte Google choisi ne correspond pas à l’adresse administrateur.");
+    if(userHasProvider(linked, firebase.auth.EmailAuthProvider.PROVIDER_ID)){
+      return linked.unlink(firebase.auth.EmailAuthProvider.PROVIDER_ID).then(function(){ return linked.reload(); });
+    }
+    return linked.reload();
+  }).then(function(){
+    toast("Compte administrateur sécurisé avec Google.");
+    var current=auth.currentUser;
+    if(current) return verifyMyBusinessAdmin(current).then(function(){ showApp(); loadCache(); render(); startSync(current.uid); startSecurePortalRequests(); startSecurePortalDocumentDecisions(); });
+  }).catch(function(e){
+    console.error("Liaison Google impossible",e);
+    if(box){ box.style.display="block"; box.textContent="Sécurisation impossible : "+(e&&e.message?e.message:"réessaie avec le compte Google correspondant à l’adresse administrateur."); }
+  });
+}
+
 /* connexion */
-function showApp(){ var l=document.getElementById("login"); if(l)l.style.display="none"; var a=document.getElementById("appwrap"); if(a)a.style.display="block"; }
+function showApp(){ hideAuthScreens(); var a=document.getElementById("appwrap"); if(a)a.style.display="block"; }
 function showLogin(){
-  var a=document.getElementById("appwrap"); if(a)a.style.display="none";
+  hideAuthScreens();
+  stopAdminInactivityProtection();
   var l=document.getElementById("login"); if(l)l.style.display="flex";
-  try{ var em=localStorage.getItem("afs_remember_email"); var e=document.getElementById("loginEmail"); if(em && e && !e.value){ e.value=em; var p=document.getElementById("loginPwd"); if(p) p.focus(); } }catch(e){}
+  try{
+    if(sessionStorage.getItem("afs_session_expired")==="1"){
+      sessionStorage.removeItem("afs_session_expired");
+      var box=document.getElementById("loginErr");
+      if(box){ box.style.display="block"; box.textContent="Session fermée automatiquement après 30 minutes d’inactivité. Reconnecte-toi avec Google."; }
+    }
+  }catch(e){}
 }
 function doLogin(){
   var email=(val("loginEmail")||"").trim(), pwd=val("loginPwd"); var err=document.getElementById("loginErr");
@@ -394,7 +793,8 @@ function moduleHeader(title, subtitle){
 function viewClientsModule(){
   var sub=ui.clientsSub||"clients";
   var html=moduleHeader("Clients","Fiches clientes, mariages, ateliers, ventes et commandes regroupés au même endroit.")+
-    subNav([["clients","Fiches clientes"],["mariages","Mariages"],["ateliers","Ateliers"],["commandes","Suivi des Commandes"],["ventesSite","Paiements et ventes du site"],["encaissements","Encaissements manuels"]],sub,"mod-clients-");
+    subNav([["clients","Fiches clientes"],["demandesMariage","Demandes mariage"],["mariages","Mariages"],["ateliers","Ateliers"],["commandes","Suivi des Commandes"],["ventesSite","Paiements et ventes du site"],["encaissements","Encaissements manuels"]],sub,"mod-clients-");
+  if(sub==="demandesMariage") return html+viewDemandesMariage();
   if(sub==="mariages") return html+viewMariages();
   if(sub==="ateliers") return html+viewAteliers();
   if(sub==="commandes") return html+viewCommandes();
@@ -764,7 +1164,7 @@ function viewPendingPaymentsModal(){
 
 
 function viewVersionDashboard(){
-  var env = APP_VERSION.indexOf("PROD")>=0 ? "PROD" : "TEST";
+  var env = APP_VERSION.indexOf("PROD")>=0 ? "PROD" : "DEVELOPPEMENT";
   var bg = env==="PROD" ? "#fffaf5" : "#eef7f1";
   var border = env==="PROD" ? "var(--gold-s)" : "#9fc9ab";
   return '<div class="card" style="background:'+bg+';border-color:'+border+';margin-bottom:12px;padding:10px 14px;">'+
@@ -4583,6 +4983,161 @@ function onLogoFile(file){
   r.readAsDataURL(file);
 }
 
+
+/* ===================== V5.0 — Portail demandes mariage ===================== */
+var DEMANDE_STATUTS={nouvelle:"Nouvelle demande",a_etudier:"À étudier",a_contacter:"Cliente à contacter",contactee:"Contactée",rdv:"Rendez-vous programmé",a_completer:"Informations à compléter",validation:"En attente de validation",transformee:"Transformée en mariage",sans_suite:"Sans suite",indisponible:"Date indisponible"};
+function normalizePortalMedia(){
+  (state.demandesMariage||[]).forEach(function(d){ (d.photos||[]).forEach(function(p){ if(p&&typeof p==="object"&&!p.dataUrl&&p.data) p.dataUrl=p.data; }); });
+  (state.mariages||[]).forEach(function(m){ (m.medias||[]).forEach(function(md){ if(md&&!md.dataUrl&&md.data) md.dataUrl=md.data; }); });
+}
+function importPortalRequests(){
+  try{
+    normalizePortalMedia();
+    var raw=localStorage.getItem("afs_portal_requests"); var list=raw?JSON.parse(raw):[];
+    if(!Array.isArray(list)) return 0; var added=0;
+    list.forEach(function(r){ if(!(state.demandesMariage||[]).some(function(x){return x.id===r.id;})){ state.demandesMariage.unshift(r); added++; } });
+    normalizePortalMedia();
+    var selectionsFixed=normalizePortalMarriageSelections();
+    if(added||selectionsFixed){ saveCache(); }
+    return added;
+  }catch(e){ return 0; }
+}
+function demandeById(id){ return (state.demandesMariage||[]).find(function(x){return x.id===id;}); }
+function demandePrestationsText(d){ return portailPrestationsUniques(d).join(", ")||"Non renseigné"; }
+var PORTAIL_CREATIONS_STANDARD=(Array.isArray(window.MARIAGE_CREATIONS_STANDARD)?window.MARIAGE_CREATIONS_STANDARD:[]).slice();
+function portailCreationCanonique(label){
+  var key=normName(label||"");
+  for(var i=0;i<PORTAIL_CREATIONS_STANDARD.length;i++){
+    if(normName(PORTAIL_CREATIONS_STANDARD[i])===key) return PORTAIL_CREATIONS_STANDARD[i];
+  }
+  // Compatibilité avec les demandes créées dans les premières versions test.
+  var aliases={
+    "bouquet de mariee":"Bouquet de mariée taille M — 20 à 23 cm",
+    "bouquet de mariee taille s 20 a 22 cm":"Bouquet de mariée taille S — 18 à 20 cm",
+    "bouquet de mariee taille m 23 a 25 cm":"Bouquet de mariée taille M — 20 à 23 cm",
+    "bouquet demoiselle d honneur":"Bouquet demoiselle d’honneur ou à lancer — diamètre 18 cm (recommandé adulte)",
+    "bouquets demoiselles d honneur":"Bouquet demoiselle d’honneur ou à lancer — diamètre 18 cm (recommandé adulte)",
+    "bouquet enfant demoiselle":"Bouquet demoiselle d’honneur ou à lancer — diamètre 15 cm (recommandé enfant)",
+    "boutonnieres":"Boutonnière adulte sans mini-rose",
+    "boutonniere s":"Boutonnière adulte sans mini-rose",
+    "couronne de fleurs":"Couronne sur fil de fer adulte",
+    "couronne fleurie":"Couronne sur fil de fer adulte",
+    "centres de table":"Centre de table",
+    "centre s de table":"Centre de table",
+    "decoration de ceremonie":"Décoration cérémonie",
+    "decor ceremonie arche":"Décoration cérémonie"
+  };
+  return aliases[key]||"";
+}
+function portailPrestationsUniques(d){
+  var selected={}, customs=[];
+  (d&&Array.isArray(d.prestations)?d.prestations:[]).forEach(function(x){
+    var canon=portailCreationCanonique(x);
+    if(canon) selected[normName(canon)]=canon;
+    else {
+      var libre=String(x||"").trim();
+      var nk=normName(libre);
+      if(libre && nk!=="autre" && nk!=="autre demande" && nk!=="autre creation ou demande") customs.push(libre);
+    }
+  });
+  String(d&&d.autrePrestation||"").split(/\n/).map(function(x){return x.trim();}).filter(Boolean).forEach(function(x){customs.push(x);});
+  var out=PORTAIL_CREATIONS_STANDARD.filter(function(label){return !!selected[normName(label)];});
+  var seen={}; out.forEach(function(x){seen[normName(x)]=true;});
+  customs.forEach(function(x){var k=normName(x);if(k&&!seen[k]){seen[k]=true;out.push(x);}});
+  return out;
+}
+function applyPortalSelectionsToMariage(m,d){
+  if(!m||!d) return false;
+  var selections=portailPrestationsUniques(d);
+  if(!selections.length) return false;
+  var oldArticles=Array.isArray(m.articles)?m.articles:[];
+  var oldExtras=Array.isArray(m.prestationsComplementaires)?m.prestationsComplementaires:[];
+  var usedArticles={}, usedExtras={};
+  var nextArticles=selections.map(function(label){
+    var key=normName(label), art=null, extra=null, i;
+    for(i=0;i<oldArticles.length;i++){
+      if(usedArticles[i]) continue;
+      if(normName(oldArticles[i].label||"")===key){ art=oldArticles[i]; usedArticles[i]=true; break; }
+    }
+    for(i=0;i<oldExtras.length;i++){
+      if(usedExtras[i]) continue;
+      if(normName(oldExtras[i].designation||"")===key){ extra=oldExtras[i]; usedExtras[i]=true; break; }
+    }
+    var out={id:(art&&art.id)||uid(),label:label,fait:!!(art&&art.fait)};
+    if(art&&art.devisLineId) out.devisLineId=art.devisLineId;
+    else if(extra&&extra.devisLineId) out.devisLineId=extra.devisLineId;
+    if(art&&num(art.prix)>0) out.prix=num(art.prix);
+    else if(extra&&num(extra.prix)>0) out.prix=num(extra.prix);
+    return out;
+  });
+  // Les choix du formulaire sont limités à la liste standard MyBusiness et deviennent les créations principales.
+  // Seules les vraies prestations complémentaires (déplacement, livraison, personnalisation...) restent en bas.
+  var selectedKeys={}; selections.forEach(function(x){selectedKeys[normName(x)]=true;});
+  var nextExtras=oldExtras.filter(function(x){return !selectedKeys[normName(x.designation||"")];});
+  var changed=JSON.stringify(oldArticles.map(function(a){return a.label;}))!==JSON.stringify(nextArticles.map(function(a){return a.label;})) || nextExtras.length!==oldExtras.length;
+  m.articles=nextArticles;
+  m.prestationsComplementaires=nextExtras;
+  m.besoins=demandePrestationsText(d);
+  m.portalSelectionsSyncedV4=true;
+  if(changed){
+    m.historique=m.historique||[];
+    m.historique.unshift({date:new Date().toISOString(),texte:"Créations synchronisées avec les choix du formulaire portail"});
+    m.updatedAt=new Date().toISOString();
+  }
+  return changed;
+}
+function normalizePortalMarriageSelections(){
+  var changed=false;
+  (state.mariages||[]).forEach(function(m){
+    if(!m||!m.sourceDemandeId||m.portalSelectionsSyncedV4||m.portalSelectionsSyncedV3) return;
+    var d=(state.demandesMariage||[]).find(function(x){return x.id===m.sourceDemandeId;});
+    if(!d) return;
+    var didChange=applyPortalSelectionsToMariage(m,d);
+    if(didChange && m.devisLie) syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:true});
+    changed=changed||didChange||m.portalSelectionsSyncedV4;
+  });
+  return changed;
+}
+function viewDemandesMariage(){
+  importPortalRequests();
+  if(ui.demandeMariageOpen){ var d=demandeById(ui.demandeMariageOpen); if(d) return viewDemandeMariageDetail(d); ui.demandeMariageOpen=null; }
+  var list=(state.demandesMariage||[]).slice().sort(function(a,b){return String(b.createdAt||"").localeCompare(String(a.createdAt||""));});
+  var nouvelles=list.filter(function(d){return (d.statut||"nouvelle")==="nouvelle";}).length;
+  var html='<div class="card"><div class="flexb"><div><h3 style="margin:0;">💌 Demandes mariage</h3><p class="muted" style="margin:4px 0 0;">Demandes sécurisées reçues depuis le portail client et en attente de traitement.</p></div><div class="row-actions"><span class="badge">'+nouvelles+' nouvelle'+(nouvelles>1?'s':'')+'</span><a class="btn small primary" href="portail-mariage.html" target="_blank">Ouvrir le portail cliente</a><button class="btn small ghost" data-action="dem-import">Actualiser</button></div></div></div>';
+  if(!list.length) return html+'<div class="card empty"><h3>Aucune demande en attente</h3><p>Les nouvelles demandes envoyées depuis le portail sécurisé apparaîtront automatiquement ici.</p></div>';
+  html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle"; return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span></div><p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><div class="row-actions"><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button><button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>'; }).join('')+'</div>';
+  return html;
+}
+function viewDemandeMariageDetail(d){
+  var photos=(d.photos||[]).map(function(p,index){
+    var src=(p&&typeof p==="object")?(p.url||p.downloadURL||p.dataUrl||p.data||""):p;
+    return src?'<button type="button" data-action="dem-photo-open-'+index+'" title="Ouvrir la photo en grand" aria-label="Ouvrir la photo d’inspiration en grand" style="padding:0;border:0;background:transparent;cursor:zoom-in;border-radius:12px;"><img src="'+esc(src)+'" alt="Inspiration" style="display:block;width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);"></button>':'';
+  }).join('');
+  var receivedAt=portalDateISO(d.createdAt);
+  return '<div class="row-actions"><button class="btn ghost" data-action="dem-back">← Retour aux demandes</button><a class="btn ghost" href="portail-mariage.html?dossier='+encodeURIComponent(d.id)+'" target="_blank">Voir le portail cliente</a></div><div class="card"><div class="flexb"><div><h2 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h2><p class="muted">Demande reçue le '+esc(receivedAt?receivedAt.slice(0,10):"Date non renseignée")+'</p></div><select id="demStatut">'+Object.keys(DEMANDE_STATUTS).map(function(k){return '<option value="'+k+'"'+((d.statut||"nouvelle")===k?' selected':'')+'>'+esc(DEMANDE_STATUTS[k])+'</option>';}).join('')+'</select></div><div class="form-grid"><label>Email<input id="demEmail" value="'+esc(d.email||"")+'"></label><label>Téléphone<input id="demTel" value="'+esc(d.tel||"")+'"></label><label>Date du mariage<input id="demDate" type="date" value="'+esc(d.dateMariage||"")+'"></label><label>Lieu / ville<input id="demLieu" value="'+esc(d.lieu||d.ville||"")+'"></label><label>Thème / style<input id="demTheme" value="'+esc(d.style||d.theme||"")+'"></label><label>Budget<input id="demBudget" value="'+esc(d.budget||"")+'"></label></div><p><b>Prestations demandées :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Couleurs :</b> '+esc(d.couleurs||"Non renseignées")+'</p><p><b>Fleurs premium stabilisées souhaitées :</b> '+esc(d.fleursAimees||"Non renseignées")+'</p>'+(d.fleursRefusees?'<p><b>Éléments refusés :</b> '+esc(d.fleursRefusees)+'</p>':'')+((d.description||d.commentaire)?'<p><b>Ancienne description :</b><br>'+esc(d.description||d.commentaire)+'</p>':'')+'<p><b>Rendez-vous téléphonique souhaité :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui":d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p>'+(d.souhaiteRdvTelephonique==="oui"?'<p><b>Créneau demandé :</b> '+esc([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"Non renseigné")+'</p>':'')+'<p class="muted"><b>Disponibilités :</b> du samedi au lundi de 9 h à 20 h ; du mardi au vendredi de 18 h à 20 h.</p><label>Notes internes<textarea id="demNotes" rows="4">'+esc(d.notesInternes||"")+'</textarea></label>'+(photos?'<h3>Inspirations</h3><div class="row-actions">'+photos+'</div>':'')+'<div class="row-actions"><button class="btn primary" data-action="dem-save-'+d.id+'">Enregistrer</button>'+(d.statut!=="transformee"?'<button class="btn gold" data-action="dem-transform-'+d.id+'">Créer la fiche mariage</button>':'<span class="badge">Fiche mariage créée</span>')+'<button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>';
+}
+function saveDemandeFromView(d){
+  d.email=val("demEmail"); d.tel=val("demTel"); d.dateMariage=val("demDate"); d.lieu=val("demLieu"); d.theme=val("demTheme"); d.budget=val("demBudget"); d.notesInternes=val("demNotes"); d.statut=val("demStatut")||d.statut||"nouvelle"; d.updatedAt=new Date().toISOString();
+}
+function transformDemandeToMariage(d){
+  if(d.mariageId && getMariage(d.mariageId)) return getMariage(d.mariageId);
+  var full=((d.prenom||"")+" "+(d.nom||"")).trim();
+  var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
+  if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
+  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||""};
+  if(!Array.isArray(state.mariages)) state.mariages=[];
+  state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
+  d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
+  // Sauvegarde de secours légère avant toute écriture globale : même si une photo sature
+  // localStorage ou Firebase, la fiche mariage reste récupérable dans la liste.
+  pendingMariageRemember(m);
+  restorePortalMarriageMedias();
+  saveCache();
+  // Vérification locale immédiate : la transformation ne doit jamais être validée
+  // si la fiche n'est pas réellement présente dans la collection des mariages.
+  return getMariage(m.id)||m;
+}
+
 /* ===================== Suivi mariages ===================== */
 /* ===================== Encaissements (ventes directes + historique) ===================== */
 function viewEncaissements(){
@@ -4701,7 +5256,7 @@ function downloadTemplateCSV(){
   downloadJSON(csv,"modele-encaissements.csv"); toast("Modèle téléchargé : remplis-le puis importe-le.");
 }
 
-var DEFAULT_ARTICLES=["Bouquet de mariée","Bouquet demoiselle d'honneur","Boutonnière(s)","Couronne de fleurs","Centre(s) de table","Décor cérémonie / arche"];
+var DEFAULT_ARTICLES=PORTAIL_CREATIONS_STANDARD.slice();
 var STATUT_MAR={
   contact:{l:"Premier contact",c:"var(--ink-s)",b:"#efe7df"},
   devis_envoye:{l:"Devis envoyé",c:"#6a5a2a",b:"#f3ead0"},
@@ -4721,13 +5276,8 @@ function countdown(dateISO){
 }
 function relanceDue(m){ return m.relance && m.relance<=todayISO() && m.statut!=="realise" && m.statut!=="perdu"; }
 function newMariage(){
-  var m={ id:uid(), nom:"", email:"", tel:"", canalCommunication:"", dateMariage:"", dateLivraison:"", modeLivraison:"", lieu:"", theme:"", budget:"", besoins:"", synthese:"",
-    statut:"contact", livre:false, dateLivree:"", relance:"", devisEnvoye:false, devisDate:"", factureEnvoyee:false, factureDate:"", devisLie:"",
-    articles:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};}),
-    prestationsComplementaires:[],
-    coutMatieres:"", todoMariage:[],
-    medias:[], historique:[], createdAt:todayISO() };
-  state.mariages.unshift(m); ui.mariageOpen=m.id; ui.mariageDetailTab="resume"; saveCache(); render();
+  // Toute création manuelle passe par l’assistant afin de sélectionner uniquement les créations réellement demandées.
+  mariageRdvStart();
 }
 function captureMariageInputs(){
   var m=getMariage(ui.mariageOpen); if(!m) return null;
@@ -4843,6 +5393,7 @@ function viewMariageGroup(key,label,list,openDefault){
   return html;
 }
 function viewMariages(){
+  if(normalizePortalMarriageSelections()) saveCache();
   if(ui.mariageOpen) return viewMariageDetail(getMariage(ui.mariageOpen));
   var header='<div class="flexb" style="margin-bottom:8px;"><h2 style="margin:0;">Suivi mariages</h2><div class="row-actions" style="margin:0;"><button class="btn primary" data-action="mar-rdv-start">🎯 Préparer mon rendez-vous</button></div></div>'+
     '<div class="row-actions" style="margin-bottom:12px;">'+
@@ -5187,9 +5738,7 @@ function mariageRdvDefault(){
     theme:"", couleurs:"", budget:"",
     inspirations:"", fleursAimees:"", fleursAEviter:"", styleBouquet:"",
     contraintes:"", notes:"", relance:"", medias:[],
-    bouquet:true, bouquetLancer:false, bouquetEnfant:false,
-    nbBoutonnieres:"", nbBracelets:"", nbPeignes:"", couronne:false,
-    decoVoiture:false, nbCentres:"", autresPrestations:""
+    creationSelections:[], autreCreation:""
   };
 }
 function mariageRdvStart(){ ui.mariageRdvDraft=mariageRdvDefault(); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); }
@@ -5198,27 +5747,23 @@ function rdvVal(id){ var e=document.getElementById(id); return e?e.value:""; }
 function rdvChecked(id){ var e=document.getElementById(id); return !!(e&&e.checked); }
 function captureMariageRdvDraft(){
   var d=mariageRdvDraft();
-  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","couleurs","budget","inspirations","fleursAimees","fleursAEviter","styleBouquet","contraintes","notes","relance","nbBoutonnieres","nbBracelets","nbPeignes","nbCentres","autresPrestations"].forEach(function(k){ var id="rdv"+k.charAt(0).toUpperCase()+k.slice(1); d[k]=rdvVal(id); });
-  ["bouquet","bouquetLancer","bouquetEnfant","couronne","decoVoiture"].forEach(function(k){ var id="rdv"+k.charAt(0).toUpperCase()+k.slice(1); d[k]=rdvChecked(id); });
+  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","couleurs","budget","inspirations","fleursAimees","fleursAEviter","styleBouquet","contraintes","notes","relance","autreCreation"].forEach(function(k){ var id="rdv"+k.charAt(0).toUpperCase()+k.slice(1); d[k]=rdvVal(id); });
+  d.creationSelections=Array.prototype.slice.call(document.querySelectorAll('[data-rdv-creation]:checked')).map(function(el){return el.value;});
   return d;
 }
 function mariageRdvArticles(d){
-  var a=[];
-  function add(label){ if(label) a.push({id:uid(),label:label,fait:false}); }
-  if(d.bouquet) add("Bouquet de mariée");
-  if(d.bouquetLancer) add("Mini bouquet à lancer");
-  if(d.bouquetEnfant) add("Bouquet enfant / demoiselle d’honneur");
-  var nbB=num(d.nbBoutonnieres); if(nbB>0) add(nbB+" boutonnière"+(nbB>1?"s":""));
-  var nbBr=num(d.nbBracelets); if(nbBr>0) add(nbBr+" bracelet"+(nbBr>1?"s":"")+" floral"+(nbBr>1?"s":""));
-  var nbP=num(d.nbPeignes); if(nbP>0) add(nbP+" accessoire"+(nbP>1?"s":"")+" cheveux / peigne"+(nbP>1?"s":""));
-  if(d.couronne) add("Couronne fleurie");
-  if(d.decoVoiture) add("Décoration voiture");
-  var nbC=num(d.nbCentres); if(nbC>0) add(nbC+" centre"+(nbC>1?"s":"")+" de table");
-  String(d.autresPrestations||"").split(/\n|,/).map(function(x){return x.trim();}).filter(Boolean).forEach(add);
-  return a.length?a:DEFAULT_ARTICLES.map(function(l){return {id:uid(),label:l,fait:false};});
+  var labels=[], seen={};
+  (Array.isArray(d.creationSelections)?d.creationSelections:[]).forEach(function(label){
+    var canon=portailCreationCanonique(label)||String(label||"").trim();
+    var k=normName(canon); if(canon&&k&&!seen[k]){seen[k]=true;labels.push(canon);}
+  });
+  String(d.autreCreation||"").split(/\n/).map(function(x){return x.trim();}).filter(Boolean).forEach(function(label){
+    var k=normName(label); if(k&&!seen[k]){seen[k]=true;labels.push(label);}
+  });
+  return labels.map(function(label){return {id:uid(),label:label,fait:false};});
 }
 function mariageRdvSynthese(d){
-  var articles=mariageRdvArticles(d).map(function(a){return "- "+a.label;}).join("\n");
+  var articles=mariageRdvArticles(d).map(function(a){return "- "+a.label;}).join("\n")||"Aucune création sélectionnée";
   var txt=[];
   txt.push("# Synthèse du rendez-vous mariage");
   txt.push("");
@@ -5278,10 +5823,10 @@ function createMariageFromRdv(){
   ui.mariageRdvDraft=null; ui.mariageView="fiches"; ui.mariageOpen=m.id; ui.mariageDetailTab="resume";
   saveCache(); render(); window.scrollTo(0,0); toast("Fiche mariage créée depuis le rendez-vous.");
 }
-function rdvCheck(label,id,checked){ return '<label class="checkrow" style="border-bottom:none;cursor:pointer;"><input type="checkbox" id="'+id+'"'+(checked?' checked':'')+'><div style="flex:1;">'+esc(label)+'</div></label>'; }
+function rdvCreationCheck(label,selected){ var checked=(selected||[]).some(function(x){return normName(x)===normName(label);}); return '<label class="checkrow" style="border-bottom:none;cursor:pointer;align-items:flex-start;"><input type="checkbox" data-rdv-creation value="'+esc(label)+'"'+(checked?' checked':'')+'><div style="flex:1;">'+esc(label)+'</div></label>'; }
 function mariageRdvMediaHtml(d){
   var medias=(d.medias||[]).map(function(md){
-    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+md.dataUrl+'" data-action="mar-rdv-media-open-'+md.id+'" title="Ouvrir '+esc(md.name||"image")+'"><button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
+    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+(md.dataUrl||md.data||"")+'" data-action="mar-rdv-media-open-'+md.id+'" title="Ouvrir '+esc(md.name||"image")+'"><button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
     return '<span class="chip">📄 '+esc(md.name||"fichier")+' <button class="btn small ghost" data-action="mar-rdv-media-open-'+md.id+'" style="padding:2px 8px;">ouvrir</button> <button class="btn small danger" data-action="mar-rdv-media-del-'+md.id+'" style="padding:2px 8px;">×</button></span>';
   }).join("");
   return '<div style="margin-top:10px;padding:12px;border:1px dashed var(--gold-s);border-radius:10px;background:#fffdfb;">'+
@@ -5297,7 +5842,7 @@ function viewMariageRdvWizard(){
   '<div class="card"><h3 style="margin:0 0 10px;">1. Contact</h3>'+F("Nom de la cliente / du couple","rdvNom",d.nom,"text","Ex : Camille & Antoine")+'<div class="inline"><div>'+F("Email","rdvEmail",d.email,"email","")+'</div><div>'+F("Téléphone","rdvTel",d.tel,"tel","")+'</div></div><label class="field"><span>Canal de communication</span><select id="rdvCanalCommunication">'+mariageCommunicationOptions(d.canalCommunication||"Téléphone")+'</select></label></div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">2. Informations mariage</h3><div class="inline"><div>'+F("Date du mariage","rdvDateMariage",d.dateMariage,"date","")+'</div><div>'+F("Date de livraison","rdvDateLivraison",d.dateLivraison,"date","")+'</div></div><div class="inline"><div>'+F("Lieu de réception / ville","rdvLieu",d.lieu,"text","")+'</div><div><label class="field"><span>Mode de livraison</span><select id="rdvModeLivraison">'+livraisonOptions(d.modeLivraison||"")+'</select></label></div></div><div class="inline"><div>'+F("Thème","rdvTheme",d.theme,"text","Bohème, champêtre, élégant…")+'</div><div>'+F("Couleurs","rdvCouleurs",d.couleurs,"text","Champagne, beige, sauge…")+'</div></div>'+F("Budget évoqué","rdvBudget",d.budget,"text","")+'</div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">3. Inspirations et style</h3>'+T("Inspirations reçues / à demander","rdvInspirations",d.inspirations,"Photos Pinterest, bouquet préféré, exemples envoyés…")+mariageRdvMediaHtml(d)+'<div class="inline" style="margin-top:12px;"><div>'+T("Fleurs aimées","rdvFleursAimees",d.fleursAimees,"Pivoine, hortensia, rose stabilisée…")+'</div><div>'+T("À éviter","rdvFleursAEviter",d.fleursAEviter,"Couleurs vives, feuillage vert, rose…")+'</div></div>'+T("Style du bouquet","rdvStyleBouquet",d.styleBouquet,"Rond, aérien, sauvage, couché sur l’avant-bras, sans feuillage…")+'</div>'+ 
-  '<div class="card"><h3 style="margin:0 0 10px;">4. Créations souhaitées</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px;">'+rdvCheck("Bouquet de mariée","rdvBouquet",d.bouquet)+rdvCheck("Mini bouquet à lancer","rdvBouquetLancer",d.bouquetLancer)+rdvCheck("Bouquet enfant / demoiselle","rdvBouquetEnfant",d.bouquetEnfant)+rdvCheck("Couronne fleurie","rdvCouronne",d.couronne)+rdvCheck("Décoration voiture","rdvDecoVoiture",d.decoVoiture)+'</div><div class="inline" style="margin-top:10px;"><div>'+F("Nombre de boutonnières","rdvNbBoutonnieres",d.nbBoutonnieres,"number","")+'</div><div>'+F("Nombre de bracelets","rdvNbBracelets",d.nbBracelets,"number","")+'</div><div>'+F("Nombre de peignes / accessoires cheveux","rdvNbPeignes",d.nbPeignes,"number","")+'</div><div>'+F("Nombre de centres de table","rdvNbCentres",d.nbCentres,"number","")+'</div></div>'+T("Autres prestations souhaitées","rdvAutresPrestations",d.autresPrestations,"Une ligne par création : arche, bouquet de table, marque-places…")+'</div>'+ 
+  '<div class="card"><h3 style="margin:0 0 10px;">4. Créations souhaitées</h3><p class="muted" style="margin-top:0;">Sélectionne uniquement les créations demandées par la future mariée.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:6px;">'+PORTAIL_CREATIONS_STANDARD.map(function(label){return rdvCreationCheck(label,d.creationSelections||[]);}).join("")+'</div><label class="field" style="margin-top:12px;"><span>Autre création ou demande</span><input id="rdvAutreCreation" value="'+esc(d.autreCreation||"")+'" placeholder="Ex : décoration particulière, fleurs pour urne…"></label></div>'+ 
   '<div class="card"><h3 style="margin:0 0 10px;">5. Points à ne pas oublier</h3>'+T("Contraintes / informations importantes","rdvContraintes",d.contraintes,"Délais, transport, photos à recevoir, budget à respecter, livraison…")+T("Notes internes du rendez-vous","rdvNotes",d.notes,"Ce que tu veux garder pour toi : ressenti, choses à relancer, points à vérifier…")+F("Date de relance prévue","rdvRelance",d.relance,"date","")+'<div class="row-actions"><button class="btn primary" data-action="mar-rdv-create">Créer la fiche mariage</button><button class="btn ghost" data-action="mar-rdv-cancel">Annuler</button></div></div>';
 }
 
@@ -5414,7 +5959,7 @@ function viewMariageDetail(m){
     '<div class="inline"><div style="flex:3;"><input id="marArtInput" placeholder="Ex : Bracelet floral demoiselles"></div><div style="flex:0;"><button class="btn primary" data-action="mar-art-add">+ Ajouter</button></div></div></div>';
   // médias
   var medias=(m.medias||[]).map(function(md){
-    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+md.dataUrl+'" data-action="mar-media-open-'+md.id+'"><button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
+    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+(md.dataUrl||md.data||"")+'" data-action="mar-media-open-'+md.id+'"><button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
     return '<span class="chip">📄 '+esc(md.name||"fichier")+' <button class="btn small ghost" data-action="mar-media-open-'+md.id+'" style="padding:2px 8px;">ouvrir</button> <button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="padding:2px 8px;">×</button></span>';
   }).join("");
   var medCard='<div class="card"><h3 style="margin:0 0 8px;">Photos & inspirations</h3>'+ 
@@ -5488,8 +6033,10 @@ function onRdvMediaFiles(files){
 }
 function openMediaItem(md){
   if(!md) return;
-  if(md.type==="image"){ ui.lightbox=md.dataUrl; renderModal(); }
-  else { var a=document.createElement("a"); a.href=md.dataUrl; a.download=md.name||"fichier"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+  var mediaSrc=md.dataUrl||md.data||"";
+  if(!mediaSrc){ toast("Cette image est indisponible. Réimporte-la depuis la demande ou la fiche mariage."); return; }
+  if(md.type==="image"){ ui.lightbox=mediaSrc; renderModal(); }
+  else { var a=document.createElement("a"); a.href=mediaSrc; a.download=md.name||"fichier"; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
 }
 function openMedia(id){
   var m=getMariage(ui.mariageOpen); if(!m)return; openMediaItem((m.medias||[]).find(function(x){return x.id===id;}));
@@ -6058,15 +6605,77 @@ async function envoyerDocumentEmail(kind, doc){
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
     markDocSent(kind, doc);
+    var portalMessage="";
+    try{
+      await publishDocumentToClientPortal(kind,doc,pdf64);
+      portalMessage=" Le PDF est aussi disponible dans l’espace client.";
+    }catch(portalErr){
+      console.error("Publication portail impossible",portalErr);
+      doc.portalPublishError=(portalErr&&portalErr.message)||String(portalErr||"Erreur inconnue");
+      portalMessage=" L’email est bien parti, mais la publication dans l’espace client a échoué : "+doc.portalPublishError;
+    }
     addEmailHistory(kind, doc, email);
-    saveCache(); render();
-    toast(titre+" envoyé par email à "+email+(attachments.length>1?" avec la synthèse du projet.":"."));
+    saveCache();
+    try{ await saveCloudNow(); }catch(syncErr){ console.error("Synchronisation après envoi impossible",syncErr); }
+    render();
+    toast(titre+" envoyé par email à "+email+(attachments.length>1?" avec la synthèse du projet.":".")+portalMessage);
   } catch(e){ console.error(e); toast("Envoi impossible : "+(e&&e.message?e.message:"vérifie le Worker Cloudflare / Brevo.")); }
 }
 
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
-function handleAction(action){
+async function handleAction(action){
+  if(action==="dem-import"){ var n=importPortalRequests(); render(); toast(n?n+" nouvelle(s) demande(s) importée(s).":"Aucune nouvelle demande."); return; }
+  if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
+  if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();if(ds.securePortal&&ds.ownerUid){try{await db.collection("portalProjects").doc(ds.ownerUid).set({statutAdmin:ds.statut||"nouvelle",notesInternes:ds.notesInternes||"",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Enregistré localement, mais la synchronisation portail a échoué.");}}render();toast("Demande enregistrée.");} return; }
+  if(action.indexOf("dem-transform-")===0){
+    var dt=demandeById(action.slice(14));
+    if(dt){
+      saveDemandeFromView(dt);
+      var mm=transformDemandeToMariage(dt);
+      var created=mm&&getMariage(mm.id);
+      if(!created){ toast("La fiche mariage n'a pas pu être créée. Réessaie après actualisation."); return; }
+      ui.tab="clientsModule";
+      ui.clientsSub="mariages";
+      ui.mariageView="fiches";
+      ui.mariageFilter="tous";
+      ui.mariageOpen=created.id;
+      ui.mariageDetailTab="resume";
+      ui.demandeMariageOpen=null;
+      saveCache();
+      try{ await saveCloudNow(); }catch(e){
+        // La fiche reste conservée dans le cache local et sera resynchronisée ensuite.
+      }
+      if(dt.securePortal&&dt.ownerUid){
+        try{await db.collection("portalProjects").doc(dt.ownerUid).set({statutAdmin:"transformee",ficheCreee:true,mariageId:created.id,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error("Mise à jour demande portail impossible",e);}
+      }
+      try{await publishSecureClientSpaces();}catch(e){}
+      render();
+      window.scrollTo(0,0);
+      toast("Fiche mariage créée et ajoutée à la liste des mariages.");
+    }
+    return;
+  }
+  if(action.indexOf("dem-delete-")===0){
+    var did=action.slice(11);
+    var demandeSupprimee=demandeById(did);
+    var demandeNom=demandeSupprimee?((demandeSupprimee.prenom||"")+" "+(demandeSupprimee.nom||"")).trim():"cette demande";
+    if(!window.confirm("Supprimer définitivement la demande de "+demandeNom+" ?\n\nCette action retirera aussi la demande de l’espace sécurisé.")) return;
+    state.demandesMariage=(state.demandesMariage||[]).filter(function(x){return x.id!==did;});
+    try{
+      var stored=JSON.parse(localStorage.getItem("afs_portal_requests")||"[]");
+      if(Array.isArray(stored)){
+        stored=stored.filter(function(x){return x&&x.id!==did;});
+        localStorage.setItem("afs_portal_requests",JSON.stringify(stored));
+      }
+    }catch(e){ console.warn("Suppression portail localStorage impossible",e); }
+    var deletedSecure=!!(demandeSupprimee&&demandeSupprimee.securePortal);
+    ui.demandeMariageOpen=null;
+    saveCache();
+    if(deletedSecure){try{await db.collection("portalProjects").doc(did).delete();}catch(e){console.error(e);toast("Suppression locale effectuée, mais la demande cloud n’a pas pu être supprimée.");render();return;}}
+    render();toast("Demande supprimée définitivement.");return;
+  }
 
   if(action==="version-notes-open"){
     ui.versionNotesModal=true;
@@ -6135,7 +6744,7 @@ function handleAction(action){
   if(action.indexOf("nav-")===0){
     var dest=action.slice(4);
     ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null;
-    if(["clients","mariages","ateliers","commandes","ventesSite","encaissements"].indexOf(dest)>=0){
+    if(["clients","demandesMariage","mariages","ateliers","commandes","ventesSite","encaissements"].indexOf(dest)>=0){
       ui.tab="clientsModule"; ui.clientsSub=dest;
       if(dest!=="ateliers") ui.atelierOpen=null;
       if(dest!=="mariages") ui.mariageOpen=null;
@@ -6410,6 +7019,8 @@ function handleAction(action){
   if(action==="cal-today"){ ui.calMonth=todayISO().slice(0,7); render(); return; }
   if(action.indexOf("email-preview-devis-")===0){ var ed=findDevis(action.slice(20)); if(ed){ ui.preview={kind:"devis",doc:ed}; renderModal(); } return; }
   if(action.indexOf("email-preview-facture-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(22);}); if(ef){ ui.preview={kind:"facture",doc:ef}; renderModal(); } return; }
+  if(action==="google-login"){ doGoogleLogin(); return; }
+  if(action==="secure-link-google"){ linkAdminToGoogle(); return; }
   if(action==="do-login"){ doLogin(); return; }
   if(action==="do-logout"){ if(confirm("Se déconnecter ?")){ auth.signOut(); } return; }
   if(action==="cloud-backup"){ downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); return; }
@@ -6644,7 +7255,7 @@ function handleAction(action){
   if(action==="mar-rdv-media-pick"){ captureMariageRdvDraft(); var ri=document.getElementById("rdvMedia"); if(ri) ri.click(); return; }
   if(action.indexOf("mar-rdv-media-open-")===0){ openRdvMedia(action.slice(19)); return; }
   if(action.indexOf("mar-rdv-media-del-")===0){ var rd=mariageRdvDraft(); captureMariageRdvDraft(); var rmid=action.slice(18); rd.medias=(rd.medias||[]).filter(function(x){return x.id!==rmid;}); render(); return; }
-  if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);})}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
+  if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); var selected=[],custom=[]; (crm.articles||[]).forEach(function(a){var canon=portailCreationCanonique(a.label||"");if(canon&&normName(canon)===normName(a.label||"")) selected.push(canon);else if(a.label) custom.push(a.label);}); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);}),creationSelections:selected,autreCreation:custom.join("\n")}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
   if(action==="mar-filter-avenir"){ ui.mariageFilter="avenir"; render(); return; }
   if(action==="mar-filter-tous"){ ui.mariageFilter="tous"; render(); return; }
   if(action==="mar-view-fiches"){ ui.mariageView="fiches"; render(); return; }
@@ -6655,6 +7266,15 @@ function handleAction(action){
   if(action==="dash-month-close"){ ui.monthDetail=null; render(); return; }
   if(action==="prep-cmd-add"){ var lbl=val("cmdLabel"); if(!lbl.trim()){ toast("Indique l'article à préparer."); return; } state.commandes.unshift({ id:uid(), label:lbl, client:val("cmdClient"), dateLivraison:val("cmdDate"), fait:false, createdAt:todayISO() }); saveCache(); render(); return; }
   if(action.indexOf("prep-cmd-del-")===0){ var cid=action.slice(13); state.commandes=state.commandes.filter(function(x){return x.id!==cid;}); saveCache(); render(); return; }
+  if(action.indexOf("dem-photo-open-")===0){
+    var demandePhoto=demandeById(ui.demandeMariageOpen);
+    var photoIndex=parseInt(action.slice(15),10);
+    var photo=demandePhoto && (demandePhoto.photos||[])[photoIndex];
+    var photoSrc=(photo&&typeof photo==="object")?(photo.url||photo.downloadURL||photo.dataUrl||photo.data||""):photo;
+    if(photoSrc){ ui.lightbox=photoSrc; renderModal(); }
+    else { toast("Cette photo d’inspiration est indisponible."); }
+    return;
+  }
   if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
@@ -6663,7 +7283,21 @@ function handleAction(action){
   if(action==="mar-save"){ persistMariageForm(); render(); toast("Fiche, contact et coordonnées du devis enregistrés. Les montants du devis sont conservés."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
-    state.mariages=state.mariages.filter(function(x){return x.id!==mid;}); ui.mariageOpen=null; ui.confirmDelete=null; saveCache(); render(); toast("Fiche mariage supprimée."); return; }
+    var mariageSupprime=getMariage(mid);
+    state.mariages=state.mariages.filter(function(x){return x.id!==mid;});
+    pendingMariageForget(mid);
+    ui.mariageOpen=null; ui.confirmDelete=null; saveCache();
+    if(mariageSupprime&&mariageSupprime.ownerUid){
+      try{
+        await db.collection("portalProjects").doc(mariageSupprime.ownerUid).set({
+          ficheCreee:false,
+          mariageId:firebase.firestore.FieldValue.delete(),
+          statutAdmin:"nouvelle",
+          updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+        },{merge:true});
+      }catch(e){ console.error("Mise à jour du portail après suppression impossible",e); }
+    }
+    render(); toast("Fiche mariage supprimée définitivement."); return; }
   if(action.indexOf("mar-extra-add-")===0){ var mx=getMariage(ui.mariageOpen); if(mx){ captureMariageInputs(); var mpi=Number(action.slice(14)); var mlist=prestationsActives(); var mpreset=mlist[mpi]||mlist[mlist.length-1]||{label:"Autre / champ libre",type:"bien",qte:1,prix:0}; mx.prestationsComplementaires=mx.prestationsComplementaires||[]; var mptype=mpreset.type==="service"?"service":"bien"; mx.prestationsComplementaires.push({id:uid(),designation:mpreset.label,type:mptype,urssafType:mptype,qte:mpreset.qte||1,prix:num(mpreset.prix)}); syncMariageLinkedDevis(mx,{silent:true,syncLines:true}); saveCache(); render(); toast("Ligne ajoutée au devis mariage."); } return; }
   if(action.indexOf("mar-extra-del-")===0){ var mxd=getMariage(ui.mariageOpen); if(mxd){ captureMariageInputs(); var mxid=action.slice(14); mxd.prestationsComplementaires=(mxd.prestationsComplementaires||[]).filter(function(l){return l.id!==mxid;}); syncMariageLinkedDevis(mxd,{silent:true,syncLines:true}); saveCache(); render(); toast("Ligne supprimée."); } return; }
   if(action==="mar-createdevis"){ var mc=getMariage(ui.mariageOpen); if(mc){ captureMariageInputs(); syncMariageContactToClient(mc); saveCache(); newWizard(); ui.wizard.clientMode="nouveau"; ui.wizard.client=devisClientFromMariage(mc); ui.wizard.lignes=mariageLinesForDevis(mc); ui.wizard.step = ui.wizard.lignes.length ? 2 : 1; ui.wizard.notes="Devis créé depuis la fiche mariage"+(mc.dateMariage?" du "+frDate(mc.dateMariage):""); ui.wizardLinkMariage=mc.id; ui.tab="devis"; render(); window.scrollTo(0,0); } return; }
@@ -7047,13 +7681,46 @@ function refreshWizardTotals(){
 }
 
 /* ===================== Démarrage ===================== */
+function verifyMyBusinessAdmin(user){
+  return db.collection("admins").doc(user.uid).get().then(function(snap){
+    var data=snap.exists?(snap.data()||{}):{};
+    if(!snap.exists || data.active!==true || data.role!=="admin") throw new Error("Ce compte n’est pas autorisé à administrer MyBusiness.");
+    return true;
+  });
+}
 auth.onAuthStateChanged(function(user){
   if(user){
-    showApp();
-    loadCache();   // affichage instantané depuis le cache local
-    render();
-    startSync(user.uid);  // puis synchro temps réel avec le cloud
-    setTimeout(maybeAutoGoogleDriveBackup, 2500);
+    verifyMyBusinessAdmin(user).then(function(){
+      if(!userHasProvider(user, firebase.auth.GoogleAuthProvider.PROVIDER_ID)){
+        showSecurityUpgrade();
+        return;
+      }
+      showApp();
+      startAdminInactivityProtection();
+      try{
+        var logKey="afs_login_logged_"+user.uid;
+        if(sessionStorage.getItem(logKey)!=="1"){
+          sessionStorage.setItem(logKey,"1");
+          writeAdminSecurityLog("connexion_google","ok","Session administrateur validée");
+        }
+      }catch(e){}
+      loadCache();   // affichage instantané depuis le cache local
+      render();
+      startSync(user.uid);  // puis synchro temps réel avec le cloud
+      startSecurePortalRequests();
+      startSecurePortalDocumentDecisions();
+      setTimeout(maybeAutoGoogleDriveBackup, 2500);
+    }).catch(function(err){
+      console.error(err);
+      try{ auth.signOut(); }catch(e){}
+      showLogin();
+      var box=document.getElementById("loginErr");
+      if(box){
+        var raw=err&&err.message?err.message:"Accès administrateur refusé.";
+        box.textContent=raw.indexOf("autorisé")>=0 ? "Ce compte Google n’est pas autorisé à administrer MyBusiness. Utilise uniquement le compte Google administrateur." : raw;
+        box.style.display="block";
+      }
+    });
   } else {
     showLogin();
   }

@@ -1,9 +1,9 @@
-/* V5.0.4 TEST — Référentiel unique des créations mariage. */
+/* V5.4.2 — Référentiel unique des créations mariage. */
 (function(global){
   "use strict";
   global.MARIAGE_CREATIONS_STANDARD = [
-  "Bouquet de mariée taille S — 20 à 22 cm",
-  "Bouquet de mariée taille M — 23 à 25 cm",
+  "Bouquet de mariée taille S — 18 à 20 cm",
+  "Bouquet de mariée taille M — 20 à 23 cm",
   "Bouquet de mariée taille L — 25 à 28 cm",
   "Bouquet de mariée taille XL — 28 à 32 cm",
   "Bouquet de mariée taille XXL — 32 à 35 cm",
