@@ -1,23 +1,17 @@
-# MyBusiness V5.6.1 PROD
+# MyBusiness V6.0.0 PROD
 
-## Nouveauté principale
+## Nouveauté
 
-Les devis et factures existants peuvent désormais être rouverts avec toutes leurs lignes, quantités, prix et coordonnées déjà remplis.
+- Calendrier MyBusiness avec rendez-vous téléphoniques, livraisons et dates de mariage.
+- Abonnement iCalendar privé pour le calendrier natif de l’iPhone.
+- Mise à jour automatique du flux après les modifications enregistrées dans MyBusiness.
+- Date et heure du rendez-vous téléphonique visibles dans la fiche mariage.
 
-Deux choix sont proposés :
+## Important
 
-- remplacer le document actuel ;
-- conserver l'original et créer une nouvelle version.
-
-Un devis accepté et une facture payée ne peuvent pas être remplacés directement : une nouvelle version est créée automatiquement afin de conserver la trace du document validé.
-
-Les anciennes versions sont archivées. Dans l'espace client, seule la nouvelle version publiée reste visible.
-
-Aucune modification des règles Firebase n'est nécessaire.
+L’abonnement automatique nécessite le déploiement du Worker Cloudflare fourni dans le dossier `calendar-worker`. Suivre `CALENDRIER_APPLE_INSTALLATION.md`.
 
 
-## Association mariage sécurisée
-- Un devis modifié reste lié à la même fiche mariage.
-- Une nouvelle version de devis devient automatiquement la version active du mariage.
-- Une facture modifiée ou versionnée conserve son devis et son mariage liés.
-- Les anciennes versions sont archivées sans casser les liens historiques.
+## Calendrier Apple synchronisé
+
+La V6.0.0 publie un flux iCalendar privé via un Worker Cloudflare. Consulte `CALENDRIER_APPLE_INSTALLATION.md` avant d’activer l’abonnement dans MyBusiness.

@@ -1,9 +1,11 @@
-/* V5.0.5 — Référentiel détaillé des créations mariage. */
+/* V6.0.0 PROD — Calendrier Apple synchronisé. */
 "use strict";
 
-var APP_VERSION="V5.6.1 PROD";
-var APP_VERSION_NOTE = "Modification et versioning des devis et factures existants.";
+var APP_VERSION="V6.0.0 PROD";
+var APP_VERSION_NOTE = "Calendrier Apple synchronisé : rendez-vous téléphoniques, livraisons et dates de mariage.";
 var APP_CHANGELOG = [
+  "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
+  "V5.7.0 PROD — Calendrier MyBusiness publiable en abonnement iCalendar : rendez-vous téléphoniques, livraisons et dates de mariage synchronisés vers le calendrier natif de l’iPhone.",
   "V5.6.1 PROD — Les versions modifiées restent explicitement associées à la même fiche mariage et la version active remplace automatiquement l’ancienne.",
   "V5.6.0 PROD — Modification et versioning des devis et factures avec conservation optionnelle de l’original.",
   "V5.5.4 PROD — Toute modification des coordonnées clientes est répercutée dans la fiche mariage ainsi que dans les devis et factures liés.",
@@ -88,7 +90,7 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"",
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"",
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
@@ -101,8 +103,154 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"" };
 var fileHandle = null;
+
+/* ===================== Calendrier Apple synchronisé ===================== */
+var CALENDAR_WORKER_URL="https://atelier-fleurs-calendar.latelierfleursetsens.workers.dev";
+var calendarPublishTimer=null;
+function calendarRandomToken(){
+  var a=new Uint8Array(32);
+  if(window.crypto&&window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+  else for(var i=0;i<a.length;i++) a[i]=Math.floor(Math.random()*256);
+  return Array.prototype.map.call(a,function(x){return x.toString(16).padStart(2,"0");}).join("");
+}
+function calendarFeedUrl(){
+  var t=(state.settings&&state.settings.calendarFeedToken)||"";
+  return t ? CALENDAR_WORKER_URL+"/calendar/"+encodeURIComponent(t)+".ics" : "";
+}
+function calendarWebcalUrl(){
+  var u=calendarFeedUrl();
+  return u ? u.replace(/^https:/,"webcal:") : "";
+}
+function calendarEscape(s){
+  return String(s==null?"":s).replace(/\\/g,"\\\\").replace(/\r?\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");
+}
+function calendarFoldLine(line){
+  line=String(line||"");
+  if(line.length<=72) return [line];
+  var out=[];
+  while(line.length>72){ out.push(line.slice(0,72)); line=" "+line.slice(72); }
+  out.push(line); return out;
+}
+function calendarPush(lines,line){ calendarFoldLine(line).forEach(function(x){lines.push(x);}); }
+function calendarLocalStamp(dateISO,time){
+  var tm=String(time||"09:00").split(":");
+  return String(dateISO||"").replace(/-/g,"")+"T"+String(tm[0]||"09").padStart(2,"0")+String(tm[1]||"00").padStart(2,"0")+"00";
+}
+function calendarAllDayStamp(dateISO){ return String(dateISO||"").replace(/-/g,""); }
+function calendarNowStamp(){ return new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z"); }
+function mariageRdvInfo(m){
+  if(!m) return null;
+  var date=m.rdvDateSouhaitee||m.rdvDate||"", heure=m.rdvHeureSouhaitee||m.rdvHeure||"";
+  if((!date||!heure) && m.sourceDemandeId){
+    var d=(state.demandesMariage||[]).find(function(x){return x.id===m.sourceDemandeId;});
+    if(d){ date=date||d.rdvDateSouhaitee||""; heure=heure||d.rdvHeureSouhaitee||""; }
+  }
+  return date ? {date:date,heure:heure||"09:00"} : null;
+}
+function calendarBuildIcs(){
+  var lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//L Atelier Fleurs et Sens//MyBusiness 6//FR","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:MyBusiness - Mariages","X-WR-CALDESC:Rendez-vous téléphoniques, livraisons et dates de mariage","X-WR-TIMEZONE:Europe/Paris",
+    "BEGIN:VTIMEZONE","TZID:Europe/Paris","X-LIC-LOCATION:Europe/Paris","BEGIN:DAYLIGHT","TZOFFSETFROM:+0100","TZOFFSETTO:+0200","TZNAME:CEST","DTSTART:19700329T020000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:+0200","TZOFFSETTO:+0100","TZNAME:CET","DTSTART:19701025T030000","RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU","END:STANDARD","END:VTIMEZONE"];
+  function addEvent(uidVal,title,date,time,endTime,location,description,allDay,updatedAt){
+    if(!date) return;
+    lines.push("BEGIN:VEVENT");
+    calendarPush(lines,"UID:"+calendarEscape(uidVal+"@latelierfleursetsens.fr"));
+    lines.push("DTSTAMP:"+calendarNowStamp());
+    if(updatedAt){
+      var u=new Date(updatedAt); if(!isNaN(u.getTime())) lines.push("LAST-MODIFIED:"+u.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z"));
+    }
+    if(allDay){
+      lines.push("DTSTART;VALUE=DATE:"+calendarAllDayStamp(date));
+      lines.push("DTEND;VALUE=DATE:"+calendarAllDayStamp(addDays(date,1)));
+    }else{
+      lines.push("DTSTART;TZID=Europe/Paris:"+calendarLocalStamp(date,time));
+      lines.push("DTEND;TZID=Europe/Paris:"+calendarLocalStamp(date,endTime||time));
+    }
+    calendarPush(lines,"SUMMARY:"+calendarEscape(title));
+    if(location) calendarPush(lines,"LOCATION:"+calendarEscape(location));
+    if(description) calendarPush(lines,"DESCRIPTION:"+calendarEscape(description));
+    lines.push("STATUS:CONFIRMED");
+    lines.push("TRANSP:OPAQUE");
+    lines.push("END:VEVENT");
+  }
+  (state.mariages||[]).forEach(function(m){
+    if(!m || m.statut==="perdu") return;
+    var nom=m.nom||"Cliente";
+    var notes=[m.tel?"Téléphone : "+m.tel:"",m.email?"E-mail : "+m.email:"",m.modeLivraison?"Mode : "+m.modeLivraison:""].filter(Boolean).join("\n");
+    var rdv=mariageRdvInfo(m);
+    if(rdv){
+      var parts=rdv.heure.split(":"), mins=(Number(parts[0]||0)*60+Number(parts[1]||0)+30), eh=String(Math.floor(mins/60)%24).padStart(2,"0")+":"+String(mins%60).padStart(2,"0");
+      addEvent("rdv-"+m.id,"☎️ RDV téléphonique - "+nom,rdv.date,rdv.heure,eh,"",notes,false,m.updatedAt);
+    }
+    if(m.dateLivraison) addEvent("livraison-"+m.id,"📦 Livraison / retrait - "+nom,m.dateLivraison,"","",m.lieu||"",notes,true,m.updatedAt);
+    if(m.dateMariage) addEvent("mariage-"+m.id,"💍 Mariage - "+nom,m.dateMariage,"","",m.lieu||"",notes,true,m.updatedAt);
+  });
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n")+"\r\n";
+}
+async function checkCalendarWorker(manual){
+  ui.calendarWorkerStatus="checking"; ui.calendarWorkerMessage="Vérification en cours…"; if(manual) render();
+  try{
+    var r=await fetch(CALENDAR_WORKER_URL+"/health",{cache:"no-store"});
+    var data=await r.json().catch(function(){return {};});
+    if(!r.ok || !data.ok || !data.configured) throw new Error(data.message||"Le stockage KV du Worker n’est pas configuré.");
+    ui.calendarWorkerStatus="ready"; ui.calendarWorkerMessage="Service calendrier opérationnel.";
+    if(manual){ render(); toast("Service calendrier opérationnel."); }
+    return true;
+  }catch(e){
+    ui.calendarWorkerStatus="error"; ui.calendarWorkerMessage=e.message||"Service calendrier inaccessible.";
+    if(manual){ render(); toast("Calendrier non configuré : "+ui.calendarWorkerMessage); }
+    return false;
+  }
+}
+async function publishCalendarFeed(manual){
+  var token=(state.settings&&state.settings.calendarFeedToken)||"";
+  if(!token){ if(manual) toast("Active d’abord l’abonnement calendrier."); return false; }
+  var user=auth&&auth.currentUser;
+  if(!user){ if(manual) toast("Connexion administrateur requise."); return false; }
+  try{
+    var idToken=await user.getIdToken(true);
+    var r=await fetch(CALENDAR_WORKER_URL+"/publish",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+idToken},body:JSON.stringify({token:token,ics:calendarBuildIcs()})});
+    var body=await r.text();
+    if(!r.ok) throw new Error(body||("Erreur "+r.status));
+    state.settings.calendarFeedLastAt=new Date().toISOString();
+    state.settings.calendarFeedLastError="";
+    ui.calendarWorkerStatus="ready"; ui.calendarWorkerMessage="Service calendrier opérationnel.";
+    try{ localStorage.setItem("afs_cache",JSON.stringify({data:serialize()})); }catch(e){}
+    if(manual){ render(); toast("Calendrier Apple mis à jour."); }
+    return true;
+  }catch(e){
+    console.error("Publication calendrier",e);
+    state.settings.calendarFeedLastError=e.message||String(e);
+    ui.calendarWorkerStatus="error"; ui.calendarWorkerMessage=state.settings.calendarFeedLastError;
+    if(manual){ render(); toast("Impossible de publier le calendrier : "+(e.message||e)); }
+    return false;
+  }
+}
+function scheduleCalendarPublish(){
+  if(!(state.settings&&state.settings.calendarFeedToken)) return;
+  clearTimeout(calendarPublishTimer);
+  calendarPublishTimer=setTimeout(function(){ publishCalendarFeed(false); },1800);
+}
+async function enableCalendarFeed(regenerate){
+  if(regenerate && !confirm("Régénérer le lien rendra l’ancien abonnement inutilisable. Continuer ?")) return;
+  var ready=await checkCalendarWorker(false);
+  if(!ready){ render(); toast("Configure d’abord le Worker calendrier Cloudflare."); return; }
+  if(!state.settings.calendarFeedToken || regenerate) state.settings.calendarFeedToken=calendarRandomToken();
+  saveCache();
+  var ok=await publishCalendarFeed(true);
+  if(ok) render();
+}
+function copyCalendarFeedUrl(){
+  var u=calendarFeedUrl(); if(!u){toast("Active d’abord l’abonnement calendrier.");return;}
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(function(){toast("Lien privé du calendrier copié.");}).catch(function(){window.prompt("Copie ce lien :",u);});
+  else window.prompt("Copie ce lien :",u);
+}
+function openCalendarSubscription(){
+  var u=calendarWebcalUrl(); if(!u){toast("Active d’abord l’abonnement calendrier.");return;}
+  window.location.href=u;
+}
 
 /* ===================== Helpers ===================== */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
@@ -564,7 +712,7 @@ function saveCloud(){
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
     docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); })
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
 }
@@ -574,7 +722,7 @@ function saveCloudNow(){
   cloudStatus("☁️ Enregistrement…");
   var payload=serializeCloud();
   return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); return publishSecureClientSpaces(); })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); scheduleCalendarPublish(); return publishSecureClientSpaces(); })
     .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
 }
 function startSync(uidStr){
@@ -4461,6 +4609,8 @@ function calDateKey(d){
 function calEvents(){
   var events=[];
   (state.mariages||[]).forEach(function(m){
+    var rdv=mariageRdvInfo(m);
+    if(rdv) events.push({date:rdv.date,type:"rdv",icon:"☎️",title:"RDV téléphonique "+(m.nom||"cliente"),sub:rdv.heure+(m.tel?" · "+m.tel:""),action:"mar-open-"+m.id});
     if(m.dateMariage) events.push({date:m.dateMariage,type:"mariage",icon:"💍",title:m.nom||"Mariage",sub:m.lieu||"",action:"mar-open-"+m.id});
     if(m.dateLivraison) events.push({date:m.dateLivraison,type:"mariage",icon:"📦",title:"Livraison "+(m.nom||"mariage"),sub:m.modeLivraison||"",action:"mar-open-"+m.id});
   });
@@ -4493,8 +4643,18 @@ function viewCalendrier(){
   var first=new Date(year,month,1), start=new Date(first), day=(first.getDay()+6)%7;
   start.setDate(first.getDate()-day);
   var today=todayISO();
-  var html='<div class="cal-head"><h2 style="margin:0;">📆 Calendrier</h2><div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="cal-prev">← Mois précédent</button><button class="btn small soft" data-action="cal-today">Aujourd’hui</button><button class="btn small ghost" data-action="cal-next">Mois suivant →</button></div></div>'+
-    '<div class="card"><div class="flexb"><h3 style="margin:0;text-transform:capitalize;">'+esc(monthName)+'</h3><div class="muted">💍 Mariages · 🌸 Ateliers · 💶 Paiements</div></div><div class="cal-grid" style="margin-top:12px;">';
+  var feedUrl=calendarFeedUrl();
+  var workerStatus=ui.calendarWorkerStatus||"unknown";
+  var workerBadge=workerStatus==="ready"?"Service prêt":(workerStatus==="error"?"À configurer":(workerStatus==="checking"?"Vérification…":"Non vérifié"));
+  var statusColor=workerStatus==="ready"?"ok":(workerStatus==="error"?"warn":"");
+  var feedCard='<div class="card" style="margin-bottom:14px;"><div class="flexb"><div><h3 style="margin:0;">📱 Synchronisation Calendrier Apple</h3><p class="muted" style="margin:6px 0 0;">Une fois l’abonnement ajouté sur l’iPhone, les rendez-vous téléphoniques, livraisons/retraits et dates de mariage sont mis à jour depuis MyBusiness, même lorsque tu travailles sur le PC.</p></div><span class="badge '+statusColor+'">'+esc(workerBadge)+'</span></div>'+
+    '<div class="onboarding-steps" style="margin:16px 0 10px;"><div class="onboarding-step"><div class="onboarding-number">1</div><h3>Service sécurisé</h3><p>Le Worker Cloudflare publie uniquement le calendrier privé.</p><button class="btn small soft" data-action="cal-feed-check" style="margin-top:10px;">Vérifier le service</button></div><div class="onboarding-step"><div class="onboarding-number">2</div><h3>Activer le lien</h3><p>MyBusiness crée un lien privé difficile à deviner.</p>'+
+      (feedUrl?'<span class="status ok" style="margin-top:10px;">Activé</span>':'<button class="btn small primary" data-action="cal-feed-enable" style="margin-top:10px;">Activer l’abonnement</button>')+'</div><div class="onboarding-step"><div class="onboarding-number">3</div><h3>Ajouter sur l’iPhone</h3><p>Ajoute le lien une seule fois dans Calendrier Apple.</p>'+
+      (feedUrl?'<button class="btn small primary" data-action="cal-feed-open" style="margin-top:10px;">Ouvrir l’abonnement</button>':'<span class="muted">Disponible après activation</span>')+'</div></div>'+
+    (ui.calendarWorkerMessage?'<p class="muted" style="font-size:12px;margin:8px 0;">'+esc(ui.calendarWorkerMessage)+'</p>':'')+
+    (feedUrl?'<label class="field" style="margin-top:12px;"><span>Lien privé d’abonnement</span><input readonly value="'+esc(feedUrl)+'"></label><div class="row-actions"><button class="btn primary" data-action="cal-feed-copy">Copier le lien</button><button class="btn soft" data-action="cal-feed-publish">Mettre à jour maintenant</button><button class="btn ghost" data-action="cal-feed-regenerate">Régénérer le lien</button></div><p class="muted" style="font-size:12px;">Dernière publication : '+(state.settings.calendarFeedLastAt?new Date(state.settings.calendarFeedLastAt).toLocaleString("fr-FR"):"jamais")+'. Apple choisit la fréquence de rafraîchissement : une modification peut mettre quelques minutes à apparaître. Ne partage pas ce lien privé.</p>':'<p class="muted" style="font-size:12px;">Le calendrier reste inactif tant que le Worker Cloudflare n’est pas configuré et que tu n’as pas activé le lien.</p>')+'</div>';
+  var html='<div class="cal-head"><h2 style="margin:0;">📆 Calendrier</h2><div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="cal-prev">← Mois précédent</button><button class="btn small soft" data-action="cal-today">Aujourd’hui</button><button class="btn small ghost" data-action="cal-next">Mois suivant →</button></div></div>'+feedCard+
+    '<div class="card"><div class="flexb"><h3 style="margin:0;text-transform:capitalize;">'+esc(monthName)+'</h3><div class="muted">☎️ RDV · 💍 Mariages · 📦 Livraisons · 🌸 Ateliers · 💶 Paiements</div></div><div class="cal-grid" style="margin-top:12px;">';
   ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].forEach(function(n){html+='<div class="cal-dayname">'+n+'</div>';});
   for(var i=0;i<42;i++){
     var cur=new Date(start); cur.setDate(start.getDate()+i);
@@ -5278,7 +5438,7 @@ function transformDemandeToMariage(d){
   var full=((d.prenom||"")+" "+(d.nom||"")).trim();
   var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
   if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
-  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||""};
+  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||"",souhaiteRdvTelephonique:d.souhaiteRdvTelephonique||"",rdvDateSouhaitee:d.rdvDateSouhaitee||"",rdvHeureSouhaitee:d.rdvHeureSouhaitee||""};
   if(!Array.isArray(state.mariages)) state.mariages=[];
   state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
   d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
@@ -5436,7 +5596,7 @@ function newMariage(){
 function captureMariageInputs(){
   var m=getMariage(ui.mariageOpen); if(!m) return null;
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
-  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate","coutMatieres"].forEach(function(k){
+  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate","coutMatieres","rdvDateSouhaitee","rdvHeureSouhaitee"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
   captureMariagePrestations(m);
@@ -6112,7 +6272,8 @@ function viewMariageDetail(m){
     '<div class="inline"><div>'+F("Email","marEmail",m.email)+'</div><div>'+F("Téléphone","marTel",m.tel)+'</div></div>'+ 
     '<label class="field"><span>Canal de communication</span><select id="marCanalCommunication">'+mariageCommunicationOptions(m.canalCommunication||"")+'</select><div class="hint">Canal préféré pour échanger avec la cliente.</div></label>'+ 
     '<div class="inline"><div>'+F("Date du mariage","marDateMariage",m.dateMariage,"date")+'</div><div>'+F("Lieu de réception","marLieu",m.lieu)+'</div></div>'+ 
-    '<div class="inline"><div>'+F("Date de livraison","marDateLivraison",m.dateLivraison,"date")+'</div><div><label class="field"><span>Mode de livraison</span><select id="marModeLivraison">'+livraisonOptions(m.modeLivraison||"")+'</select></label></div></div>'+ 
+    '<div class="inline"><div>'+F("Date de livraison","marDateLivraison",m.dateLivraison,"date")+'</div><div><label class="field"><span>Mode de livraison</span><select id="marModeLivraison">'+livraisonOptions(m.modeLivraison||"")+'</select></label></div></div>'+
+    '<div class="inline"><div>'+F("Date du rendez-vous téléphonique","marRdvDateSouhaitee",(mariageRdvInfo(m)||{}).date||"","date")+'</div><div>'+F("Heure du rendez-vous","marRdvHeureSouhaitee",(mariageRdvInfo(m)||{}).heure||"","time")+'</div></div>'+ 
     '<div class="inline"><div>'+F("Thème & couleurs","marTheme",m.theme)+'</div><div>'+F("Budget estimé","marBudget",m.budget)+'</div></div>'+ 
     '<label class="field"><span>Statut du projet</span><select id="marStatut" data-action="mar-statut">'+stOpts+'</select></label>'+ 
     F("Me rappeler de la relancer le…","marRelance",m.relance,"date")+
@@ -7199,6 +7360,12 @@ async function handleAction(action){
   if(action==="cal-prev"){ calSetMonth(-1); return; }
   if(action==="cal-next"){ calSetMonth(1); return; }
   if(action==="cal-today"){ ui.calMonth=todayISO().slice(0,7); render(); return; }
+  if(action==="cal-feed-check"){ checkCalendarWorker(true); return; }
+  if(action==="cal-feed-enable"){ enableCalendarFeed(false); return; }
+  if(action==="cal-feed-open"){ openCalendarSubscription(); return; }
+  if(action==="cal-feed-copy"){ copyCalendarFeedUrl(); return; }
+  if(action==="cal-feed-publish"){ publishCalendarFeed(true); return; }
+  if(action==="cal-feed-regenerate"){ enableCalendarFeed(true); return; }
   if(action.indexOf("email-preview-devis-")===0){ var ed=findDevis(action.slice(20)); if(ed){ ui.preview={kind:"devis",doc:ed}; renderModal(); } return; }
   if(action.indexOf("email-preview-facture-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(22);}); if(ef){ ui.preview={kind:"facture",doc:ef}; renderModal(); } return; }
   if(action==="google-login"){ doGoogleLogin(); return; }

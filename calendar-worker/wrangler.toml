@@ -1,0 +1,7 @@
+name = "atelier-fleurs-calendar"
+main = "worker.js"
+compatibility_date = "2026-08-03"
+
+[[kv_namespaces]]
+binding = "CALENDAR_KV"
+id = "REMPLACER_PAR_ID_DU_KV"
