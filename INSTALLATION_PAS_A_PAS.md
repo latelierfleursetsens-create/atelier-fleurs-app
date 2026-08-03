@@ -1,10 +1,9 @@
-# Installation V6.4.1 PROD
+# Installation V6.4.0 PROD
 
-1. Sauvegarder la version actuellement en production.
-2. Remplacer les fichiers de production par le contenu de cette archive.
+1. Sauvegarder la version de production actuelle.
+2. Remplacer les fichiers de production par ceux de cette archive.
 3. Recharger MyBusiness avec Ctrl + F5.
-4. Vérifier le numéro V6.4.1 PROD dans le tableau de bord.
-5. Sur le tableau de bord, contrôler que seuls les mariages avec facture d’acompte payée apparaissent dans le planning annuel.
-6. Cliquer sur un mariage dans le planning pour vérifier l’ouverture de sa fiche.
-
-Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécessaire.
+4. Créer un devis et vérifier la date d’échéance proposée à un mois.
+5. Envoyer le devis puis synchroniser le calendrier pour contrôler l’événement.
+6. Accepter le devis : son échéance doit disparaître après la prochaine synchronisation.
+7. Faire le même test avec une facture envoyée puis marquée payée.

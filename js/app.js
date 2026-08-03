@@ -1,10 +1,9 @@
-/* V6.4.1 PROD — Planning annuel des mariages confirmés sur le tableau de bord. */
+/* V6.4.0 PROD — Suivi détaillé des modifications clientes sur les demandes mariage. */
 "use strict";
 
-var APP_VERSION="V6.4.1 PROD";
-var APP_VERSION_NOTE = "Planning annuel visible des mariages confirmés, avec chaque week-end et accès direct aux fiches.";
+var APP_VERSION="V6.4.0 PROD";
+var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.1 PROD — Planning annuel des mariages confirmés : année en cours et suivante, week-ends visibles et accès direct aux fiches.",
   "V6.4.0 PROD — Détail avant/après dans les e-mails, badge de modification, champs surlignés et historique permanent des demandes mariage.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
@@ -187,9 +186,8 @@ function calendarBuildIcs(){
       var parts=rdv.heure.split(":"), mins=(Number(parts[0]||0)*60+Number(parts[1]||0)+30), eh=String(Math.floor(mins/60)%24).padStart(2,"0")+":"+String(mins%60).padStart(2,"0");
       addEvent("rdv-"+m.id,"☎️ RDV téléphonique - "+nom,rdv.date,rdv.heure,eh,"",notes,false,m.updatedAt);
     }
-    var mariageConfirme=mariageAcomptePaye(m);
-    if(mariageConfirme && m.dateLivraison) addEvent("livraison-"+m.id,"📦 Livraison / retrait - "+nom,m.dateLivraison,"","",m.lieu||"",notes,true,m.updatedAt);
-    if(mariageConfirme && m.dateMariage) addEvent("mariage-"+m.id,"💍 Mariage - "+nom,m.dateMariage,"","",m.lieu||"",notes,true,m.updatedAt);
+    if(m.dateLivraison) addEvent("livraison-"+m.id,"📦 Livraison / retrait - "+nom,m.dateLivraison,"","",m.lieu||"",notes,true,m.updatedAt);
+    if(m.dateMariage) addEvent("mariage-"+m.id,"💍 Mariage - "+nom,m.dateMariage,"","",m.lieu||"",notes,true,m.updatedAt);
   });
   (state.devis||[]).forEach(function(d){
     if(!d || !d.echeance || d.statut!=="envoye" || d.versionArchive) return;
@@ -1622,62 +1620,9 @@ function viewNotificationsDashboard(){
   return html;
 }
 
-
-function dashboardConfirmedMariages(){
-  return (state.mariages||[]).filter(function(m){
-    return m && m.statut!=="perdu" && m.dateMariage && mariageAcomptePaye(m);
-  });
-}
-function dashboardMarriageMonth(year,month,byDate){
-  var monthNames=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
-  var first=new Date(year,month,1), days=new Date(year,month+1,0).getDate();
-  var offset=(first.getDay()+6)%7; // lundi = 0
-  var html='<div class="card" style="padding:11px;min-width:0;margin:0;">'+
-    '<div style="font-weight:800;color:var(--bordeaux);text-transform:capitalize;margin-bottom:7px;">'+monthNames[month]+'</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;font-size:10px;text-align:center;">';
-  ["L","M","M","J","V","S","D"].forEach(function(d,i){
-    html+='<div style="font-weight:800;color:'+(i>=5?'var(--bordeaux)':'var(--ink-s)')+';padding:2px 0;">'+d+'</div>';
-  });
-  for(var blank=0;blank<offset;blank++) html+='<div></div>';
-  for(var day=1;day<=days;day++){
-    var date=year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-    var dow=new Date(year,month,day).getDay(), weekend=(dow===0||dow===6), weddings=byDate[date]||[];
-    var bg=weddings.length?'#f4dfd8':(weekend?'#fff4ee':'#fff');
-    var border=weddings.length?'1px solid var(--bordeaux)':'1px solid '+(weekend?'#efd8cc':'var(--line)');
-    html+='<div style="min-height:46px;border:'+border+';border-radius:6px;background:'+bg+';padding:3px 2px;overflow:hidden;text-align:left;">'+
-      '<div style="font-size:10px;font-weight:'+(weekend||weddings.length?'800':'600')+';color:'+(weddings.length?'var(--bordeaux)':(weekend?'#8a5c4d':'var(--ink-s)'))+';">'+day+'</div>';
-    weddings.forEach(function(m){
-      html+='<button type="button" data-action="mar-open-'+esc(m.id)+'" title="Ouvrir '+esc(m.nom||'Mariage')+'" style="display:block;width:100%;border:0;background:transparent;padding:1px 0;text-align:left;cursor:pointer;color:var(--bordeaux);font:inherit;font-size:9px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">💍 '+esc(m.nom||'Mariage')+'</button>';
-    });
-    html+='</div>';
-  }
-  html+='</div></div>';
-  return html;
-}
-function viewDashboardMarriageYear(year,confirmed){
-  var byDate={};
-  confirmed.filter(function(m){return String(m.dateMariage||'').slice(0,4)===String(year);}).forEach(function(m){
-    byDate[m.dateMariage]=byDate[m.dateMariage]||[]; byDate[m.dateMariage].push(m);
-  });
-  Object.keys(byDate).forEach(function(k){byDate[k].sort(function(a,b){return String(a.nom||'').localeCompare(String(b.nom||''),'fr');});});
-  var count=Object.keys(byDate).reduce(function(n,k){return n+byDate[k].length;},0);
-  var html='<div style="margin-top:14px;"><div class="flexb" style="margin-bottom:8px;"><h3 style="margin:0;color:var(--bordeaux);">'+year+'</h3><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+count+' mariage'+(count>1?'s':'')+' confirmé'+(count>1?'s':'')+'</span></div>'+
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:9px;">';
-  for(var month=0;month<12;month++) html+=dashboardMarriageMonth(year,month,byDate);
-  return html+'</div></div>';
-}
-function viewDashboardMarriagePlanner(){
-  var year=new Date().getFullYear(), confirmed=dashboardConfirmedMariages();
-  return '<div class="card" style="border:2px solid var(--gold-s);background:linear-gradient(180deg,#fffdfb,#fff8f3);margin-bottom:14px;">'+
-    '<div class="flexb" style="align-items:flex-start;gap:12px;"><div><h2 style="margin:0;color:var(--bordeaux);">💍 Planning des mariages confirmés</h2><p class="muted" style="margin:4px 0 0;font-size:12px;">Année en cours et année suivante. Les samedis et dimanches sont mis en évidence. Seuls les mariages avec facture d’acompte payée apparaissent.</p></div><button class="btn small ghost" data-action="nav-mariages">Ouvrir les mariages</button></div>'+
-    viewDashboardMarriageYear(year,confirmed)+viewDashboardMarriageYear(year+1,confirmed)+
-  '</div>';
-}
-
 function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Tableau de bord</h2><div class="muted" style="font-size:12px;margin-top:3px;">Ton espace de travail du jour</div></div></div>'+ 
-  viewDashboardMarriagePlanner()+
   viewVersionDashboard()+
   viewDashboardHero()+
   viewTodoDashboard()+
@@ -4734,9 +4679,8 @@ function calEvents(){
   (state.mariages||[]).forEach(function(m){
     var rdv=mariageRdvInfo(m);
     if(rdv) events.push({date:rdv.date,type:"rdv",icon:"☎️",title:"RDV téléphonique "+(m.nom||"cliente"),sub:rdv.heure+(m.tel?" · "+m.tel:""),action:"mar-open-"+m.id});
-    var mariageConfirme=mariageAcomptePaye(m);
-    if(mariageConfirme && m.dateMariage) events.push({date:m.dateMariage,type:"mariage",icon:"💍",title:m.nom||"Mariage",sub:m.lieu||"",action:"mar-open-"+m.id});
-    if(mariageConfirme && m.dateLivraison) events.push({date:m.dateLivraison,type:"mariage",icon:"📦",title:"Livraison "+(m.nom||"mariage"),sub:m.modeLivraison||"",action:"mar-open-"+m.id});
+    if(m.dateMariage) events.push({date:m.dateMariage,type:"mariage",icon:"💍",title:m.nom||"Mariage",sub:m.lieu||"",action:"mar-open-"+m.id});
+    if(m.dateLivraison) events.push({date:m.dateLivraison,type:"mariage",icon:"📦",title:"Livraison "+(m.nom||"mariage"),sub:m.modeLivraison||"",action:"mar-open-"+m.id});
   });
   (state.ateliers||[]).forEach(function(a){
     if(a.date) events.push({date:a.date,type:"atelier",icon:"🎨",title:(a.type||"Atelier")+" · "+(a.theme||"atelier"),sub:a.lieu||"",action:"at-open-"+a.id});
