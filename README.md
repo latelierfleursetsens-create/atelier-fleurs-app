@@ -1,21 +1,22 @@
-# MyBusiness V6.2.0 PROD
+# MyBusiness V6.4.0 PROD
 
-Ajout des ajustements commerciaux lors de la création ou modification des devis et factures : remise en pourcentage, remise fixe, avoir et montant fixe positif ou négatif. Les montants sont recalculés dans l’éditeur, le PDF et le versioning.
+## Nouveautés
 
-# Historique de base V6.0.1 PROD
+- Date d’échéance demandée à la création ou à la modification d’un devis.
+- Échéance proposée par défaut à un mois, modifiable librement.
+- Date d’échéance demandée pour les factures créées depuis un devis.
+- Les factures directes conservent leur champ d’échéance, proposé à un mois.
+- Les devis envoyés et non acceptés apparaissent dans le calendrier Apple.
+- Les factures envoyées et non payées apparaissent dans le calendrier Apple.
+- Dès qu’un devis est accepté/refusé ou qu’une facture est payée, l’échéance disparaît automatiquement du calendrier lors de la prochaine synchronisation.
+- Les rendez-vous téléphoniques, livraisons, mariages et ateliers restent conservés dans l’historique du calendrier.
 
-## Nouveauté
-
-- Calendrier MyBusiness avec rendez-vous téléphoniques, livraisons et dates de mariage.
-- Abonnement iCalendar privé pour le calendrier natif de l’iPhone.
-- Mise à jour automatique du flux après les modifications enregistrées dans MyBusiness.
-- Date et heure du rendez-vous téléphonique visibles dans la fiche mariage.
-
-## Important
-
-L’abonnement automatique nécessite le déploiement du Worker Cloudflare fourni dans le dossier `calendar-worker`. Suivre `CALENDRIER_APPLE_INSTALLATION.md`.
+Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécessaire.
 
 
-## Calendrier Apple synchronisé
-
-La V6.0.1 publie un flux iCalendar privé via un Worker Cloudflare. Consulte `CALENDRIER_APPLE_INSTALLATION.md` avant d’activer l’abonnement dans MyBusiness.
+## V6.4.0 — Suivi des modifications clientes
+- Détail avant/après dans le mail de notification.
+- Badge « Modification cliente » dans la liste des demandes.
+- Mise en évidence des champs modifiés.
+- Historique permanent avec date et heure.
+- Bouton « Marquer comme consulté ».

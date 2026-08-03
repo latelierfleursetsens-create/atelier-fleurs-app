@@ -201,8 +201,22 @@ async function envoyerRecapitulatifCliente(data){
   var res=await fetch(MAIL_WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!res.ok){throw new Error((await res.text())||('Erreur HTTP '+res.status));}
 }
-async function envoyerNotificationModificationDemande(data){
-  var d=notificationDetails(data);
+function projectChangeValue(v){
+  if(Array.isArray(v)) return v.length?v.join(', '):'Aucune';
+  if(v===true) return 'Oui'; if(v===false) return 'Non';
+  return String(v==null||v===''?'Non renseigné':v);
+}
+function projectPhotoKeys(list){return (Array.isArray(list)?list:[]).map(function(p){return String((p&&typeof p==='object')?(p.storagePath||p.path||p.url||p.downloadURL||p.name||p.id||''):p||'');}).filter(Boolean).sort();}
+function computeProjectChanges(before,after){
+  before=before||{};after=after||{};
+  var defs=[['prenom','Prénom'],['nom','Nom'],['tel','Téléphone'],['dateMariage','Date du mariage'],['ville','Ville / lieu'],['style','Style'],['couleurs','Couleurs'],['prestations','Créations demandées'],['autrePrestation','Autre demande'],['fleursAimees','Fleurs premium souhaitées'],['souhaiteRdvTelephonique','Rendez-vous téléphonique'],['rdvDateSouhaitee','Date du rendez-vous'],['rdvHeureSouhaitee','Heure du rendez-vous']];
+  var changes=[];
+  defs.forEach(function(def){var a=before[def[0]],b=after[def[0]];if(Array.isArray(a)||Array.isArray(b)){a=(Array.isArray(a)?a:[]).slice().sort();b=(Array.isArray(b)?b:[]).slice().sort();}if(JSON.stringify(a==null?'':a)!==JSON.stringify(b==null?'':b))changes.push({field:def[0],label:def[1],from:projectChangeValue(a),to:projectChangeValue(b)});});
+  var pa=projectPhotoKeys(before.photos),pb=projectPhotoKeys(after.photos);if(JSON.stringify(pa)!==JSON.stringify(pb))changes.push({field:'photos',label:'Photos d’inspiration',from:pa.length+' photo(s)',to:pb.length+' photo(s)'});
+  return changes;
+}
+async function envoyerNotificationModificationDemande(data,changes){
+  var d=notificationDetails(data),rows=(changes||[]).map(function(c){return '<div style="padding:13px 0;border-bottom:1px solid #eaded8;"><div style="font-weight:700;color:#6f2638;margin-bottom:6px;">'+emailEsc(c.label||c.field)+'</div><div style="color:#806f75;text-decoration:line-through;">Avant : '+emailEsc(c.from)+'</div><div style="margin-top:4px;font-weight:700;">Après : '+emailEsc(c.to)+'</div></div>';}).join('');
   var content=''+
     '<p style="margin:0 0 22px;font-size:16px;line-height:1.6;">Une cliente a enregistré des modifications dans sa demande de mariage.</p>'+
     '<div style="border:1px solid #eaded8;border-radius:14px;padding:18px 20px;">'+
@@ -215,7 +229,8 @@ async function envoyerNotificationModificationDemande(data){
         '<tr><td style="padding:7px 0;color:#806f75;">Modification enregistrée</td><td style="padding:7px 0;font-weight:700;">'+emailEsc(new Date().toLocaleString('fr-FR'))+'</td></tr>'+
       '</table>'+
     '</div>'+
-    '<p style="margin:22px 0 0;color:#6f2638;font-weight:700;line-height:1.5;">Consulte MyBusiness pour découvrir les informations mises à jour.</p>';
+    '<div style="border:1px solid #eaded8;border-radius:14px;padding:4px 20px;margin-top:18px;"><div style="font-family:Georgia,serif;color:#6f2638;font-size:20px;font-weight:700;padding:16px 0 4px;">Champs modifiés</div>'+(rows||'<p>Aucun détail disponible.</p>')+'</div>'+
+    '<p style="margin:22px 0 0;color:#6f2638;font-weight:700;line-height:1.5;">Les mêmes changements sont visibles dans MyBusiness, rubrique « Demandes mariage ».</p>';
   var payload={email:NOTIFICATION_EMAIL,nom:'L’Atelier Fleurs & Sens',sujet:'✏️ Demande mariage mise à jour — '+d.nomComplet,message:emailShell('✏️ Demande mise à jour','Une cliente a modifié les informations de son projet',content)};
   var res=await fetch(MAIL_WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!res.ok){throw new Error((await res.text())||('Erreur HTTP '+res.status));}
@@ -271,8 +286,11 @@ $('projectForm').onsubmit=async e=>{e.preventDefault();$('saveMsg').textContent=
   var fd=new FormData(e.target),data={ownerUid:current.uid,email:current.email,prenom:fd.get('prenom'),nom:fd.get('nom'),tel:fd.get('tel'),dateMariage:fd.get('dateMariage'),ville:fd.get('ville'),style:fd.get('style'),couleurs:fd.get('couleurs'),prestations:fd.getAll('prestations'),autrePrestation:fd.get('autrePrestation'),fleursAimees:fd.get('fleursAimees'),souhaiteRdvTelephonique:fd.get('souhaiteRdvTelephonique'),rdvDateSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvDateSouhaitee'):'',rdvHeureSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvHeureSouhaitee'):'',photos:project.photos||[],clientStatus:'submitted',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:project.createdAt||firebase.firestore.FieldValue.serverTimestamp()};
   var nouvelleDemande=!project.notificationEmailSentAt;
   var signature=projectSignature(data);
-  var modificationReelle=!!baselineProjectSignature&&signature!==baselineProjectSignature;
+  var changes=computeProjectChanges(project,data);
+  var modificationReelle=changes.length>0;
   var notifierModification=!nouvelleDemande&&(modificationReelle||!!project.notificationUpdateEmailError);
+  var changeEntry=modificationReelle?{id:'chg_'+Date.now(),date:new Date().toISOString(),changes:changes,viewed:false}:null;
+  if(changeEntry){data.clientModificationHistory=[changeEntry].concat(Array.isArray(project.clientModificationHistory)?project.clientModificationHistory:[]).slice(0,50);data.clientModificationPending=true;data.clientModificationCount=(Number(project.clientModificationCount)||0)+1;data.lastClientModificationAt=changeEntry.date;data.lastClientChanges=changes;}
   await db.collection('portalProjects').doc(current.uid).set(data,{merge:true});project=Object.assign(project,data);
   $('saveMsg').textContent='Votre demande a bien été enregistrée et transmise à L’Atelier Fleurs & Sens.';$('successModal').classList.remove('hidden');
   if(nouvelleDemande){try{
@@ -288,7 +306,7 @@ $('projectForm').onsubmit=async e=>{e.preventDefault();$('saveMsg').textContent=
   }catch(clientMailErr){console.error('Récapitulatif cliente non envoyé',clientMailErr);var clientErr=(clientMailErr&&clientMailErr.message)||String(clientMailErr||'Erreur inconnue');await db.collection('portalProjects').doc(current.uid).set({clientRecapEmailError:clientErr,clientRecapEmailLastAttemptAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(function(){});project.clientRecapEmailError=clientErr;$('saveMsg').textContent+=' Votre fiche est enregistrée, mais le mail récapitulatif n’a pas pu être envoyé ('+clientErr+').';}
   }
   if(!nouvelleDemande&&notifierModification){try{
-    await envoyerNotificationModificationDemande(data);
+    await envoyerNotificationModificationDemande(data,changes.length?changes:(project.lastClientChanges||[]));
     await db.collection('portalProjects').doc(current.uid).set({notificationUpdateEmailSentAt:firebase.firestore.FieldValue.serverTimestamp(),notificationUpdateEmailError:firebase.firestore.FieldValue.delete()},{merge:true});
     project.notificationUpdateEmailSentAt=new Date().toISOString();delete project.notificationUpdateEmailError;console.info('Notification de modification envoyée.');
   }catch(mailErr){console.error('Notification de modification non envoyée',mailErr);var updateErr=(mailErr&&mailErr.message)||String(mailErr||'Erreur inconnue');await db.collection('portalProjects').doc(current.uid).set({notificationUpdateEmailError:updateErr,notificationUpdateEmailLastAttemptAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(function(){});project.notificationUpdateEmailError=updateErr;$('saveMsg').textContent+=' La modification est bien enregistrée, mais l’alerte e-mail n’a pas pu être envoyée ('+updateErr+').';}
