@@ -1,7 +1,9 @@
-# Installation V5.5.3 PROD
+# Installation V5.5.4 PROD
 
-1. Sauvegarder la version de production actuelle.
-2. Copier le contenu de cette archive à la racine du dépôt GitHub de production.
-3. Attendre la publication de GitHub Pages.
-4. Ouvrir `https://latelierfleursetsens-create.github.io/atelier-fleurs-app/`.
-5. Forcer l’actualisation du navigateur avec `Ctrl + F5`.
+1. Faire une sauvegarde fichier.
+2. Remplacer les fichiers de production.
+3. Recharger avec Ctrl + F5.
+4. Corriger une fiche cliente et enregistrer.
+5. Vérifier la fiche mariage, le devis et la facture liés.
+
+Aucune règle Firebase à modifier.

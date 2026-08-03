@@ -1,9 +1,10 @@
 /* V5.0.5 — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.5.0 PROD";
-var APP_VERSION_NOTE = "Statuts des mariages recalculés automatiquement selon les devis, factures et paiements.";
+var APP_VERSION="V5.5.4 PROD";
+var APP_VERSION_NOTE = "Synchronisation complète des coordonnées clientes vers les fiches mariage, devis et factures.";
 var APP_CHANGELOG = [
+  "V5.5.4 PROD — Toute modification des coordonnées clientes est répercutée dans la fiche mariage ainsi que dans les devis et factures liés.",
   "V5.5.3 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
   "V5.5.0 PROD — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
   "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
@@ -4703,6 +4704,7 @@ function viewClientDetail(c){
       stat("Panier moyen",euro(st.panier),false)+
       stat("Paiement habituel",esc(st.paiementHabituel),false)+
     '</div>'+
+    '<label class="field"><span>Nom / prénom ou nom du couple</span><input id="cdNom" value="'+esc(c.nom||"")+'"></label>'+
     '<div class="inline"><div><label class="field"><span>Email</span><input id="cdEmail" value="'+esc(c.email||"")+'"></label></div>'+
     '<div><label class="field"><span>Téléphone</span><input id="cdTel" value="'+esc(c.tel||"")+'"></label></div></div>'+
     '<label class="field"><span>Adresse</span><input id="cdAdr" value="'+esc(c.adresse||"")+'"></label>'+
@@ -7286,7 +7288,7 @@ async function handleAction(action){
   }
   if(action.indexOf("cli-open-")===0){ ui.clientOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action==="cli-back"){ ui.clientOpen=null; render(); return; }
-  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); cc.canal=val("cdCanal"); cc.anniversaire=val("cdAnniv"); cc.notes=val("cdNotes"); cc.updatedAt=new Date().toISOString(); (state.mariages||[]).forEach(function(m){ var cm=clientContactForMariage(m); if(cm&&cm.id===cc.id){ m.nom=cc.nom||m.nom||""; m.email=cc.email||""; m.tel=cc.tel||""; m.canalCommunication=cc.canal||m.canalCommunication||""; m.updatedAt=new Date().toISOString(); syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:false}); } }); saveCache(); render(); toast("Contact enregistré. Fiche mariage et devis lié actualisés si nécessaire."); } return; }
+  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ var previousContact=clientContactSnapshot(cc); cc.nom=val("cdNom").trim()||cc.nom||""; cc.email=val("cdEmail").trim(); cc.tel=val("cdTel").trim(); cc.adresse=val("cdAdr").trim(); cc.canal=val("cdCanal"); cc.anniversaire=val("cdAnniv"); cc.notes=val("cdNotes"); cc.updatedAt=new Date().toISOString(); var synced=syncClientContactEverywhere(cc,previousContact); saveCache(); render(); toast("Contact enregistré. "+synced.mariages+" fiche(s) mariage, "+synced.devis+" devis et "+synced.factures+" facture(s) actualisés."); } return; }
   if(action.indexOf("cli-del-")===0){ var clid=action.slice(8); if(confirm("Supprimer cette fiche cliente ? (son historique de ventes n'est pas supprimé)")){ state.clients=state.clients.filter(function(c){return c.id!==clid;}); ui.clientOpen=null; saveCache(); render(); } return; }
 
   // logo
@@ -7420,6 +7422,43 @@ function clientContactForMariage(m){
   }
   return null;
 }
+function clientContactSnapshot(c){
+  return {nom:String((c&&c.nom)||""),adresse:String((c&&c.adresse)||""),email:String((c&&c.email)||""),tel:String((c&&c.tel)||""),canal:String((c&&c.canal)||"")};
+}
+function contactMatchesSnapshot(contact,snap){
+  if(!contact||!snap) return false;
+  var email=String(contact.email||"").trim().toLowerCase(), oldEmail=String(snap.email||"").trim().toLowerCase();
+  if(oldEmail && email===oldEmail) return true;
+  var tel=digitsOnly(contact.tel||""), oldTel=digitsOnly(snap.tel||"");
+  var sameName=normName(contact.nom||"")===normName(snap.nom||"");
+  if(oldTel && tel===oldTel && sameName) return true;
+  return !!(snap.nom && sameName && !oldEmail && !oldTel);
+}
+function applyClientContact(target,c){
+  if(!target||!c) return target;
+  target.nom=c.nom||""; target.adresse=c.adresse||""; target.email=c.email||""; target.tel=c.tel||"";
+  return target;
+}
+function syncClientContactEverywhere(c,previous){
+  if(!c) return {mariages:0,devis:0,factures:0};
+  previous=previous||clientContactSnapshot(c);
+  var linkedDevisIds={}, counts={mariages:0,devis:0,factures:0};
+  (state.mariages||[]).forEach(function(m){
+    var linked=m.clientId===c.id || contactMatchesSnapshot({nom:m.nom,email:m.email,tel:m.tel},previous);
+    if(!linked) return;
+    m.clientId=c.id; m.nom=c.nom||""; m.email=c.email||""; m.tel=c.tel||""; m.adresse=c.adresse||""; m.adresseCliente=c.adresse||""; m.canalCommunication=c.canal||m.canalCommunication||""; m.updatedAt=new Date().toISOString();
+    if(m.devisLie) linkedDevisIds[m.devisLie]=true;
+    syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:false});
+    counts.mariages++;
+  });
+  (state.devis||[]).forEach(function(d){
+    if(linkedDevisIds[d.id] || contactMatchesSnapshot(d.client,previous)){ d.client=applyClientContact(Object.assign({},d.client||{}),c); d.updatedAt=new Date().toISOString(); linkedDevisIds[d.id]=true; counts.devis++; }
+  });
+  (state.factures||[]).forEach(function(f){
+    if((f.devisId&&linkedDevisIds[f.devisId]) || contactMatchesSnapshot(f.client,previous)){ f.client=applyClientContact(Object.assign({},f.client||{}),c); f.updatedAt=new Date().toISOString(); counts.factures++; }
+  });
+  return counts;
+}
 function syncMariageContactToClient(m){
   if(!m) return null;
   var c=clientContactForMariage(m);
@@ -7500,7 +7539,8 @@ function syncMariageLinkedDevis(m, opts){
     else console.warn("Synchronisation lignes mariage ignorée : elle aurait ramené le devis à 0 €.",d.numero);
   }
   d.updatedAt=new Date().toISOString();
-  if(!opts.silent) toast("Coordonnées du devis lié mises à jour.");
+  (state.factures||[]).forEach(function(f){ if(f.devisId===d.id || f.devisLie===d.id){ f.client=Object.assign({},f.client||{},d.client||{}); f.updatedAt=new Date().toISOString(); } });
+  if(!opts.silent) toast("Coordonnées du devis et des factures liés mises à jour.");
   return true;
 }
 function persistMariageForm(opts){

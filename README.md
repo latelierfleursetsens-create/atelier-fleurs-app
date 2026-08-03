@@ -1,10 +1,7 @@
-# MyBusiness — V5.5.3 PROD
+# MyBusiness — V5.5.4 PROD
 
-Version de production avec suivi des mariages simplifié :
+Synchronisation complète des coordonnées clientes vers les fiches mariage, devis et factures liés.
 
-- Préparation
-- Création
-- Livraison
-- Archives
+Champs concernés : nom, adresse, e-mail et téléphone.
 
-Les fiches sont triées automatiquement par date de livraison.
+L’adresse de connexion Firebase de la cliente n’est pas modifiée.
