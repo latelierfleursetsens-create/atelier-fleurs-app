@@ -41,7 +41,7 @@ L’adresse attendue par MyBusiness est :
 
 ## D. Vérifier le service dans MyBusiness
 
-1. Mettre en ligne les fichiers V6.0.1 PROD.
+1. Mettre en ligne les fichiers V6.2.0 PROD.
 2. Ouvrir **Calendrier** dans MyBusiness.
 3. Cliquer sur **Vérifier le service**.
 4. Le badge doit indiquer **Service prêt**.

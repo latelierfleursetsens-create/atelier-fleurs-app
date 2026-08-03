@@ -1,4 +1,8 @@
-# MyBusiness V6.0.1 PROD
+# MyBusiness V6.2.0 PROD
+
+Ajout des ajustements commerciaux lors de la création ou modification des devis et factures : remise en pourcentage, remise fixe, avoir et montant fixe positif ou négatif. Les montants sont recalculés dans l’éditeur, le PDF et le versioning.
+
+# Historique de base V6.0.1 PROD
 
 ## Nouveauté
 

@@ -1,9 +1,10 @@
-/* V6.0.1 PROD — Calendrier Apple opérationnel. */
+/* V6.2.0 PROD — Ajustements commerciaux sur devis et factures. */
 "use strict";
 
-var APP_VERSION="V6.0.1 PROD";
-var APP_VERSION_NOTE = "Calendrier Apple synchronisé : rendez-vous téléphoniques, livraisons et dates de mariage.";
+var APP_VERSION="V6.2.0 PROD";
+var APP_VERSION_NOTE = "Devis et factures modifiables avec remises, avoirs et ajustements fixes.";
 var APP_CHANGELOG = [
+  "V6.2.0 PROD — Modification des devis et factures : remises en %, remises fixes, avoirs et ajustements positifs ou négatifs, avec recalcul PDF et versioning.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
   "V5.7.0 PROD — Calendrier MyBusiness publiable en abonnement iCalendar : rendez-vous téléphoniques, livraisons et dates de mariage synchronisés vers le calendrier natif de l’iPhone.",
@@ -293,28 +294,60 @@ function totals(lignes, partService){
   return { biens:r2(biens), services:r2(services), total:r2(total) };
 }
 
-function factureCalc(lignes, partService, f){
-  var base=totals(lignes, partService), total=base.total;
-  f=f||{};
-  var valRem=num(f.reductionValeur), remise=0;
-  if(valRem>0){
-    if(f.reductionType==="pourcent"){ remise=r2(total*valRem/100); }
-    else { remise=r2(valRem); }
+function normalizeAdjustments(doc){
+  doc=doc||{};
+  if(Array.isArray(doc.ajustements)) return doc.ajustements.map(function(a){
+    return {id:a.id||uid(),type:a.type||"remise_montant",label:a.label||"",valeur:Number(a.valeur)||0};
+  });
+  var out=[];
+  if(Number(doc.remiseValeur||0)>0){
+    out.push({id:uid(),type:doc.remiseType==="pourcent"?"remise_pourcent":"remise_montant",label:"Remise commerciale",valeur:Number(doc.remiseValeur)||0});
   }
-  remise=Math.min(remise,total);
-  var apres=r2(total-remise);
-  var acompte=Math.min(num(f.acompteDejaPaye),apres);
-  var net=r2(apres-acompte);
-  var ratio=total>0?apres/total:1;
-  return {
-    biens:r2(base.biens*ratio),
-    services:r2(base.services*ratio),
-    totalInitial:base.total,
-    remiseMontant:remise,
-    totalApresRemise:apres,
-    acompteDejaPaye:acompte,
-    total:net
-  };
+  return out;
+}
+function adjustmentLabel(a){
+  if(a&&a.label) return a.label;
+  return a&&a.type==="remise_pourcent"?"Remise commerciale":a&&a.type==="avoir"?"Avoir":a&&a.type==="ajustement"?"Ajustement":"Remise commerciale";
+}
+function calcAdjustments(baseTotal, adjustments){
+  var total=Number(baseTotal)||0, details=[];
+  (adjustments||[]).forEach(function(a){
+    var v=Number(a.valeur)||0, amount=0;
+    if(a.type==="remise_pourcent") amount=-Math.abs(r2(total*v/100));
+    else if(a.type==="remise_montant"||a.type==="avoir") amount=-Math.abs(r2(v));
+    else if(a.type==="ajustement") amount=r2(v);
+    if(!amount) return;
+    details.push({id:a.id||uid(),type:a.type,label:adjustmentLabel(a),valeur:v,montant:amount});
+  });
+  var sum=r2(details.reduce(function(x,a){return x+a.montant;},0));
+  return {details:details,totalAjustements:sum,totalApresAjustements:r2(Math.max(0,total+sum))};
+}
+function documentCalc(lignes,partService,doc){
+  var base=totals(lignes,partService), adj=calcAdjustments(base.total,normalizeAdjustments(doc));
+  var ratio=base.total>0?adj.totalApresAjustements/base.total:1;
+  return {biens:r2(base.biens*ratio),services:r2(base.services*ratio),totalInitial:base.total,ajustements:adj.details,totalAjustements:adj.totalAjustements,total:adj.totalApresAjustements};
+}
+function adjustmentsEditorHTML(prefix,list){
+  list=list||[];
+  var rows=list.map(function(a){
+    return '<div class="card" style="padding:10px;margin:8px 0;background:#fffaf8;" data-adjust-row="'+esc(a.id)+'">'+
+      '<div class="inline"><div><label class="field"><span>Type</span><select data-adjust-type="'+prefix+'" data-id="'+esc(a.id)+'">'+
+      '<option value="remise_pourcent"'+(a.type==="remise_pourcent"?' selected':'')+'>Remise %</option>'+ 
+      '<option value="remise_montant"'+(a.type==="remise_montant"?' selected':'')+'>Remise €</option>'+ 
+      '<option value="avoir"'+(a.type==="avoir"?' selected':'')+'>Avoir</option>'+ 
+      '<option value="ajustement"'+(a.type==="ajustement"?' selected':'')+'>Montant fixe (+ / -)</option></select></label></div>'+ 
+      '<div><label class="field"><span>Libellé</span><input data-adjust-label="'+prefix+'" data-id="'+esc(a.id)+'" value="'+esc(a.label||adjustmentLabel(a))+'"></label></div>'+ 
+      '<div><label class="field"><span>'+(a.type==="remise_pourcent"?'Pourcentage':'Montant €')+'</span><input type="number" step="0.01" data-adjust-value="'+prefix+'" data-id="'+esc(a.id)+'" value="'+esc(a.valeur||0)+'"></label></div></div>'+ 
+      '<button class="btn small danger" data-action="'+prefix+'-adjust-del-'+esc(a.id)+'">Supprimer cet ajustement</button></div>';
+  }).join('');
+  return rows+'<button class="btn small soft" data-action="'+prefix+'-adjust-add">+ Ajouter une remise, un avoir ou un montant fixe</button>';
+}
+
+function factureCalc(lignes, partService, f){
+  f=f||{};
+  var base=documentCalc(lignes,partService,f);
+  var acompte=Math.min(num(f.acompteDejaPaye),base.total);
+  return {biens:base.biens,services:base.services,totalInitial:base.totalInitial,ajustements:base.ajustements,totalAjustements:base.totalAjustements,totalApresAjustements:base.total,acompteDejaPaye:acompte,total:r2(base.total-acompte)};
 }
 
 var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l:"Envoyé",c:"#6a5a2a",b:"#f3ead0"},
@@ -1642,7 +1675,7 @@ function documentChangeSummary(oldDoc,newDoc){
   if((oc.tel||"")!==(nc.tel||"")) changes.push("Téléphone");
   if((oldDoc.notes||"")!==(newDoc.notes||"")) changes.push("Notes");
   if(JSON.stringify(oldDoc.lignes||[])!==JSON.stringify(newDoc.lignes||[])) changes.push("Lignes / quantités / prix");
-  if(Number(oldDoc.reductionValeur||0)!==Number(newDoc.reductionValeur||0) || (oldDoc.reductionType||"")!==(newDoc.reductionType||"")) changes.push("Réduction");
+  if(JSON.stringify(normalizeAdjustments(oldDoc))!==JSON.stringify(normalizeAdjustments(newDoc))) changes.push("Ajustements commerciaux");
   if(Number(oldDoc.acompteDejaPaye||0)!==Number(newDoc.acompteDejaPaye||0)) changes.push("Acompte déjà payé");
   return changes.length?changes:["Document actualisé"];
 }
@@ -1724,12 +1757,12 @@ function viewDevis(){
 function newWizard(editDoc,forceVersion){
   if(editDoc){
     var clientId=(editDoc.client&&editDoc.client.id)||"";
-    ui.wizard={step:1,editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),clientMode:clientId?"existant":"nouveau",clientId:clientId,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),notes:editDoc.notes||"",date:editDoc.date||todayISO()};
+    ui.wizard={step:1,editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),clientMode:clientId?"existant":"nouveau",clientId:clientId,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),ajustements:normalizeAdjustments(editDoc),notes:editDoc.notes||"",date:editDoc.date||todayISO()};
   }else{
-    ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"", date:todayISO() };
+    ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], ajustements:[], notes:"", date:todayISO() };
   }
 }
-function wzTotals(){ return totals(ui.wizard.lignes,state.settings.partService); }
+function wzTotals(){ return documentCalc(ui.wizard.lignes,state.settings.partService,ui.wizard); }
 function viewWizard(){
   var w=ui.wizard, dot=function(n,l){ return '<div style="display:flex;align-items:center;gap:7px;"><div style="width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:'+(w.step>=n?"var(--bordeaux)":"#fff")+';color:'+(w.step>=n?"#fff":"var(--ink-s)")+';border:1px solid '+(w.step>=n?"var(--bordeaux)":"var(--line)")+';">'+n+'</div><span style="font-size:12px;font-weight:600;color:'+(w.step>=n?"var(--ink)":"var(--ink-s)")+';">'+l+'</span></div>'; };
   var head='<div class="card">'+(w.editId?'<div class="summary" style="margin-bottom:12px;"><b>✏️ Modification de '+esc((w.originalSnapshot&&w.originalSnapshot.numero)||"devis")+'</b>'+(w.forceNewVersion?' · nouvelle version':'')+'</div>':'')+'<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px;">'+dot(1,"Client")+'<span style="color:var(--line);">—</span>'+dot(2,"Créations")+'<span style="color:var(--line);">—</span>'+dot(3,"Validation")+'</div>';
@@ -1777,21 +1810,27 @@ function viewWizard(){
     var t2=wzTotals(); var cn = w.clientMode==="existant" ? (state.clients.find(function(c){return c.id===w.clientId;})||{}).nom : w.client.nom;
     body='<h3 style="margin:0 0 12px;">Vérification</h3>'+
       '<label class="field"><span>Note pour le client (facultatif)</span><textarea id="wzNotes" placeholder="Ex : Retrait en atelier, livraison sur Valenciennes…">'+esc(w.notes)+'</textarea></label>'+
+      '<div class="section-title">Ajustements commerciaux</div>'+adjustmentsEditorHTML("wz",w.ajustements||[])+
+      '<div id="wzTotFinal" style="padding:12px;background:var(--cream);border-radius:10px;font-size:14px;margin:12px 0;">'+wizTotHTML(t2)+'</div>'+
       '<div style="padding:12px;background:var(--cream);border-radius:10px;font-size:14px;margin-bottom:12px;">'+
         '<div><b>Client :</b> '+esc(cn)+'</div><div><b>Lignes :</b> '+w.lignes.length+'</div>'+
-        '<div><b>Total :</b> '+euro(t2.total)+' ('+euro(t2.biens)+' biens · '+euro(t2.services)+' services)</div>'+
+        '<div><b>Total final :</b> '+euro(t2.total)+' ('+euro(t2.biens)+' biens · '+euro(t2.services)+' services)</div>'+
         '<div class="muted" style="margin-top:4px;">Validité jusqu\'au '+frDate(addDays(w.date,state.settings.validiteDevis))+'</div></div>'+
       '<div class="flexb"><button class="btn ghost" data-action="wz-back">← Retour</button><button class="btn gold" data-action="wz-finish">'+(w.editId?'Enregistrer les modifications':'Créer le devis')+'</button></div>';
   }
   return head+body+'</div>';
 }
 function wizTotHTML(t){
-  return '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+
-    '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>'+
+  var adj=(t.ajustements||[]).map(function(a){return '<div class="totrow muted"><span>'+esc(a.label)+'</span><span>'+(a.montant<0?'– ':'+ ')+euro(Math.abs(a.montant))+'</span></div>';}).join('');
+  return '<div class="totrow muted"><span>Sous-total</span><span>'+euro(t.totalInitial!=null?t.totalInitial:t.total)+'</span></div>'+adj+
+    '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
+    '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>'+ 
     '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:6px;"><span>Total devis</span><span>'+euro(t.total)+'</span></div>';
 }
+function refreshWizardFinalTotals(){var b=document.getElementById("wzTotFinal");if(b&&ui.wizard)b.innerHTML=wizTotHTML(wzTotals());}
+
 function captureWizardInputs(){ // lit les champs avant un changement d'étape
-  var w=ui.wizard; if(!w) return;
+  var w=ui.wizard; if(!w) return; w.ajustements=w.ajustements||[];
   if(w.step===1&&w.clientMode==="nouveau"){
     var g=function(id){var e=document.getElementById(id);return e?e.value:"";};
     w.client={nom:g("wzNom"),adresse:g("wzAdr"),email:g("wzEmail"),tel:g("wzTel")};
@@ -1887,9 +1926,9 @@ function viewFactures(){
 function newFactureDraft(editDoc,forceVersion){
   if(editDoc){
     var cid=(editDoc.client&&editDoc.client.id)||"";
-    ui.factureDraft={editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),date:editDoc.date||todayISO(),echeance:editDoc.echeance||addDays(todayISO(),state.settings.delaiPaiement),statut:editDoc.statut||"a_envoyer",clientMode:cid?"existant":"nouveau",clientId:cid,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),reductionType:editDoc.remiseType||"montant",reductionValeur:Number(editDoc.remiseValeur||0),acompteDejaPaye:Number(editDoc.acompteDejaPaye||0),paiementClient:editDoc.paiementClient||"",notes:editDoc.notes||""};
+    ui.factureDraft={editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),date:editDoc.date||todayISO(),echeance:editDoc.echeance||addDays(todayISO(),state.settings.delaiPaiement),statut:editDoc.statut||"a_envoyer",clientMode:cid?"existant":"nouveau",clientId:cid,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),ajustements:normalizeAdjustments(editDoc),reductionType:editDoc.remiseType||"montant",reductionValeur:Number(editDoc.remiseValeur||0),acompteDejaPaye:Number(editDoc.acompteDejaPaye||0),paiementClient:editDoc.paiementClient||"",notes:editDoc.notes||""};
   }else{
-    ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, paiementClient:"", notes:"" };
+    ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], ajustements:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, paiementClient:"", notes:"" };
   }
 }
 function facDraftTotals(){ return factureCalc(ui.factureDraft?ui.factureDraft.lignes:[], state.settings.partService, ui.factureDraft); }
@@ -1931,23 +1970,25 @@ function viewFactureManualForm(){
     clientPart+ 
     '<div class="section-title">Lignes de facture</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">'+cat+'</div>'+table+ 
     '<button class="btn small soft" data-action="fac-addfree">+ Ligne libre</button>'+ 
-    '<div class="section-title">Réduction / acompte déjà payé</div>'+ 
-    '<div class="inline"><div><label class="field"><span>Type de réduction</span><select id="facReductionType"><option value="montant"'+(f.reductionType!=="pourcent"?" selected":"")+'>Montant €</option><option value="pourcent"'+(f.reductionType==="pourcent"?" selected":"")+'>Pourcentage %</option></select></label></div>'+ 
-    '<div><label class="field"><span>Réduction</span><input id="facReductionValeur" type="number" min="0" step="0.01" value="'+esc(f.reductionValeur||0)+'"></label></div>'+ 
-    '<div><label class="field"><span>Acompte déjà payé (€)</span><input id="facAcompteDejaPaye" type="number" min="0" step="0.01" value="'+esc(f.acompteDejaPaye||0)+'"></label></div></div>'+ 
+    '<div class="section-title">Ajustements commerciaux</div>'+adjustmentsEditorHTML("fac",f.ajustements||[])+
+    '<div style="margin-top:12px;"><label class="field"><span>Acompte déjà payé (€)</span><input id="facAcompteDejaPaye" type="number" min="0" step="0.01" value="'+esc(f.acompteDejaPaye||0)+'"></label></div>'+ 
     '<label class="field"><span>Moyen de paiement de la cliente</span><select id="facPaiementClient">'+paymentOptions(f.paiementClient||"")+'</select><div class="hint">Utile si la facture ou un acompte est déjà payé.</div></label>'+
     '<div id="facTot" style="margin-top:14px;padding:12px;background:var(--cream);border-radius:10px;font-size:14px;">'+facTotHTML(facDraftTotals())+'</div>'+ 
     '<label class="field" style="margin-top:12px;"><span>Note sur la facture (facultatif)</span><textarea id="facNotes">'+esc(f.notes||"")+'</textarea></label>'+ 
     '<div class="row-actions"><button class="btn gold" data-action="fac-create-manual">'+(f.editId?'Enregistrer les modifications':'Créer la facture')+'</button><button class="btn ghost" data-action="fac-cancel-manual">Annuler</button></div></div>';
 }
 function facTotHTML(t){
-  return '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
+  var adj=(t.ajustements||[]).map(function(a){return '<div class="totrow muted"><span>'+esc(a.label)+'</span><span>'+(a.montant<0?'– ':'+ ')+euro(Math.abs(a.montant))+'</span></div>';}).join('');
+  return '<div class="totrow muted"><span>Sous-total</span><span>'+euro(t.totalInitial)+'</span></div>'+adj+
+    (t.acompteDejaPaye?'<div class="totrow muted"><span>Acompte déjà payé</span><span>– '+euro(t.acompteDejaPaye)+'</span></div>':'')+
+    '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
     '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>'+ 
     '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:6px;"><span>Total facture</span><span>'+euro(t.total)+'</span></div>';
 }
+
 function captureFactureDraft(){
   var f=ui.factureDraft; if(!f) return;
-  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut="a_envoyer"; f.notes=val("facNotes"); f.reductionType=val("facReductionType")||"montant"; f.reductionValeur=num(val("facReductionValeur")); f.acompteDejaPaye=num(val("facAcompteDejaPaye")); f.paiementClient=val("facPaiementClient"); f.paiementClient=val("facPaiementClient");
+  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut="a_envoyer"; f.notes=val("facNotes"); f.ajustements=f.ajustements||[]; f.acompteDejaPaye=num(val("facAcompteDejaPaye")); f.paiementClient=val("facPaiementClient"); f.paiementClient=val("facPaiementClient");
   if(f.clientMode==="existant"&&state.clients.length){ f.clientId=val("facClient")||f.clientId; }
   else { f.client={nom:val("facNom"),adresse:val("facAdr"),email:val("facEmail"),tel:val("facTel"),canal:val("facCanal")}; }
 }
@@ -1966,7 +2007,7 @@ function createManualFacture(){
   if(!f.lignes.length){ toast("Ajoute au moins une ligne."); return; }
   var t=factureCalc(f.lignes,state.settings.partService,f);
   if(t.totalInitial<=0){ toast("Le total de la facture doit être supérieur à 0 €."); return; }
-  var payload={date:f.date,echeance:f.echeance,client:deepCopyDoc(client),lignes:deepCopyDoc(f.lignes),notes:f.notes,montantBiens:t.biens,montantServices:t.services,montant:t.total,totalInitial:t.totalInitial,remiseType:f.reductionType,remiseValeur:num(f.reductionValeur),remiseMontant:t.remiseMontant,totalApresRemise:t.totalApresRemise,acompteDejaPaye:t.acompteDejaPaye,paiementClient:f.paiementClient||""};
+  var payload={date:f.date,echeance:f.echeance,client:deepCopyDoc(client),lignes:deepCopyDoc(f.lignes),ajustements:deepCopyDoc(f.ajustements||[]),notes:f.notes,montantBiens:t.biens,montantServices:t.services,montant:t.total,totalInitial:t.totalInitial,totalAjustements:t.totalAjustements,totalApresAjustements:t.totalApresAjustements,acompteDejaPaye:t.acompteDejaPaye,paiementClient:f.paiementClient||""};
   if(f.editId){
     var original=state.factures.find(function(x){return x.id===f.editId;});
     if(!original){ toast("Facture introuvable."); return; }
@@ -5191,7 +5232,7 @@ function viewParams(){
 
 /* ===================== Document (devis / facture) ===================== */
 function viewDoc(p){
-  var s=state.settings, doc=p.doc, kind=p.kind, t=totals(doc.lignes,s.partService);
+  var s=state.settings, doc=p.doc, kind=p.kind, t=(kind==="facture"?factureCalc(doc.lignes,s.partService,doc):documentCalc(doc.lignes,s.partService,doc));
   var titre = kind==="devis" ? "DEVIS N° "+esc(doc.numero) : TYPE_FAC[doc.type].toUpperCase()+" N° "+esc(doc.numero);
   var emetteur='<div class="serif" style="font-size:19px;color:var(--bordeaux);font-weight:700;">'+esc(s.nomEntreprise)+'</div>'+
     '<div class="muted" style="font-size:10.5px;margin-top:3px;">'+
@@ -5214,10 +5255,9 @@ function viewDoc(p){
   var acEncart = (kind==="facture"&&doc.type==="acompte")?'<div style="margin-top:20px;padding:12px;border:1px solid var(--line);border-radius:8px;">Acompte de '+doc.pourcentage+' % sur le devis '+esc(doc.devisNumero)+' d\'un montant total de <b>'+euro(doc.devisTotal)+'</b>.</div>':'';
   var rows=doc.lignes.map(function(l){ return '<tr style="border-bottom:1px solid var(--line);"><td style="padding:6px;overflow-wrap:break-word;word-break:normal;">'+esc(l.designation)+'</td><td style="text-align:center;padding:6px;">'+esc(l.qte)+'</td><td style="text-align:right;padding:6px;">'+euro(l.prix)+'</td><td style="text-align:right;padding:6px;">'+euro(num(l.qte)*num(l.prix))+'</td></tr>'; }).join("");
   function tr(l,v,strong,soft){ return '<div class="totrow" style="font-size:'+(strong?14:12)+'px;font-weight:'+(strong?700:400)+';color:'+(strong?"var(--bordeaux)":soft?"var(--ink-s)":"var(--ink)")+';'+(strong?"border-top:2px solid var(--bordeaux);":"")+'"><span>'+esc(l)+'</span><span>'+v+'</span></div>'; }
+  var adjustmentRows=(t.ajustements||[]).map(function(a){return tr(a.label,(a.montant<0?"– ":"+ ")+euro(Math.abs(a.montant)),false,true);}).join("");
   var tot='<div style="display:flex;justify-content:flex-end;margin-top:8px;"><div style="min-width:280px;">'+
-    tr("Total",euro(doc.totalInitial||t.total))+tr(s.mentionTVA,"—",false,true)+
-    (kind==="facture"&&doc.remiseMontant?tr("Réduction","– "+euro(doc.remiseMontant),false,true):'')+
-    (kind==="facture"&&doc.remiseMontant?tr("Total après réduction",euro(doc.totalApresRemise||((doc.totalInitial||t.total)-doc.remiseMontant)),false,false):'')+
+    tr("Sous-total",euro(t.totalInitial))+tr(s.mentionTVA,"—",false,true)+adjustmentRows+
     (kind==="facture"&&doc.type==="acompte"?tr("Acompte "+doc.pourcentage+" %",euro(doc.montant),true):'')+
     (kind==="facture"&&doc.type==="solde"?tr("Acompte déjà versé ("+(doc.acompteNumero||"")+")","– "+euro(doc.acompteMontant),false,true)+tr("Net à payer (solde)",euro(doc.montant),true):'')+
     (kind==="facture"&&doc.type==="totale"&&doc.acompteDejaPaye?tr("Acompte déjà payé","– "+euro(doc.acompteDejaPaye),false,true):'')+
@@ -7405,6 +7445,8 @@ async function handleAction(action){
   if(action==="wz-addfree"){ ui.wizard.lignes.push({id:uid(),designation:"",type:"bien",qte:1,prix:0}); render(); return; }
   if(action.indexOf("wz-add-")===0){ var it=state.catalogue.find(function(c){return c.id===action.slice(7);}); if(it){ ui.wizard.lignes.push({id:uid(),designation:it.designation,type:it.type,qte:1,prix:it.prix}); render(); } return; }
   if(action.indexOf("wz-delline-")===0){ var lid=action.slice(11); ui.wizard.lignes=ui.wizard.lignes.filter(function(l){return l.id!==lid;}); render(); return; }
+  if(action==="wz-adjust-add"){ ui.wizard.ajustements=ui.wizard.ajustements||[]; ui.wizard.ajustements.push({id:uid(),type:"remise_montant",label:"Remise commerciale",valeur:0}); render(); return; }
+  if(action.indexOf("wz-adjust-del-")===0){ var waid=action.slice(14); ui.wizard.ajustements=(ui.wizard.ajustements||[]).filter(function(a){return a.id!==waid;}); render(); return; }
   if(action==="wz-finish"){ finishWizard(); return; }
 
   // devis
@@ -7512,6 +7554,8 @@ async function handleAction(action){
   }
 
   // factures
+  if(action==="fac-adjust-add"){ if(ui.factureDraft){ui.factureDraft.ajustements=ui.factureDraft.ajustements||[];ui.factureDraft.ajustements.push({id:uid(),type:"remise_montant",label:"Remise commerciale",valeur:0});render();} return; }
+  if(action.indexOf("fac-adjust-del-")===0){ if(ui.factureDraft){var faid=action.slice(15);ui.factureDraft.ajustements=(ui.factureDraft.ajustements||[]).filter(function(a){return a.id!==faid;});render();} return; }
   if(action.indexOf("fac-preview-")===0){ var f=state.factures.find(function(x){return x.id===action.slice(12);}); ui.preview={kind:"facture",doc:f}; renderModal(); return; }
   if(action.indexOf("fac-email-")===0){ var fe=state.factures.find(function(x){return x.id===action.slice(10);}); envoyerDocumentEmail("facture", fe); return; }
   if(action.indexOf("fac-paymethod-")===0){
@@ -7886,7 +7930,7 @@ function finishWizard(){
     else { client=Object.assign({id:uid(),updatedAt:todayISO()},w.client); state.clients.push(client); }
   }
   var devisClient = linkedMariage ? devisClientFromMariage(linkedMariage) : Object.assign({}, client||{});
-  var payload={date:w.date,validite:addDays(w.date,state.settings.validiteDevis),client:deepCopyDoc(devisClient),lignes:deepCopyDoc(w.lignes),notes:w.notes};
+  var dc=documentCalc(w.lignes,state.settings.partService,w); var payload={date:w.date,validite:addDays(w.date,state.settings.validiteDevis),client:deepCopyDoc(devisClient),lignes:deepCopyDoc(w.lignes),ajustements:deepCopyDoc(w.ajustements||[]),totalInitial:dc.totalInitial,totalAjustements:dc.totalAjustements,montant:dc.total,notes:w.notes};
   if(w.editId){
     var original=findDevis(w.editId); if(!original){toast("Devis introuvable.");return;}
     var makeVersion=original.statut==="accepte"||w.forceNewVersion;
@@ -7978,6 +8022,8 @@ document.addEventListener("input", function(e){
   if(t && t.id==="stockSearch"){ ui.stockSearch=t.value; stockFilterRowsFromDOM(); return; }
   if(t && t.id==="atelierLibrarySearch"){ ui.atelierLibrarySearch=t.value; var caret=t.selectionStart||t.value.length; render(); setTimeout(function(){var f=document.getElementById("atelierLibrarySearch");if(f){f.focus();try{f.setSelectionRange(caret,caret);}catch(_e){}}},0); return; }
   if(isTodoField(t)){ ui.todoEditing=true; saveTodoLocalOnly(); return; }
+  if(t.hasAttribute&&t.hasAttribute("data-adjust-label")){ var ap=t.getAttribute("data-adjust-label"), aid=t.getAttribute("data-id"), al=ap==="wz"?(ui.wizard&&ui.wizard.ajustements):(ui.factureDraft&&ui.factureDraft.ajustements); var aa=al&&al.find(function(x){return x.id===aid;}); if(aa){aa.label=t.value;} return; }
+  if(t.hasAttribute&&t.hasAttribute("data-adjust-value")){ var avp=t.getAttribute("data-adjust-value"), avid=t.getAttribute("data-id"), avl=avp==="wz"?(ui.wizard&&ui.wizard.ajustements):(ui.factureDraft&&ui.factureDraft.ajustements); var ava=avl&&avl.find(function(x){return x.id===avid;}); if(ava){ava.valeur=t.value;if(avp==="wz")refreshWizardFinalTotals();else refreshFactureTotals();} return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
     var l=ui.wizard&&ui.wizard.lignes.find(function(x){return x.id===id;}); if(l){ l[field]=t.value; refreshWizardTotals(); }
@@ -8009,6 +8055,7 @@ document.addEventListener("input", function(e){
 });
 document.addEventListener("change", function(e){
   var t=e.target;
+  if(t.hasAttribute&&t.hasAttribute("data-adjust-type")){ var atp=t.getAttribute("data-adjust-type"), atid=t.getAttribute("data-id"), atl=atp==="wz"?(ui.wizard&&ui.wizard.ajustements):(ui.factureDraft&&ui.factureDraft.ajustements); var ata=atl&&atl.find(function(x){return x.id===atid;}); if(ata){ata.type=t.value;if(!ata.label||["Remise commerciale","Avoir","Ajustement"].indexOf(ata.label)>=0)ata.label=adjustmentLabel(ata);render();} return; }
   if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
   if(t.id==="stockCategoryFilter"){ ui.stockCategoryFilter=t.value; stockFilterRowsFromDOM(); return; }
   if(t.id==="atelierLibraryStatus"){ ui.atelierLibraryStatus=t.value||"all"; render(); return; }
