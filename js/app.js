@@ -4,7 +4,7 @@
 var APP_VERSION="V5.5.0 PROD";
 var APP_VERSION_NOTE = "Statuts des mariages recalculés automatiquement selon les devis, factures et paiements.";
 var APP_CHANGELOG = [
-  "V5.5.2 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
+  "V5.5.3 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
   "V5.5.0 PROD — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
   "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
@@ -197,7 +197,11 @@ function startSecurePortalRequests(){
       if(i>=0){ var old=state.demandesMariage[i]; x.statut=old.statut||x.statut; state.demandesMariage[i]=Object.assign({},old,x); }
       else state.demandesMariage.unshift(x);
     });
-    try{render();}catch(e){}
+    // Ne jamais reconstruire toute l’interface pendant la saisie d’un champ :
+    // cela ferait perdre le focus après chaque enregistrement automatique.
+    if(!(typeof isTextEditing === "function" && isTextEditing())){
+      try{render();}catch(e){}
+    }
   },function(err){console.error("Lecture portail sécurisé impossible",err);});
 }
 function startSecurePortalDocumentDecisions(){
