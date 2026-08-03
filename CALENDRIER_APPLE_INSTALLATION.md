@@ -1,4 +1,4 @@
-# Installation du calendrier Apple synchronisé — MyBusiness V6.0.0
+# Installation du calendrier Apple synchronisé — MyBusiness V6.0.1
 
 Cette installation est à réaliser **une seule fois**. Ensuite, les rendez-vous téléphoniques, les livraisons/retraits et les dates de mariage renseignés dans MyBusiness seront publiés automatiquement dans un calendrier auquel l’iPhone est abonné.
 
@@ -15,7 +15,7 @@ Le calendrier ne donne aucun accès à MyBusiness, aux finances, aux devis ou au
 1. Ouvrir le tableau de bord Cloudflare.
 2. Aller dans **Storage & Databases → KV**.
 3. Cliquer sur **Create namespace**.
-4. Nommer le namespace : `MYBUSINESS_CALENDAR`.
+4. Nommer le namespace : `CALENDAR_KV`.
 5. Valider.
 
 ## B. Créer le Worker calendrier
@@ -36,12 +36,12 @@ L’adresse attendue par MyBusiness est :
 1. Dans le Worker `atelier-fleurs-calendar`, ouvrir **Settings → Bindings**.
 2. Ajouter un binding de type **KV Namespace**.
 3. Variable : `CALENDAR_KV`.
-4. Namespace : `MYBUSINESS_CALENDAR`.
+4. Namespace : `CALENDAR_KV`.
 5. Enregistrer puis redéployer le Worker si Cloudflare le demande.
 
 ## D. Vérifier le service dans MyBusiness
 
-1. Mettre en ligne les fichiers V6.0.0 PROD.
+1. Mettre en ligne les fichiers V6.0.1 PROD.
 2. Ouvrir **Calendrier** dans MyBusiness.
 3. Cliquer sur **Vérifier le service**.
 4. Le badge doit indiquer **Service prêt**.

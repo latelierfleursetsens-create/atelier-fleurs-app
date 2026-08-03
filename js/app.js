@@ -1,9 +1,10 @@
-/* V6.0.0 PROD — Calendrier Apple synchronisé. */
+/* V6.0.1 PROD — Calendrier Apple opérationnel. */
 "use strict";
 
-var APP_VERSION="V6.0.0 PROD";
+var APP_VERSION="V6.0.1 PROD";
 var APP_VERSION_NOTE = "Calendrier Apple synchronisé : rendez-vous téléphoniques, livraisons et dates de mariage.";
 var APP_CHANGELOG = [
+  "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
   "V5.7.0 PROD — Calendrier MyBusiness publiable en abonnement iCalendar : rendez-vous téléphoniques, livraisons et dates de mariage synchronisés vers le calendrier natif de l’iPhone.",
   "V5.6.1 PROD — Les versions modifiées restent explicitement associées à la même fiche mariage et la version active remplace automatiquement l’ancienne.",
@@ -150,7 +151,7 @@ function mariageRdvInfo(m){
   return date ? {date:date,heure:heure||"09:00"} : null;
 }
 function calendarBuildIcs(){
-  var lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//L Atelier Fleurs et Sens//MyBusiness 6//FR","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:MyBusiness - Mariages","X-WR-CALDESC:Rendez-vous téléphoniques, livraisons et dates de mariage","X-WR-TIMEZONE:Europe/Paris",
+  var lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//L Atelier Fleurs et Sens//MyBusiness 6//FR","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:MyBusiness - Planning","X-WR-CALDESC:Rendez-vous téléphoniques, livraisons, mariages et ateliers","X-WR-TIMEZONE:Europe/Paris",
     "BEGIN:VTIMEZONE","TZID:Europe/Paris","X-LIC-LOCATION:Europe/Paris","BEGIN:DAYLIGHT","TZOFFSETFROM:+0100","TZOFFSETTO:+0200","TZNAME:CEST","DTSTART:19700329T020000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:+0200","TZOFFSETTO:+0100","TZNAME:CET","DTSTART:19701025T030000","RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU","END:STANDARD","END:VTIMEZONE"];
   function addEvent(uidVal,title,date,time,endTime,location,description,allDay,updatedAt){
     if(!date) return;
@@ -185,6 +186,15 @@ function calendarBuildIcs(){
     }
     if(m.dateLivraison) addEvent("livraison-"+m.id,"📦 Livraison / retrait - "+nom,m.dateLivraison,"","",m.lieu||"",notes,true,m.updatedAt);
     if(m.dateMariage) addEvent("mariage-"+m.id,"💍 Mariage - "+nom,m.dateMariage,"","",m.lieu||"",notes,true,m.updatedAt);
+  });
+  (state.ateliers||[]).forEach(function(a){
+    if(!a || !a.date || a.statut==="annule") return;
+    var titre=(a.type||"Atelier")+(a.theme?" - "+a.theme:"");
+    var contact=a.organisatrice||a.structureNom||"";
+    var desc=[contact?"Contact : "+contact:"",a.contactTel?"Téléphone : "+a.contactTel:"",a.contactEmail?"E-mail : "+a.contactEmail:"",a.nbParticipantsPrevu?"Participants prévus : "+a.nbParticipantsPrevu:""] .filter(Boolean).join("\n");
+    var heure=a.heure||"09:00", p=heure.split(":"), total=Number(p[0]||0)*60+Number(p[1]||0)+120;
+    var fin=String(Math.floor(total/60)%24).padStart(2,"0")+":"+String(total%60).padStart(2,"0");
+    addEvent("atelier-"+a.id,"🌸 "+titre,a.date,heure,fin,a.lieu||"",desc,false,a.updatedAt||a.createdAt);
   });
   lines.push("END:VCALENDAR");
   return lines.join("\r\n")+"\r\n";
@@ -4647,7 +4657,7 @@ function viewCalendrier(){
   var workerStatus=ui.calendarWorkerStatus||"unknown";
   var workerBadge=workerStatus==="ready"?"Service prêt":(workerStatus==="error"?"À configurer":(workerStatus==="checking"?"Vérification…":"Non vérifié"));
   var statusColor=workerStatus==="ready"?"ok":(workerStatus==="error"?"warn":"");
-  var feedCard='<div class="card" style="margin-bottom:14px;"><div class="flexb"><div><h3 style="margin:0;">📱 Synchronisation Calendrier Apple</h3><p class="muted" style="margin:6px 0 0;">Une fois l’abonnement ajouté sur l’iPhone, les rendez-vous téléphoniques, livraisons/retraits et dates de mariage sont mis à jour depuis MyBusiness, même lorsque tu travailles sur le PC.</p></div><span class="badge '+statusColor+'">'+esc(workerBadge)+'</span></div>'+
+  var feedCard='<div class="card" style="margin-bottom:14px;"><div class="flexb"><div><h3 style="margin:0;">📱 Synchronisation Calendrier Apple</h3><p class="muted" style="margin:6px 0 0;">Une fois l’abonnement ajouté sur l’iPhone, les rendez-vous téléphoniques, livraisons/retraits, dates de mariage et ateliers sont mis à jour depuis MyBusiness, même lorsque tu travailles sur le PC.</p></div><span class="badge '+statusColor+'">'+esc(workerBadge)+'</span></div>'+
     '<div class="onboarding-steps" style="margin:16px 0 10px;"><div class="onboarding-step"><div class="onboarding-number">1</div><h3>Service sécurisé</h3><p>Le Worker Cloudflare publie uniquement le calendrier privé.</p><button class="btn small soft" data-action="cal-feed-check" style="margin-top:10px;">Vérifier le service</button></div><div class="onboarding-step"><div class="onboarding-number">2</div><h3>Activer le lien</h3><p>MyBusiness crée un lien privé difficile à deviner.</p>'+
       (feedUrl?'<span class="status ok" style="margin-top:10px;">Activé</span>':'<button class="btn small primary" data-action="cal-feed-enable" style="margin-top:10px;">Activer l’abonnement</button>')+'</div><div class="onboarding-step"><div class="onboarding-number">3</div><h3>Ajouter sur l’iPhone</h3><p>Ajoute le lien une seule fois dans Calendrier Apple.</p>'+
       (feedUrl?'<button class="btn small primary" data-action="cal-feed-open" style="margin-top:10px;">Ouvrir l’abonnement</button>':'<span class="muted">Disponible après activation</span>')+'</div></div>'+

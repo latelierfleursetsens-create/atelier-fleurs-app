@@ -1,4 +1,4 @@
-# MyBusiness V6.0.0 PROD
+# MyBusiness V6.0.1 PROD
 
 ## Nouveauté
 
@@ -14,4 +14,4 @@ L’abonnement automatique nécessite le déploiement du Worker Cloudflare fourn
 
 ## Calendrier Apple synchronisé
 
-La V6.0.0 publie un flux iCalendar privé via un Worker Cloudflare. Consulte `CALENDRIER_APPLE_INSTALLATION.md` avant d’activer l’abonnement dans MyBusiness.
+La V6.0.1 publie un flux iCalendar privé via un Worker Cloudflare. Consulte `CALENDRIER_APPLE_INSTALLATION.md` avant d’activer l’abonnement dans MyBusiness.

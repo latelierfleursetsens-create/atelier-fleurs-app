@@ -55,7 +55,7 @@ export default {
         ok: true,
         configured: Boolean(env.CALENDAR_KV),
         service: "MyBusiness Calendar",
-        version: "6.0.0"
+        version: "6.0.1"
       });
     }
 
@@ -100,6 +100,6 @@ export default {
       });
     }
 
-    return json(request, { ok: true, service: "MyBusiness Calendar", version: "6.0.0" });
+    return json(request, { ok: true, service: "MyBusiness Calendar", version: "6.0.1" });
   }
 };
