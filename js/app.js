@@ -1,9 +1,10 @@
 /* V5.0.5 — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.6.0 PROD";
+var APP_VERSION="V5.6.1 PROD";
 var APP_VERSION_NOTE = "Modification et versioning des devis et factures existants.";
 var APP_CHANGELOG = [
+  "V5.6.1 PROD — Les versions modifiées restent explicitement associées à la même fiche mariage et la version active remplace automatiquement l’ancienne.",
   "V5.6.0 PROD — Modification et versioning des devis et factures avec conservation optionnelle de l’original.",
   "V5.5.4 PROD — Toute modification des coordonnées clientes est répercutée dans la fiche mariage ainsi que dans les devis et factures liés.",
   "V5.5.3 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
@@ -316,6 +317,53 @@ function hidePortalDocumentVersion(kind,id){
   try{
     if(db&&auth&&auth.currentUser) db.collection("portalDocuments").doc(kind+"_"+id).set({visibleClient:false,archivedVersion:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(function(e){console.warn("Archivage portail impossible",e);});
   }catch(e){}
+}
+
+// Conserve explicitement le lien entre une version de document et sa fiche mariage.
+function preserveDocumentMarriageAssociation(kind, original, nextDoc){
+  original=original||{}; nextDoc=nextDoc||{};
+  var mariage=null;
+  if(kind==="devis") {
+    mariage=(state.mariages||[]).find(function(m){return m.devisLie===original.id;})
+      || (original.mariageId?getMariage(original.mariageId):null)
+      || (nextDoc.mariageId?getMariage(nextDoc.mariageId):null);
+  } else {
+    mariage=(original.mariageId?getMariage(original.mariageId):null)
+      || (nextDoc.mariageId?getMariage(nextDoc.mariageId):null);
+    var devisId=nextDoc.devisId||original.devisId||nextDoc.devisLie||original.devisLie||"";
+    if(!mariage && devisId) mariage=(state.mariages||[]).find(function(m){return m.devisLie===devisId;})||null;
+  }
+  if(!mariage) return null;
+  nextDoc.mariageId=mariage.id;
+  if(mariage.ownerUid && !nextDoc.ownerUid) nextDoc.ownerUid=mariage.ownerUid;
+  if(mariage.clientId && !nextDoc.clientId) nextDoc.clientId=mariage.clientId;
+
+  if(kind==="devis") {
+    mariage.devisLie=nextDoc.id;
+    mariage.updatedAt=new Date().toISOString();
+    // Les documents non finalisés suivent la version active. Les factures payées restent
+    // rattachées à leur version d'origine, mais gardent le lien direct vers le mariage.
+    (state.factures||[]).forEach(function(f){
+      if(f.devisId===original.id){
+        f.mariageId=mariage.id;
+        if(f.statut!=="payee" && !f.versionArchive){
+          f.devisId=nextDoc.id;
+          f.devisNumero=nextDoc.numero||f.devisNumero;
+        }
+        f.updatedAt=new Date().toISOString();
+      }
+    });
+    (state.commandes||[]).forEach(function(c){
+      if(c.devisId===original.id){
+        c.mariageId=mariage.id;
+        if(!c.fait){ c.devisId=nextDoc.id; c.devisNumero=nextDoc.numero||c.devisNumero; }
+      }
+    });
+  } else {
+    nextDoc.devisId=nextDoc.devisId||original.devisId||mariage.devisLie||"";
+    nextDoc.devisNumero=nextDoc.devisNumero||original.devisNumero||((findDevis(nextDoc.devisId)||{}).numero)||"";
+  }
+  return mariage;
 }
 
 function publishSecureClientSpaces(){
@@ -1771,9 +1819,11 @@ function createManualFacture(){
       var base=original.baseNumero||baseDocumentNumber(original.numero), nv=nextDocumentVersion(state.factures,original);
       original.baseNumero=base; original.version=Number(original.version)||1; original.versionArchive=true; original.updatedAt=new Date().toISOString();
       var nf=Object.assign({},deepCopyDoc(original),payload,{id:uid(),numero:base+" V"+nv,baseNumero:base,version:nv,versionArchive:false,previousVersionId:original.id,statut:"a_envoyer",datePaiement:null,changesSummary:changes,updatedAt:new Date().toISOString()});
-      original.replacedBy=nf.id; hidePortalDocumentVersion("facture",original.id); state.factures.unshift(nf); ui.factureDraft=null; saveCache(); render(); toast("Nouvelle version "+nf.numero+" créée. L’original est conservé."); return;
+      preserveDocumentMarriageAssociation("facture",original,nf);
+      original.replacedBy=nf.id; hidePortalDocumentVersion("facture",original.id); state.factures.unshift(nf); ui.factureDraft=null; saveCache(); render(); toast("Nouvelle version "+nf.numero+" créée et conservée dans la même fiche mariage. L’original est archivé."); return;
     }
     Object.assign(original,payload,{changesSummary:changes,updatedAt:new Date().toISOString()});
+    preserveDocumentMarriageAssociation("facture",original,original);
     ui.factureDraft=null; saveCache(); render(); toast("Facture "+original.numero+" modifiée."); return;
   }
   var facture=Object.assign({ id:uid(), numero:prochainNumero("facture"), type:"totale", statut:"a_envoyer", datePaiement:null, origine:"manuelle",version:1,versionArchive:false },payload);
@@ -7669,11 +7719,12 @@ function finishWizard(){
       var base=original.baseNumero||baseDocumentNumber(original.numero), nv=nextDocumentVersion(state.devis,original);
       original.baseNumero=base; original.version=Number(original.version)||1; original.statut="archive"; original.versionArchive=true; original.updatedAt=new Date().toISOString();
       var nd=Object.assign({},deepCopyDoc(original),payload,{id:uid(),numero:base+" V"+nv,baseNumero:base,version:nv,versionArchive:false,previousVersionId:original.id,statut:"brouillon",changesSummary:changes,updatedAt:new Date().toISOString()});
+      preserveDocumentMarriageAssociation("devis",original,nd);
       original.replacedBy=nd.id; hidePortalDocumentVersion("devis",original.id); state.devis.unshift(nd);
-      (state.mariages||[]).forEach(function(mm){if(mm.devisLie===original.id)mm.devisLie=nd.id;});
-      ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Nouvelle version "+nd.numero+" créée. L’original est conservé."); return;
+      ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Nouvelle version "+nd.numero+" créée et définie comme active dans la fiche mariage. L’original est archivé."); return;
     }
     Object.assign(original,payload,{changesSummary:changes,updatedAt:new Date().toISOString()});
+    preserveDocumentMarriageAssociation("devis",original,original);
     ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+original.numero+" modifié."); return;
   }
   var d=Object.assign({ id:uid(), numero:prochainNumero("devis"), statut:"brouillon",version:1,versionArchive:false },payload);

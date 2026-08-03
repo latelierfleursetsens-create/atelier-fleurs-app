@@ -1,10 +1,10 @@
-# Installation V5.6.0 PROD
+# Installation V5.6.1 PROD
 
 1. Effectuer une sauvegarde fichier depuis MyBusiness.
 2. Remplacer les fichiers de production par ceux de cette archive.
 3. Attendre la mise à jour GitHub Pages.
 4. Recharger MyBusiness avec Ctrl + F5.
-5. Vérifier que le tableau de bord affiche V5.6.0 PROD.
+5. Vérifier que le tableau de bord affiche V5.6.1 PROD.
 
 ## Test conseillé
 
