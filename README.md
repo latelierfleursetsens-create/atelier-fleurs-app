@@ -1,7 +1,16 @@
-# MyBusiness — V5.5.4 PROD
+# MyBusiness V5.6.0 PROD
 
-Synchronisation complète des coordonnées clientes vers les fiches mariage, devis et factures liés.
+## Nouveauté principale
 
-Champs concernés : nom, adresse, e-mail et téléphone.
+Les devis et factures existants peuvent désormais être rouverts avec toutes leurs lignes, quantités, prix et coordonnées déjà remplis.
 
-L’adresse de connexion Firebase de la cliente n’est pas modifiée.
+Deux choix sont proposés :
+
+- remplacer le document actuel ;
+- conserver l'original et créer une nouvelle version.
+
+Un devis accepté et une facture payée ne peuvent pas être remplacés directement : une nouvelle version est créée automatiquement afin de conserver la trace du document validé.
+
+Les anciennes versions sont archivées. Dans l'espace client, seule la nouvelle version publiée reste visible.
+
+Aucune modification des règles Firebase n'est nécessaire.

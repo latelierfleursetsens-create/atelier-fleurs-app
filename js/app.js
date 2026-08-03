@@ -1,9 +1,10 @@
 /* V5.0.5 — Référentiel détaillé des créations mariage. */
 "use strict";
 
-var APP_VERSION="V5.5.4 PROD";
-var APP_VERSION_NOTE = "Synchronisation complète des coordonnées clientes vers les fiches mariage, devis et factures.";
+var APP_VERSION="V5.6.0 PROD";
+var APP_VERSION_NOTE = "Modification et versioning des devis et factures existants.";
 var APP_CHANGELOG = [
+  "V5.6.0 PROD — Modification et versioning des devis et factures avec conservation optionnelle de l’original.",
   "V5.5.4 PROD — Toute modification des coordonnées clientes est répercutée dans la fiche mariage ainsi que dans les devis et factures liés.",
   "V5.5.3 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
   "V5.5.0 PROD — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
@@ -99,7 +100,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false };
 var fileHandle = null;
 
 /* ===================== Helpers ===================== */
@@ -310,6 +311,13 @@ async function publishDocumentToClientPortal(kind,doc,pdf64){
   return payload;
 }
 
+
+function hidePortalDocumentVersion(kind,id){
+  try{
+    if(db&&auth&&auth.currentUser) db.collection("portalDocuments").doc(kind+"_"+id).set({visibleClient:false,archivedVersion:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(function(e){console.warn("Archivage portail impossible",e);});
+  }catch(e){}
+}
+
 function publishSecureClientSpaces(){
   if(!auth.currentUser) return Promise.resolve();
   var jobs=[];
@@ -327,7 +335,7 @@ function publishSecureClientSpaces(){
       if(devis.portalFileName) quotePortal.fileName=devis.portalFileName;
       jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set(quotePortal,{merge:true}));
     }
-    facts.filter(function(f){return ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
+    facts.filter(function(f){return !f.versionArchive && ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
       var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
       if(f.portalPdfUrl) invoicePortal.pdfUrl=f.portalPdfUrl;
       if(f.portalStoragePath) invoicePortal.storagePath=f.portalStoragePath;
@@ -1412,6 +1420,31 @@ function jauge(lab,v,seuil,pct,color){
     '<div class="track"><div class="fill" style="width:'+pct+'%;background:'+color+';"></div></div></div>';
 }
 
+
+function deepCopyDoc(obj){ return JSON.parse(JSON.stringify(obj||{})); }
+function baseDocumentNumber(numero){ return String(numero||"").replace(/\s+V\d+$/i,""); }
+function nextDocumentVersion(list, doc){
+  var base=doc.baseNumero||baseDocumentNumber(doc.numero), max=Number(doc.version)||1;
+  (list||[]).forEach(function(x){ if((x.baseNumero||baseDocumentNumber(x.numero))===base) max=Math.max(max,Number(x.version)||1); });
+  return max+1;
+}
+function documentChangeSummary(oldDoc,newDoc){
+  var changes=[], oc=oldDoc.client||{}, nc=newDoc.client||{};
+  if((oc.nom||"")!==(nc.nom||"")) changes.push("Client");
+  if((oc.adresse||"")!==(nc.adresse||"")) changes.push("Adresse");
+  if((oc.email||"")!==(nc.email||"")) changes.push("E-mail");
+  if((oc.tel||"")!==(nc.tel||"")) changes.push("Téléphone");
+  if((oldDoc.notes||"")!==(newDoc.notes||"")) changes.push("Notes");
+  if(JSON.stringify(oldDoc.lignes||[])!==JSON.stringify(newDoc.lignes||[])) changes.push("Lignes / quantités / prix");
+  if(Number(oldDoc.reductionValeur||0)!==Number(newDoc.reductionValeur||0) || (oldDoc.reductionType||"")!==(newDoc.reductionType||"")) changes.push("Réduction");
+  if(Number(oldDoc.acompteDejaPaye||0)!==Number(newDoc.acompteDejaPaye||0)) changes.push("Acompte déjà payé");
+  return changes.length?changes:["Document actualisé"];
+}
+function versionMetaHTML(doc){
+  var v=Number(doc&&doc.version)||1;
+  return '<span class="pill" style="background:#efe7df;color:var(--ink-s);">V'+v+(doc&&doc.versionArchive?' · archivée':'')+'</span>';
+}
+
 /* ===================== Devis : liste ===================== */
 function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
 function viewDevis(){
@@ -1457,11 +1490,14 @@ function viewDevis(){
     var sd=ST_DEVIS[d.statut]||ST_DEVIS.brouillon;
     var delPending = ui.confirmDelete === "devis:"+d.id;
     html+='<div class="card"><div class="flexb"><div>'+
-      '<div style="font-weight:700;color:var(--bordeaux);">'+esc(d.numero)+' · '+esc(d.client&&d.client.nom)+'</div>'+
+      '<div style="font-weight:700;color:var(--bordeaux);">'+esc(d.numero)+' · '+esc(d.client&&d.client.nom)+' '+versionMetaHTML(d)+'</div>'+
+      (d.changesSummary&&d.changesSummary.length?'<div class="muted" style="font-size:11px;">Modifications : '+esc(d.changesSummary.join(' · '))+'</div>':'')+
       '<div class="muted">'+frDate(d.date)+' · '+euro(t.total)+' ('+euro(t.biens)+' biens · '+euro(t.services)+' services)</div></div>'+
       '<span class="badge" style="color:'+sd.c+';background:'+sd.b+';">'+sd.l+'</span></div>'+
       '<div class="row-actions">'+
         '<button class="btn small ghost" data-action="devis-preview-'+d.id+'">Aperçu / PDF</button>'+
+        '<button class="btn small soft" data-action="devis-edit-'+d.id+'">Modifier</button>'+
+        '<button class="btn small ghost" data-action="devis-version-'+d.id+'">Nouvelle version</button>'+
         '<button class="btn small gold" data-action="devis-email-'+d.id+'">Envoyer par email</button>'+
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
         (d.statut!=="accepte"&&d.statut!=="refuse"&&d.statut!=="archive"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
@@ -1479,11 +1515,18 @@ function viewDevis(){
   return html;
 }
 /* ===================== Devis : assistant ===================== */
-function newWizard(){ ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"", date:todayISO() }; }
+function newWizard(editDoc,forceVersion){
+  if(editDoc){
+    var clientId=(editDoc.client&&editDoc.client.id)||"";
+    ui.wizard={step:1,editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),clientMode:clientId?"existant":"nouveau",clientId:clientId,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),notes:editDoc.notes||"",date:editDoc.date||todayISO()};
+  }else{
+    ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"", date:todayISO() };
+  }
+}
 function wzTotals(){ return totals(ui.wizard.lignes,state.settings.partService); }
 function viewWizard(){
   var w=ui.wizard, dot=function(n,l){ return '<div style="display:flex;align-items:center;gap:7px;"><div style="width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:'+(w.step>=n?"var(--bordeaux)":"#fff")+';color:'+(w.step>=n?"#fff":"var(--ink-s)")+';border:1px solid '+(w.step>=n?"var(--bordeaux)":"var(--line)")+';">'+n+'</div><span style="font-size:12px;font-weight:600;color:'+(w.step>=n?"var(--ink)":"var(--ink-s)")+';">'+l+'</span></div>'; };
-  var head='<div class="card"><div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px;">'+dot(1,"Client")+'<span style="color:var(--line);">—</span>'+dot(2,"Créations")+'<span style="color:var(--line);">—</span>'+dot(3,"Validation")+'</div>';
+  var head='<div class="card">'+(w.editId?'<div class="summary" style="margin-bottom:12px;"><b>✏️ Modification de '+esc((w.originalSnapshot&&w.originalSnapshot.numero)||"devis")+'</b>'+(w.forceNewVersion?' · nouvelle version':'')+'</div>':'')+'<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px;">'+dot(1,"Client")+'<span style="color:var(--line);">—</span>'+dot(2,"Créations")+'<span style="color:var(--line);">—</span>'+dot(3,"Validation")+'</div>';
   var body="";
   if(w.step===1){
     var modeBtns='<div class="row-actions" style="margin-top:0;margin-bottom:14px;">'+
@@ -1532,7 +1575,7 @@ function viewWizard(){
         '<div><b>Client :</b> '+esc(cn)+'</div><div><b>Lignes :</b> '+w.lignes.length+'</div>'+
         '<div><b>Total :</b> '+euro(t2.total)+' ('+euro(t2.biens)+' biens · '+euro(t2.services)+' services)</div>'+
         '<div class="muted" style="margin-top:4px;">Validité jusqu\'au '+frDate(addDays(w.date,state.settings.validiteDevis))+'</div></div>'+
-      '<div class="flexb"><button class="btn ghost" data-action="wz-back">← Retour</button><button class="btn gold" data-action="wz-finish">Créer le devis</button></div>';
+      '<div class="flexb"><button class="btn ghost" data-action="wz-back">← Retour</button><button class="btn gold" data-action="wz-finish">'+(w.editId?'Enregistrer les modifications':'Créer le devis')+'</button></div>';
   }
   return head+body+'</div>';
 }
@@ -1574,12 +1617,15 @@ function factureCardHTML(f){
   var sf=ST_FAC[f.statut]||ST_FAC.a_envoyer;
   var delPending = ui.confirmDelete === "facture:"+f.id;
   return '<div class="card" style="margin-bottom:10px;"><div class="flexb"><div>'+
-    '<div style="font-weight:700;color:var(--bordeaux);">'+esc(f.numero)+' · '+esc(TYPE_FAC[f.type]||"Facture")+(f.origine==="manuelle"?' <span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">saisie directe</span>':'')+'</div>'+
+    '<div style="font-weight:700;color:var(--bordeaux);">'+esc(f.numero)+' · '+esc(TYPE_FAC[f.type]||"Facture")+' '+versionMetaHTML(f)+(f.origine==="manuelle"?' <span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">saisie directe</span>':'')+'</div>'+
+    (f.changesSummary&&f.changesSummary.length?'<div class="muted" style="font-size:11px;">Modifications : '+esc(f.changesSummary.join(' · '))+'</div>':'')+
     '<div class="muted">'+esc(f.client&&f.client.nom)+' · '+frDate(f.date)+' · <b>'+euro(f.montant)+'</b></div>'+
     '<div class="muted">'+euro(f.montantBiens)+' biens · '+euro(f.montantServices)+' services'+(f.datePaiement?" · payée le "+frDate(f.datePaiement):"")+(f.paiementClient?" · paiement : "+esc(f.paiementClient):"")+'</div></div>'+
     '<span class="badge" style="color:'+sf.c+';background:'+sf.b+';">'+sf.l+'</span></div>'+
     '<div class="row-actions">'+
       '<button class="btn small ghost" data-action="fac-preview-'+f.id+'">Aperçu / PDF</button>'+
+      '<button class="btn small soft" data-action="fac-edit-'+f.id+'">Modifier</button>'+
+      '<button class="btn small ghost" data-action="fac-version-'+f.id+'">Nouvelle version</button>'+
       '<button class="btn small gold" data-action="fac-email-'+f.id+'">Envoyer par email</button>'+ 
       '<button class="btn small ghost" data-action="fac-paymethod-'+f.id+'">Moyen de paiement</button>'+
       (f.statut==="a_envoyer"?'<button class="btn small soft" data-action="fac-st-'+f.id+'-envoyee">Marquer envoyée</button>':'')+
@@ -1616,7 +1662,7 @@ function viewFactures(){
   if(ui.factureDraft){ html+=viewFactureManualForm(); }
   if(state.factures.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>'; return html; }
 
-  var sorted=state.factures.slice().sort(function(a,b){
+  var sorted=state.factures.filter(function(f){return !f.versionArchive;}).slice().sort(function(a,b){
     return (b.date||"").localeCompare(a.date||"") || (b.numero||"").localeCompare(a.numero||"");
   });
   var groups={
@@ -1628,10 +1674,17 @@ function viewFactures(){
   html+=viewFactureGroup("a_envoyer","À envoyer",groups.a_envoyer,true);
   html+=viewFactureGroup("envoyee","Envoyées / en attente de paiement",groups.envoyee,true);
   html+=viewFactureGroup("payee","Payées",groups.payee,false);
+  var archivedVersions=state.factures.filter(function(f){return !!f.versionArchive;}).sort(function(a,b){return (b.updatedAt||b.date||"").localeCompare(a.updatedAt||a.date||"");});
+  if(archivedVersions.length) html+=viewFactureGroup("versions_archivees","Versions archivées",archivedVersions,false);
   return html;
 }
-function newFactureDraft(){
-  ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, paiementClient:"", notes:"" };
+function newFactureDraft(editDoc,forceVersion){
+  if(editDoc){
+    var cid=(editDoc.client&&editDoc.client.id)||"";
+    ui.factureDraft={editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),date:editDoc.date||todayISO(),echeance:editDoc.echeance||addDays(todayISO(),state.settings.delaiPaiement),statut:editDoc.statut||"a_envoyer",clientMode:cid?"existant":"nouveau",clientId:cid,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),reductionType:editDoc.remiseType||"montant",reductionValeur:Number(editDoc.remiseValeur||0),acompteDejaPaye:Number(editDoc.acompteDejaPaye||0),paiementClient:editDoc.paiementClient||"",notes:editDoc.notes||""};
+  }else{
+    ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, paiementClient:"", notes:"" };
+  }
 }
 function facDraftTotals(){ return factureCalc(ui.factureDraft?ui.factureDraft.lignes:[], state.settings.partService, ui.factureDraft); }
 function viewFactureManualForm(){
@@ -1665,7 +1718,7 @@ function viewFactureManualForm(){
       '<td style="padding:6px;"><button data-action="fac-delline-'+l.id+'" style="border:none;background:none;color:#9b3b3b;cursor:pointer;font-size:18px;">×</button></td></tr>';
   }).join("");
   var table=f.lignes.length? '<div class="scroll" style="margin-bottom:12px;"><table style="min-width:520px;"><thead><tr class="muted" style="text-align:left;"><th style="padding:6px;">Désignation</th><th style="padding:6px;">Type</th><th style="padding:6px;">Qté</th><th style="padding:6px;">Prix unit.</th><th style="padding:6px;">Total</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '<p class="muted">Ajoutez au moins une ligne de facturation.</p>';
-  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">Nouvelle facture directe</h3><button class="btn small ghost" data-action="fac-cancel-manual">Annuler</button></div>'+ 
+  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">'+(f.editId?'Modifier la facture '+esc((f.originalSnapshot&&f.originalSnapshot.numero)||''):'Nouvelle facture directe')+'</h3><button class="btn small ghost" data-action="fac-cancel-manual">Annuler</button></div>'+ 
     '<div class="inline"><div><label class="field"><span>Date de facture</span><input id="facDate" type="date" value="'+esc(f.date)+'"></label></div>'+ 
     '<div><label class="field"><span>Échéance</span><input id="facEcheance" type="date" value="'+esc(f.echeance)+'"></label></div>'+ 
     '</div>'+ 
@@ -1679,7 +1732,7 @@ function viewFactureManualForm(){
     '<label class="field"><span>Moyen de paiement de la cliente</span><select id="facPaiementClient">'+paymentOptions(f.paiementClient||"")+'</select><div class="hint">Utile si la facture ou un acompte est déjà payé.</div></label>'+
     '<div id="facTot" style="margin-top:14px;padding:12px;background:var(--cream);border-radius:10px;font-size:14px;">'+facTotHTML(facDraftTotals())+'</div>'+ 
     '<label class="field" style="margin-top:12px;"><span>Note sur la facture (facultatif)</span><textarea id="facNotes">'+esc(f.notes||"")+'</textarea></label>'+ 
-    '<div class="row-actions"><button class="btn gold" data-action="fac-create-manual">Créer la facture</button><button class="btn ghost" data-action="fac-cancel-manual">Annuler</button></div></div>';
+    '<div class="row-actions"><button class="btn gold" data-action="fac-create-manual">'+(f.editId?'Enregistrer les modifications':'Créer la facture')+'</button><button class="btn ghost" data-action="fac-cancel-manual">Annuler</button></div></div>';
 }
 function facTotHTML(t){
   return '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
@@ -1707,7 +1760,23 @@ function createManualFacture(){
   if(!f.lignes.length){ toast("Ajoute au moins une ligne."); return; }
   var t=factureCalc(f.lignes,state.settings.partService,f);
   if(t.totalInitial<=0){ toast("Le total de la facture doit être supérieur à 0 €."); return; }
-  var facture={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:f.date, echeance:f.echeance, client:client, lignes:f.lignes, notes:f.notes, montantBiens:t.biens, montantServices:t.services, montant:t.total, totalInitial:t.totalInitial, remiseType:f.reductionType, remiseValeur:num(f.reductionValeur), remiseMontant:t.remiseMontant, totalApresRemise:t.totalApresRemise, acompteDejaPaye:t.acompteDejaPaye, paiementClient:f.paiementClient||"", statut:"a_envoyer", datePaiement:null, origine:"manuelle" };
+  var payload={date:f.date,echeance:f.echeance,client:deepCopyDoc(client),lignes:deepCopyDoc(f.lignes),notes:f.notes,montantBiens:t.biens,montantServices:t.services,montant:t.total,totalInitial:t.totalInitial,remiseType:f.reductionType,remiseValeur:num(f.reductionValeur),remiseMontant:t.remiseMontant,totalApresRemise:t.totalApresRemise,acompteDejaPaye:t.acompteDejaPaye,paiementClient:f.paiementClient||""};
+  if(f.editId){
+    var original=state.factures.find(function(x){return x.id===f.editId;});
+    if(!original){ toast("Facture introuvable."); return; }
+    var makeVersion=original.statut==="payee"||f.forceNewVersion;
+    if(!makeVersion) makeVersion=confirm("Souhaites-tu conserver la facture initiale et créer une nouvelle version ?\n\nOK = nouvelle version\nAnnuler = remplacer la facture actuelle");
+    var candidate=Object.assign({},deepCopyDoc(original),payload), changes=documentChangeSummary(original,candidate);
+    if(makeVersion){
+      var base=original.baseNumero||baseDocumentNumber(original.numero), nv=nextDocumentVersion(state.factures,original);
+      original.baseNumero=base; original.version=Number(original.version)||1; original.versionArchive=true; original.updatedAt=new Date().toISOString();
+      var nf=Object.assign({},deepCopyDoc(original),payload,{id:uid(),numero:base+" V"+nv,baseNumero:base,version:nv,versionArchive:false,previousVersionId:original.id,statut:"a_envoyer",datePaiement:null,changesSummary:changes,updatedAt:new Date().toISOString()});
+      original.replacedBy=nf.id; hidePortalDocumentVersion("facture",original.id); state.factures.unshift(nf); ui.factureDraft=null; saveCache(); render(); toast("Nouvelle version "+nf.numero+" créée. L’original est conservé."); return;
+    }
+    Object.assign(original,payload,{changesSummary:changes,updatedAt:new Date().toISOString()});
+    ui.factureDraft=null; saveCache(); render(); toast("Facture "+original.numero+" modifiée."); return;
+  }
+  var facture=Object.assign({ id:uid(), numero:prochainNumero("facture"), type:"totale", statut:"a_envoyer", datePaiement:null, origine:"manuelle",version:1,versionArchive:false },payload);
   state.factures.unshift(facture); ui.factureDraft=null; saveCache(); render(); toast("Facture "+facture.numero+" créée.");
 }
 
@@ -6959,6 +7028,8 @@ async function handleAction(action){
 
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
+  if(action.indexOf("devis-edit-")===0){ var ed=findDevis(action.slice(11)); if(ed){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(ed,false); render(); window.scrollTo(0,0); } return; }
+  if(action.indexOf("devis-version-")===0){ var vd=findDevis(action.slice(14)); if(vd){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(vd,true); render(); window.scrollTo(0,0); } return; }
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
 
   
@@ -7156,6 +7227,8 @@ async function handleAction(action){
 
   // facture directe
   if(action==="fac-new"){ newFactureDraft(); ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("fac-edit-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(9);}); if(ef){ newFactureDraft(ef,false); ui.tab="factures"; render(); window.scrollTo(0,0); } return; }
+  if(action.indexOf("fac-version-")===0){ var vf=state.factures.find(function(x){return x.id===action.slice(12);}); if(vf){ newFactureDraft(vf,true); ui.tab="factures"; render(); window.scrollTo(0,0); } return; }
   if(action==="fac-cancel-manual"){ ui.factureDraft=null; render(); return; }
   if(action==="fac-mode-nouveau"){ captureFactureDraft(); ui.factureDraft.clientMode="nouveau"; render(); return; }
   if(action==="fac-mode-existant"){ captureFactureDraft(); ui.factureDraft.clientMode="existant"; if(!ui.factureDraft.clientId&&state.clients[0]) ui.factureDraft.clientId=state.clients[0].id; render(); return; }
@@ -7577,32 +7650,35 @@ function finishWizard(){
   var w=ui.wizard, client;
   var linkedMariage = ui.wizardLinkMariage ? getMariage(ui.wizardLinkMariage) : null;
   if(linkedMariage){
-    // Pour un devis mariage, on ne se fie pas aux champs du wizard si une fiche cliente existe :
-    // cela évite de remettre un ancien téléphone dans le devis.
     client=clientContactForMariage(linkedMariage);
-    if(!client){
-      client=Object.assign({id:uid(),updatedAt:todayISO()}, devisClientFromMariage(linkedMariage));
-      state.clients.push(client);
-      linkedMariage.clientId=client.id;
-    }
+    if(!client){ client=Object.assign({id:uid(),updatedAt:todayISO()}, devisClientFromMariage(linkedMariage)); state.clients.push(client); linkedMariage.clientId=client.id; }
   } else if(w.clientMode==="existant"){ client=state.clients.find(function(c){return c.id===w.clientId;}); }
   else {
-    var k=normName(w.client.nom);
-    client=state.clients.find(function(c){return normName(c.nom)===k;});
-    if(client){
-      if(w.client.email) client.email=w.client.email;
-      if(w.client.tel) client.tel=w.client.tel;
-      if(w.client.adresse) client.adresse=w.client.adresse;
-      client.updatedAt=todayISO();
-    }
+    var k=normName(w.client.nom); client=state.clients.find(function(c){return normName(c.nom)===k;});
+    if(client){ if(w.client.email) client.email=w.client.email; if(w.client.tel) client.tel=w.client.tel; if(w.client.adresse) client.adresse=w.client.adresse; client.updatedAt=todayISO(); }
     else { client=Object.assign({id:uid(),updatedAt:todayISO()},w.client); state.clients.push(client); }
   }
   var devisClient = linkedMariage ? devisClientFromMariage(linkedMariage) : Object.assign({}, client||{});
-  var d={ id:uid(), numero:prochainNumero("devis"), date:w.date, validite:addDays(w.date,state.settings.validiteDevis), client:devisClient, lignes:w.lignes, notes:w.notes, statut:"brouillon" };
-  state.devis.unshift(d);
-  if(linkedMariage){ linkedMariage.devisLie=d.id; }
-  ui.wizardLinkMariage=null;
-  ui.wizard=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+d.numero+" créé.");
+  var payload={date:w.date,validite:addDays(w.date,state.settings.validiteDevis),client:deepCopyDoc(devisClient),lignes:deepCopyDoc(w.lignes),notes:w.notes};
+  if(w.editId){
+    var original=findDevis(w.editId); if(!original){toast("Devis introuvable.");return;}
+    var makeVersion=original.statut==="accepte"||w.forceNewVersion;
+    if(!makeVersion) makeVersion=confirm("Souhaites-tu conserver le devis initial et créer une nouvelle version ?\n\nOK = nouvelle version\nAnnuler = remplacer le devis actuel");
+    var candidate=Object.assign({},deepCopyDoc(original),payload), changes=documentChangeSummary(original,candidate);
+    if(makeVersion){
+      var base=original.baseNumero||baseDocumentNumber(original.numero), nv=nextDocumentVersion(state.devis,original);
+      original.baseNumero=base; original.version=Number(original.version)||1; original.statut="archive"; original.versionArchive=true; original.updatedAt=new Date().toISOString();
+      var nd=Object.assign({},deepCopyDoc(original),payload,{id:uid(),numero:base+" V"+nv,baseNumero:base,version:nv,versionArchive:false,previousVersionId:original.id,statut:"brouillon",changesSummary:changes,updatedAt:new Date().toISOString()});
+      original.replacedBy=nd.id; hidePortalDocumentVersion("devis",original.id); state.devis.unshift(nd);
+      (state.mariages||[]).forEach(function(mm){if(mm.devisLie===original.id)mm.devisLie=nd.id;});
+      ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Nouvelle version "+nd.numero+" créée. L’original est conservé."); return;
+    }
+    Object.assign(original,payload,{changesSummary:changes,updatedAt:new Date().toISOString()});
+    ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+original.numero+" modifié."); return;
+  }
+  var d=Object.assign({ id:uid(), numero:prochainNumero("devis"), statut:"brouillon",version:1,versionArchive:false },payload);
+  state.devis.unshift(d); if(linkedMariage){ linkedMariage.devisLie=d.id; }
+  ui.wizardLinkMariage=null; ui.wizard=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+d.numero+" créé.");
 }
 function saveParams(){
   captureParamsForm();
