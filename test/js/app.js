@@ -1,9 +1,10 @@
-/* V6.4.9 TEST — Nouveau planning en liste des week-ends occupés. */
+/* V6.4.10 TEST — Planning annuel compact des week-ends, une année à la fois. */
 "use strict";
 
-var APP_VERSION="V6.4.9 TEST";
+var APP_VERSION="V6.4.10 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
+  "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
   "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
   "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
   "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
@@ -1729,47 +1730,72 @@ function mariagePlanningOccupiedWeekends(year){
     if(!map[key]) map[key]={start:start,end:addDays(start,2),weddings:[]};
     map[key].weddings.push(m);
   });
-  return Object.keys(map).sort().map(function(k){
+  Object.keys(map).forEach(function(k){
     map[k].weddings.sort(function(a,b){
       return (a.dateMariage||"").localeCompare(b.dateMariage||"") || (a.nom||"").localeCompare(b.nom||"");
     });
-    return map[k];
   });
+  return map;
+}
+function mariagePlanningWeekendItems(weekStart){
+  var year=Number(String(weekStart||"").slice(0,4));
+  var map=mariagePlanningOccupiedWeekends(year);
+  return map[weekStart] ? map[weekStart].weddings.slice() : [];
+}
+function mariagePlanningSelectedYear(){
+  var y=parseInt(ui.mariagePlanningYear,10), now=new Date().getFullYear();
+  if(!isFinite(y) || y<now-10 || y>now+30) y=now;
+  ui.mariagePlanningYear=y;
+  return y;
+}
+function mariagePlanningMonthWeekends(year,month){
+  var out=[], d=new Date(year,month,1,12,0,0);
+  while(d.getDay()!==6) d.setDate(d.getDate()+1); // premier samedi du mois
+  while(d.getMonth()===month){
+    var sat=new Date(d), fri=new Date(d), sun=new Date(d);
+    fri.setDate(sat.getDate()-1); sun.setDate(sat.getDate()+1);
+    function iso(x){return x.getFullYear()+"-"+("0"+(x.getMonth()+1)).slice(-2)+"-"+("0"+x.getDate()).slice(-2);}
+    out.push({start:iso(fri),end:iso(sun),label:("0"+fri.getDate()).slice(-2)+"–"+("0"+sun.getDate()).slice(-2)});
+    d.setDate(d.getDate()+7);
+  }
+  return out;
+}
+function mariagePlanningCountStyle(count){
+  if(count<=0) return 'background:#eef7ef;border-color:#cfe2d1;color:#315d38;';
+  if(count===1) return 'background:#fff7d9;border-color:#eadb9b;color:#725d18;';
+  if(count===2) return 'background:#fbe7d4;border-color:#e8bb92;color:#7b4520;';
+  return 'background:#f8dddd;border-color:#dfaaaa;color:#7a2929;';
 }
 function viewDashboardMarriageWeekendPlanning(){
-  var startYear=new Date().getFullYear(), count=mariagePlanningYearsCount(), years=[];
-  for(var y=0;y<count;y++) years.push(startYear+y);
+  var year=mariagePlanningSelectedYear(), occupied=mariagePlanningOccupiedWeekends(year);
+  var total=Object.keys(occupied).reduce(function(sum,k){return sum+occupied[k].weddings.length;},0);
   var html='<div class="card" style="margin-bottom:14px;border-color:var(--gold-s);background:#fffdfb;">'+
-    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning des mariages validés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Seuls les week-ends contenant au moins un mariage avec acompte versé sont affichés. Les noms sont visibles directement.</p></div>'+
-    '<button class="btn small gold" data-action="dash-marriage-add-year">+ Ajouter une année</button></div>'+
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px;">';
+    '<div class="flexb" style="align-items:center;gap:10px;flex-wrap:wrap;">'+
+      '<div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning annuel des mariages validés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Chaque case indique le nombre de mariages confirmés sur le week-end. Touchez une case occupée pour voir les dossiers.</p></div>'+
+      '<div style="display:flex;align-items:center;gap:7px;">'+
+        '<button class="btn small ghost" data-action="dash-marriage-year-prev" aria-label="Année précédente">◀</button>'+
+        '<span class="serif" style="min-width:72px;text-align:center;font-size:22px;font-weight:700;color:var(--bordeaux);">'+year+'</span>'+
+        '<button class="btn small ghost" data-action="dash-marriage-year-next" aria-label="Année suivante">▶</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="muted" style="font-size:12px;margin-top:8px;">'+total+' mariage'+(total>1?'s':'')+' confirmé'+(total>1?'s':'')+' sur '+year+' · <b>0</b> libre · <b>1</b> un mariage · <b>2</b> deux mariages · <b>3+</b> trois ou plus</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:10px;">';
 
-  years.forEach(function(year){
-    var weekends=mariagePlanningOccupiedWeekends(year);
-    html+='<section style="border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;"><div class="serif" style="font-size:20px;font-weight:700;color:var(--bordeaux);margin-bottom:9px;">'+year+'</div>';
-    if(!weekends.length){
-      html+='<div class="muted" style="font-size:12px;padding:8px 0;">Aucun mariage validé pour cette année.</div>';
-    }else{
-      var currentMonth=-1;
-      weekends.forEach(function(w){
-        var month=Number(w.start.slice(5,7))-1;
-        if(month!==currentMonth){
-          if(currentMonth!==-1) html+='</div>';
-          currentMonth=month;
-          html+='<div style="margin-top:8px;"><div style="font-size:12px;font-weight:800;color:var(--bordeaux);text-transform:uppercase;margin-bottom:5px;">'+MOIS[month]+'</div>';
-        }
-        html+='<div style="border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:7px;background:#fffaf8;">'+
-          '<div class="flexb" style="align-items:flex-start;gap:8px;"><div><b style="color:var(--bordeaux);">Week-end du '+frDate(w.start)+' au '+frDate(w.end)+'</b></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+w.weddings.length+' mariage'+(w.weddings.length>1?'s':'')+'</span></div>'+
-          '<div style="display:grid;gap:5px;margin-top:7px;">';
-        w.weddings.forEach(function(m){
-          html+='<button class="btn small ghost" data-action="mar-open-'+esc(m.id)+'" style="text-align:left;justify-content:flex-start;width:100%;">💍 '+esc(m.nom||'Cliente')+' · '+frDate(m.dateMariage)+'</button>';
-        });
-        html+='</div></div>';
-      });
-      if(currentMonth!==-1) html+='</div>';
-    }
-    html+='</section>';
-  });
+  for(var month=0;month<12;month++){
+    var weekends=mariagePlanningMonthWeekends(year,month);
+    html+='<section style="border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;min-width:0;">'+
+      '<div style="font-size:12px;font-weight:800;color:var(--bordeaux);text-transform:uppercase;margin-bottom:6px;">'+MOIS[month]+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;">';
+    weekends.forEach(function(w){
+      var count=occupied[w.start]?occupied[w.start].weddings.length:0;
+      var disabled=count===0?' disabled aria-disabled="true"':'';
+      html+='<button class="btn small" data-action="dash-marriage-week-'+w.start+'"'+disabled+
+        ' title="Week-end du '+frDate(w.start)+' au '+frDate(w.end)+' : '+count+' mariage'+(count>1?'s':'')+'" '+
+        'style="padding:5px 4px;min-height:42px;display:flex;flex-direction:column;justify-content:center;gap:1px;border-width:1px;'+mariagePlanningCountStyle(count)+'">'+
+        '<span style="font-size:10px;font-weight:600;white-space:nowrap;">'+w.label+'</span><strong style="font-size:17px;line-height:1;">'+count+'</strong></button>';
+    });
+    html+='</div></section>';
+  }
   html+='</div></div>';
   return html;
 }
@@ -7926,9 +7952,11 @@ async function handleAction(action){
   if(action==="mar-view-preparer"){ ui.mariageView="preparer"; render(); return; }
   if(action==="goto-preparer"){ ui.tab="mariages"; ui.mariageView="preparer"; ui.mariageOpen=null; render(); window.scrollTo(0,0); return; }
   if(action==="goto-commandes-suivi"){ ui.tab="commandes"; ui.commandeOpen=null; render(); window.scrollTo(0,0); return; }
-  if(action==="dash-marriage-add-year"){
-    state.settings.mariagePlanningYears=mariagePlanningYearsCount()+1;
-    saveCache(); render(); toast("Une année supplémentaire a été ajoutée au planning."); return;
+  if(action==="dash-marriage-year-prev"){
+    ui.mariagePlanningYear=mariagePlanningSelectedYear()-1; render(); return;
+  }
+  if(action==="dash-marriage-year-next"){
+    ui.mariagePlanningYear=mariagePlanningSelectedYear()+1; render(); return;
   }
   if(action.indexOf("dash-marriage-week-")===0){
     var weekStart=action.slice("dash-marriage-week-".length), weddings=mariagePlanningWeekendItems(weekStart);
