@@ -1,16 +1,17 @@
-/* V6.4.12 TEST — Ergonomie de la recherche globale et contraste des actions documentaires. */
+/* V6.4.13 PROD — Passage automatique au statut envoyé après un envoi par e-mail réussi. */
 "use strict";
 
-var APP_VERSION="V6.4.12 TEST";
+var APP_VERSION="V6.4.13 PROD";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
-  "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
-  "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
-  "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
-  "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
-  "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
-  "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
+  "V6.4.13 PROD — Devis et factures automatiquement marqués envoyés après confirmation de l’envoi par e-mail, avec conservation du bouton manuel.",
+  "V6.4.12 PROD — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
+  "V6.4.10 PROD — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
+  "V6.4.9 PROD — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
+  "V6.4.8 PROD — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
+  "V6.4.7 PROD — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
+  "V6.4.4 PROD — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
+  "V6.4.3 PROD — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
@@ -7241,20 +7242,48 @@ function prepareDocumentContactAndAmount(kind, doc){
   return true;
 }
 
-function markDocSent(kind, doc){
+function appendDocumentSendHistory(kind, doc, mode, sentAt){
+  if(!doc) return;
+  doc.historique=doc.historique||[];
+  var label=(kind==="devis"?"Devis":"Facture")+(mode==="email"?" envoyé(e) automatiquement par e-mail.":" marqué(e) comme envoyé(e) manuellement.");
+  doc.historique.unshift({date:sentAt,texte:label,type:"envoi",mode:mode});
+  if(doc.historique.length>50) doc.historique=doc.historique.slice(0,50);
+}
+function markDocSent(kind, doc, mode){
+  if(!doc) return;
+  mode=mode||"email";
+  var sentAt=new Date().toISOString();
   if(kind==="devis"){
-    if(doc.statut==="brouillon") doc.statut="envoye";
+    if(doc.statut==="brouillon" || doc.statut==="a_envoyer") doc.statut="envoye";
     doc.emailEnvoyeLe=todayISO();
+    doc.emailEnvoyeAt=sentAt;
+    doc.dernierEnvoiAt=sentAt;
+    doc.dernierEnvoiMode=mode;
     var m=state.mariages.find(function(x){return x.devisLie===doc.id;});
-    if(m){ m.devisEnvoye=true; if(!m.devisDate) m.devisDate=todayISO(); if(m.statut==="contact") m.statut="devis_envoye"; }
+    if(m){
+      m.devisEnvoye=true;
+      if(!m.devisDate) m.devisDate=todayISO();
+      if(m.statut==="contact") m.statut="devis_envoye";
+      m.historique=m.historique||[];
+      m.historique.unshift({date:sentAt,texte:"Devis "+(doc.numero||"")+ (mode==="email"?" envoyé par e-mail.":" marqué envoyé manuellement.")});
+    }
   } else if(kind==="facture"){
     if(doc.statut!=="payee") doc.statut="envoyee";
     doc.emailEnvoyeeLe=todayISO();
+    doc.emailEnvoyeeAt=sentAt;
+    doc.dernierEnvoiAt=sentAt;
+    doc.dernierEnvoiMode=mode;
     if(doc.devisId){
       var m2=state.mariages.find(function(x){return x.devisLie===doc.devisId;});
-      if(m2){ m2.factureEnvoyee=true; if(!m2.factureDate) m2.factureDate=todayISO(); }
+      if(m2){
+        m2.factureEnvoyee=true;
+        if(!m2.factureDate) m2.factureDate=todayISO();
+        m2.historique=m2.historique||[];
+        m2.historique.unshift({date:sentAt,texte:"Facture "+(doc.numero||"")+ (mode==="email"?" envoyée par e-mail.":" marquée envoyée manuellement.")});
+      }
     }
   }
+  appendDocumentSendHistory(kind,doc,mode,sentAt);
 }
 async function envoyerDocumentEmail(kind, doc){
   if(!doc){ toast("Document introuvable."); return; }
@@ -7301,7 +7330,7 @@ async function envoyerDocumentEmail(kind, doc){
     var res=await fetch(MAIL_WORKER_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
-    markDocSent(kind, doc);
+    markDocSent(kind, doc, "email");
     var portalMessage="";
     try{
       await publishDocumentToClientPortal(kind,doc,pdf64);
@@ -7778,7 +7807,11 @@ async function handleAction(action){
       render();
       toast("Devis accepté : choisis maintenant facture d\'acompte ou facture complète.");
     }
-    else { d.statut=st; saveCache(); render(); }
+    else {
+      if(st==="envoye") markDocSent("devis",d,"manuel");
+      else d.statut=st;
+      saveCache(); render();
+    }
   } return; }
 
   // commandes
@@ -7907,9 +7940,10 @@ async function handleAction(action){
     var ff=state.factures.find(function(x){return x.id===fid;});
     if(ff){
       var finishStatus=function(){
-        ff.statut=st2;
+        if(st2==="envoyee") markDocSent("facture",ff,"manuel");
+        else ff.statut=st2;
         if(st2==="payee") ff.datePaiement=ff.datePaiement||todayISO();
-        else ff.datePaiement=null;
+        else if(st2!=="envoyee") ff.datePaiement=null;
         saveCache(); render();
       };
       if(st2==="payee" && !ff.paiementClient){
