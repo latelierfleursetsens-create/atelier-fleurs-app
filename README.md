@@ -1,4 +1,10 @@
-# MyBusiness V6.4.0 PROD
+# MyBusiness V6.4.10 PROD
+
+## V6.4.10 PROD
+- Nouveau planning graphique des week-ends fondé sur le classement métier des fiches : Préparation commande, Livraison et Archives.
+- Les dossiers encore dans Études mariage ne sont pas comptés.
+- Rendez-vous téléphoniques indisponibles du 24 août au 6 septembre 2026 inclus dans l’espace client.
+
 
 ## Nouveautés
 
@@ -20,3 +26,18 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - Mise en évidence des champs modifiés.
 - Historique permanent avec date et heure.
 - Bouton « Marquer comme consulté ».
+
+## V6.4.3 TEST — Planning mariages compact
+
+- Affichage automatique de l'année en cours et des deux années suivantes.
+- Bouton « Ajouter une année » pour étendre le planning sans limite prédéfinie.
+- Une case par week-end, avec le nombre exact de mariages confirmés.
+- Seuls les mariages liés à une facture d'acompte marquée payée sont comptés.
+- Clic sur une case occupée pour ouvrir le dossier correspondant ; choix proposé si plusieurs mariages sont présents.
+
+
+## V6.4.4 TEST — Correctif facture d’acompte
+
+- L’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.
+- Exemple vérifié : 156,00 € - 10 % = 140,40 €, puis acompte 30 % = 42,12 €.
+- La facture de solde est calculée sur le même montant net et déduit l’acompte exact.

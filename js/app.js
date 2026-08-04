@@ -1,10 +1,15 @@
-/* V6.4.0 PROD — Suivi détaillé des modifications clientes sur les demandes mariage. */
+/* V6.4.10 PROD — Planning annuel compact des week-ends, une année à la fois. */
 "use strict";
 
-var APP_VERSION="V6.4.0 PROD";
+var APP_VERSION="V6.4.10 PROD";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.0 PROD — Détail avant/après dans les e-mails, badge de modification, champs surlignés et historique permanent des demandes mariage.",
+  "V6.4.10 PROD — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
+  "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
+  "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
+  "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
+  "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
+  "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
@@ -93,7 +98,7 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"",
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3,
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
@@ -361,6 +366,39 @@ function adjustmentsEditorHTML(prefix,list){
 function factureCalc(lignes, partService, f){
   f=f||{};
   var base=documentCalc(lignes,partService,f);
+
+  // Une facture d’acompte doit toujours être calculée sur le montant NET du devis,
+  // donc après toutes les remises, avoirs et autres ajustements commerciaux.
+  if(f.type==="acompte" && num(f.pourcentage)>0){
+    var taux=Math.max(0,Math.min(100,num(f.pourcentage)))/100;
+    return {
+      biens:r2(base.biens*taux),
+      services:r2(base.services*taux),
+      totalInitial:base.totalInitial,
+      ajustements:base.ajustements,
+      totalAjustements:base.totalAjustements,
+      totalApresAjustements:base.total,
+      acompteDejaPaye:0,
+      total:r2(base.total*taux)
+    };
+  }
+
+  // Pour une facture de solde, on repart également du montant net du devis
+  // puis on déduit exactement l’acompte déjà facturé.
+  if(f.type==="solde"){
+    var acompteSolde=Math.min(num(f.acompteMontant||f.acompteDejaPaye),base.total);
+    return {
+      biens:base.biens,
+      services:base.services,
+      totalInitial:base.totalInitial,
+      ajustements:base.ajustements,
+      totalAjustements:base.totalAjustements,
+      totalApresAjustements:base.total,
+      acompteDejaPaye:acompteSolde,
+      total:r2(base.total-acompteSolde)
+    };
+  }
+
   var acompte=Math.min(num(f.acompteDejaPaye),base.total);
   return {biens:base.biens,services:base.services,totalInitial:base.totalInitial,ajustements:base.ajustements,totalAjustements:base.totalAjustements,totalApresAjustements:base.total,acompteDejaPaye:acompte,total:r2(base.total-acompte)};
 }
@@ -1620,10 +1658,152 @@ function viewNotificationsDashboard(){
   return html;
 }
 
+
+function mariagePlanningClientMatch(m,f){
+  if(!m || !f) return false;
+  var c=f.client||{};
+  var me=String(m.email||"").trim().toLowerCase(), fe=String(c.email||"").trim().toLowerCase();
+  if(me && fe && me===fe) return true;
+  var mt=String(m.tel||"").replace(/\D/g,""), ft=String(c.tel||"").replace(/\D/g,"");
+  if(mt && ft && mt===ft) return true;
+  var mn=normName(m.nom||""), fn=normName(c.nom||"");
+  return !!(mn && fn && mn===fn);
+}
+function mariagePlanningDevisIds(m){
+  var ids=[];
+  function add(id){ if(id && ids.indexOf(id)<0) ids.push(id); }
+  add(m&&m.devisLie);
+  var linked=(state.devis||[]).find(function(d){return d && d.id===(m&&m.devisLie);});
+  if(linked){
+    var base=linked.baseNumero||baseDocumentNumber(linked.numero||"");
+    (state.devis||[]).forEach(function(d){
+      if(!d) return;
+      var db=d.baseNumero||baseDocumentNumber(d.numero||"");
+      if(base && db===base) add(d.id);
+      if(d.previousVersionId===linked.id || linked.previousVersionId===d.id || d.replacedBy===linked.id || linked.replacedBy===d.id) add(d.id);
+    });
+  }
+  return ids;
+}
+function mariagePlanningConfirmed(m){
+  if(!m || !m.dateMariage || m.statut==="perdu") return false;
+
+  // Compatibilité avec les anciens dossiers déjà confirmés manuellement.
+  if(m.livre || ["acompte","confirme","realise"].indexOf(m.statut)>=0) return true;
+  if(m.acomptePaye===true || m.acompteVerse===true || m.acompteEncaisse===true || m.acompteRegle===true || m.reservationConfirmee===true) return true;
+
+  var devisIds=mariagePlanningDevisIds(m);
+  var commandes=(state.commandes||[]).filter(function(c){
+    return c && (c.mariageId===m.id || (c.devisId && devisIds.indexOf(c.devisId)>=0));
+  });
+  var factureIds=commandes.map(function(c){return c.factureId;}).filter(Boolean);
+
+  return (state.factures||[]).some(function(f){
+    if(!f || f.statut!=="payee") return false;
+    // Un acompte payé ou une facture totale payée valide au minimum la réservation.
+    if(["acompte","totale"].indexOf(f.type)<0) return false;
+    if(f.mariageId===m.id) return true;
+    if(f.devisId && devisIds.indexOf(f.devisId)>=0) return true;
+    if(factureIds.indexOf(f.id)>=0) return true;
+    // Dernier recours pour les anciens dossiers ayant perdu leur lien technique.
+    return mariagePlanningClientMatch(m,f);
+  });
+}
+function mariagePlanningYearsCount(){
+  var n=parseInt(state.settings.mariagePlanningYears,10);
+  return isFinite(n) && n>=3 ? n : 3;
+}
+function mariagePlanningWeekendStart(dateISO){
+  var d=new Date(dateISO+"T12:00:00"), day=d.getDay(), offset;
+  if(day===5) offset=0;
+  else if(day===6) offset=-1;
+  else if(day===0) offset=-2;
+  else offset=(5-day+7)%7; // rattache les rares mariages en semaine au week-end qui suit
+  d.setDate(d.getDate()+offset);
+  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+}
+function mariagePlanningOccupiedWeekends(year){
+  var map={};
+  (state.mariages||[]).filter(mariagePlanningConfirmed).forEach(function(m){
+    if(String(m.dateMariage||"").slice(0,4)!==String(year)) return;
+    var start=mariagePlanningWeekendStart(m.dateMariage), key=start;
+    if(!map[key]) map[key]={start:start,end:addDays(start,2),weddings:[]};
+    map[key].weddings.push(m);
+  });
+  Object.keys(map).forEach(function(k){
+    map[k].weddings.sort(function(a,b){
+      return (a.dateMariage||"").localeCompare(b.dateMariage||"") || (a.nom||"").localeCompare(b.nom||"");
+    });
+  });
+  return map;
+}
+function mariagePlanningWeekendItems(weekStart){
+  var year=Number(String(weekStart||"").slice(0,4));
+  var map=mariagePlanningOccupiedWeekends(year);
+  return map[weekStart] ? map[weekStart].weddings.slice() : [];
+}
+function mariagePlanningSelectedYear(){
+  var y=parseInt(ui.mariagePlanningYear,10), now=new Date().getFullYear();
+  if(!isFinite(y) || y<now-10 || y>now+30) y=now;
+  ui.mariagePlanningYear=y;
+  return y;
+}
+function mariagePlanningMonthWeekends(year,month){
+  var out=[], d=new Date(year,month,1,12,0,0);
+  while(d.getDay()!==6) d.setDate(d.getDate()+1); // premier samedi du mois
+  while(d.getMonth()===month){
+    var sat=new Date(d), fri=new Date(d), sun=new Date(d);
+    fri.setDate(sat.getDate()-1); sun.setDate(sat.getDate()+1);
+    function iso(x){return x.getFullYear()+"-"+("0"+(x.getMonth()+1)).slice(-2)+"-"+("0"+x.getDate()).slice(-2);}
+    out.push({start:iso(fri),end:iso(sun),label:("0"+fri.getDate()).slice(-2)+"–"+("0"+sun.getDate()).slice(-2)});
+    d.setDate(d.getDate()+7);
+  }
+  return out;
+}
+function mariagePlanningCountStyle(count){
+  if(count<=0) return 'background:#eef7ef;border-color:#cfe2d1;color:#315d38;';
+  if(count===1) return 'background:#fff7d9;border-color:#eadb9b;color:#725d18;';
+  if(count===2) return 'background:#fbe7d4;border-color:#e8bb92;color:#7b4520;';
+  return 'background:#f8dddd;border-color:#dfaaaa;color:#7a2929;';
+}
+function viewDashboardMarriageWeekendPlanning(){
+  var year=mariagePlanningSelectedYear(), occupied=mariagePlanningOccupiedWeekends(year);
+  var total=Object.keys(occupied).reduce(function(sum,k){return sum+occupied[k].weddings.length;},0);
+  var html='<div class="card" style="margin-bottom:14px;border-color:var(--gold-s);background:#fffdfb;">'+
+    '<div class="flexb" style="align-items:center;gap:10px;flex-wrap:wrap;">'+
+      '<div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning annuel des mariages validés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Chaque case indique le nombre de mariages confirmés sur le week-end. Touchez une case occupée pour voir les dossiers.</p></div>'+
+      '<div style="display:flex;align-items:center;gap:7px;">'+
+        '<button class="btn small ghost" data-action="dash-marriage-year-prev" aria-label="Année précédente">◀</button>'+
+        '<span class="serif" style="min-width:72px;text-align:center;font-size:22px;font-weight:700;color:var(--bordeaux);">'+year+'</span>'+
+        '<button class="btn small ghost" data-action="dash-marriage-year-next" aria-label="Année suivante">▶</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="muted" style="font-size:12px;margin-top:8px;">'+total+' mariage'+(total>1?'s':'')+' confirmé'+(total>1?'s':'')+' sur '+year+' · <b>0</b> libre · <b>1</b> un mariage · <b>2</b> deux mariages · <b>3+</b> trois ou plus</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-top:10px;">';
+
+  for(var month=0;month<12;month++){
+    var weekends=mariagePlanningMonthWeekends(year,month);
+    html+='<section style="border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;min-width:0;">'+
+      '<div style="font-size:12px;font-weight:800;color:var(--bordeaux);text-transform:uppercase;margin-bottom:6px;">'+MOIS[month]+'</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;">';
+    weekends.forEach(function(w){
+      var count=occupied[w.start]?occupied[w.start].weddings.length:0;
+      var disabled=count===0?' disabled aria-disabled="true"':'';
+      html+='<button class="btn small" data-action="dash-marriage-week-'+w.start+'"'+disabled+
+        ' title="Week-end du '+frDate(w.start)+' au '+frDate(w.end)+' : '+count+' mariage'+(count>1?'s':'')+'" '+
+        'style="padding:5px 4px;min-height:42px;display:flex;flex-direction:column;justify-content:center;gap:1px;border-width:1px;'+mariagePlanningCountStyle(count)+'">'+
+        '<span style="font-size:10px;font-weight:600;white-space:nowrap;">'+w.label+'</span><strong style="font-size:17px;line-height:1;">'+count+'</strong></button>';
+    });
+    html+='</div></section>';
+  }
+  html+='</div></div>';
+  return html;
+}
 function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Tableau de bord</h2><div class="muted" style="font-size:12px;margin-top:3px;">Ton espace de travail du jour</div></div></div>'+ 
   viewVersionDashboard()+
+  viewDashboardMarriageWeekendPlanning()+
   viewDashboardHero()+
   viewTodoDashboard()+
   viewNotificationsDashboard()+
@@ -4890,29 +5070,29 @@ function factureHeriteInfosDevis(d,f){
   return f;
 }
 function creerAcompte(d){
-  var t=totals(d.lignes,state.settings.partService), p=state.settings.acompteParDefaut, date=todayISO();
+  var t=documentCalc(d.lignes,state.settings.partService,d), p=state.settings.acompteParDefaut, date=todayISO();
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:askDueDate(addOneMonth(date),"de la facture d’acompte"),
-    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:mb, montantServices:ms, montant:r2(t.total*p/100), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
 }
 function creerSolde(d){
-  var t=totals(d.lignes,state.settings.partService); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
+  var t=documentCalc(d.lignes,state.settings.partService,d); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:askDueDate(addOneMonth(date),"de la facture de solde"),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(t.total-ac.montant), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
 }
 function creerTotale(d){
-  var t=totals(d.lignes,state.settings.partService), date=todayISO();
+  var t=documentCalc(d.lignes,state.settings.partService,d), date=todayISO();
   var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:askDueDate(addOneMonth(date),"de la facture"),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
@@ -5837,12 +6017,82 @@ function mariageDevisAccepte(m){
   var d=state.devis.find(function(x){return x.id===m.devisLie;});
   return !!(d && d.statut==="accepte");
 }
+function mariageDevisIdsLies(m){
+  if(!m) return [];
+  var ids={};
+  var queue=[];
+  if(m.devisLie) queue.push(m.devisLie);
+  while(queue.length){
+    var id=queue.shift();
+    if(!id || ids[id]) continue;
+    ids[id]=true;
+    var d=(state.devis||[]).find(function(x){return x && x.id===id;});
+    if(!d) continue;
+    if(d.previousVersionId && !ids[d.previousVersionId]) queue.push(d.previousVersionId);
+    if(d.replacedBy && !ids[d.replacedBy]) queue.push(d.replacedBy);
+    var base=d.baseNumero||"";
+    if(base){
+      (state.devis||[]).forEach(function(x){
+        if(x && (x.baseNumero===base || x.numero===base) && !ids[x.id]) queue.push(x.id);
+      });
+    }
+  }
+  return Object.keys(ids);
+}
+function normaliserCleMariage(v){
+  return String(v||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9@]+/g,"").trim();
+}
+function factureEstPayee(f){
+  if(!f) return false;
+  var st=normaliserCleMariage(f.statut);
+  return st==="payee" || st==="paye" || st==="paid" || (!!f.datePaiement && num(f.montant)>0);
+}
+function factureConfirmeReservation(f){
+  if(!f || !factureEstPayee(f) || num(f.montant)<=0) return false;
+  var type=normaliserCleMariage(f.type);
+  var texte=normaliserCleMariage([f.numero,f.libelle,f.notes,f.devisNumero].filter(Boolean).join(" "));
+  // Un acompte payé confirme la réservation. Une facture totale déjà payée la confirme aussi.
+  return type==="acompte" || type==="factureacompte" || type==="totale" || type==="total" || texte.indexOf("acompte")>=0;
+}
+function factureCorrespondAuClientMariage(f,m){
+  if(!f || !m) return false;
+  var fc=f.client||{};
+  var emailM=normaliserCleMariage(m.email), emailF=normaliserCleMariage(fc.email||f.email);
+  if(emailM && emailF && emailM===emailF) return true;
+  var telM=normaliserCleMariage(m.tel), telF=normaliserCleMariage(fc.tel||f.tel);
+  if(telM && telF && telM===telF) return true;
+  var nomM=normaliserCleMariage(m.nom), nomF=normaliserCleMariage(fc.nom||f.clientNom);
+  return !!(nomM && nomF && nomM===nomF);
+}
 function mariageAcomptePaye(m){
-  if(!m || !m.devisLie) return false;
-  // Règle métier PROD V2.0.39 : un mariage passe dans “À préparer” uniquement si
-  // la facture d’acompte liée au devis est réellement marquée payée.
-  return (state.factures||[]).some(function(f){
-    return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
+  if(!m) return false;
+
+  // Les anciennes fiches ou encaissements saisis manuellement restent reconnus.
+  if(mariageWorkflowManual(m,"acompte_encaisse") || m.acomptePaye===true || m.acompteVerse===true || num(m.acompteMontant)>0) return true;
+
+  var devisIds=mariageDevisIdsLies(m);
+  var factureIds={};
+  [m.factureAcompteId,m.factureId].forEach(function(id){ if(id) factureIds[id]=true; });
+  (state.commandes||[]).forEach(function(c){
+    if(!c) return;
+    if(c.mariageId===m.id || (c.devisId && devisIds.indexOf(c.devisId)>=0)){
+      if(c.factureId) factureIds[c.factureId]=true;
+      if(c.factureAcompteId) factureIds[c.factureAcompteId]=true;
+    }
+  });
+
+  var factures=(state.factures||[]);
+  var preuveLiee=factures.some(function(f){
+    if(!factureConfirmeReservation(f)) return false;
+    if(f.mariageId && f.mariageId===m.id) return true;
+    if(f.id && factureIds[f.id]) return true;
+    return !!(f.devisId && devisIds.indexOf(f.devisId)>=0);
+  });
+  if(preuveLiee) return true;
+
+  // Réparation des anciens dossiers dont le lien technique a été perdu : on exige une identité cliente exacte.
+  return factures.some(function(f){
+    return factureConfirmeReservation(f) && factureCorrespondAuClientMariage(f,m);
   });
 }
 
@@ -5965,8 +6215,13 @@ function mariageDevisTotal(m){
   try{ return totals(d.lignes||[], state.settings.partService).total; }catch(e){ return 0; }
 }
 function mariageFacturesLiees(m){
-  if(!m || !m.devisLie) return [];
-  return (state.factures||[]).filter(function(f){return f.devisId===m.devisLie;});
+  if(!m) return [];
+  var devisIds=mariageDevisIdsLies(m);
+  return (state.factures||[]).filter(function(f){
+    if(!f) return false;
+    if(f.mariageId && f.mariageId===m.id) return true;
+    return !!(f.devisId && devisIds.indexOf(f.devisId)>=0);
+  });
 }
 function mariageMontantPaye(m){
   return r2(mariageFacturesLiees(m).filter(function(f){return f.statut==="payee";}).reduce(function(s,f){return s+num(f.montant);},0));
@@ -7697,6 +7952,26 @@ async function handleAction(action){
   if(action==="mar-view-preparer"){ ui.mariageView="preparer"; render(); return; }
   if(action==="goto-preparer"){ ui.tab="mariages"; ui.mariageView="preparer"; ui.mariageOpen=null; render(); window.scrollTo(0,0); return; }
   if(action==="goto-commandes-suivi"){ ui.tab="commandes"; ui.commandeOpen=null; render(); window.scrollTo(0,0); return; }
+  if(action==="dash-marriage-year-prev"){
+    ui.mariagePlanningYear=mariagePlanningSelectedYear()-1; render(); return;
+  }
+  if(action==="dash-marriage-year-next"){
+    ui.mariagePlanningYear=mariagePlanningSelectedYear()+1; render(); return;
+  }
+  if(action.indexOf("dash-marriage-week-")===0){
+    var weekStart=action.slice("dash-marriage-week-".length), weddings=mariagePlanningWeekendItems(weekStart);
+    if(!weddings.length){ toast("Aucun mariage confirmé sur ce week-end."); return; }
+    var selected=weddings[0];
+    if(weddings.length>1){
+      var choices=weddings.map(function(m,i){return (i+1)+". "+(m.nom||"Cliente")+" — "+frDate(m.dateMariage);}).join("\n");
+      var answer=prompt("Mariages confirmés sur ce week-end :\n\n"+choices+"\n\nIndique le numéro du dossier à ouvrir :","1");
+      if(answer===null) return;
+      var idx=parseInt(answer,10)-1;
+      if(!isFinite(idx)||idx<0||idx>=weddings.length){ toast("Choix invalide."); return; }
+      selected=weddings[idx];
+    }
+    ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=selected.id; ui.mariageDetailTab="resume"; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return;
+  }
   if(action.indexOf("dash-month-")===0 && action!=="dash-month-close"){ var mi=parseInt(action.slice(11),10); var an=String(ui.anneeDash); if(ui.monthDetail && ui.monthDetail.year===an && ui.monthDetail.month===mi){ ui.monthDetail=null; } else { ui.monthDetail={year:an,month:mi}; } render(); return; }
   if(action==="dash-month-close"){ ui.monthDetail=null; render(); return; }
   if(action==="prep-cmd-add"){ var lbl=val("cmdLabel"); if(!lbl.trim()){ toast("Indique l'article à préparer."); return; } state.commandes.unshift({ id:uid(), label:lbl, client:val("cmdClient"), dateLivraison:val("cmdDate"), fait:false, createdAt:todayISO() }); saveCache(); render(); return; }
