@@ -1,10 +1,20 @@
-/* V5.0.5 — Référentiel détaillé des créations mariage. */
+/* V6.4.4 TEST — Correctif calcul des factures d’acompte après remises et avoirs. */
 "use strict";
 
-var APP_VERSION="V5.5.0 TEST";
-var APP_VERSION_NOTE = "Suivi des mariages simplifié en quatre étapes : Préparation, Création, Livraison et Archives.";
+var APP_VERSION="V6.4.4 TEST";
+var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V5.5.0 TEST — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
+  "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
+  "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
+  "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
+  "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
+  "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
+  "V5.7.0 PROD — Calendrier MyBusiness publiable en abonnement iCalendar : rendez-vous téléphoniques, livraisons et dates de mariage synchronisés vers le calendrier natif de l’iPhone.",
+  "V5.6.1 PROD — Les versions modifiées restent explicitement associées à la même fiche mariage et la version active remplace automatiquement l’ancienne.",
+  "V5.6.0 PROD — Modification et versioning des devis et factures avec conservation optionnelle de l’original.",
+  "V5.5.4 PROD — Toute modification des coordonnées clientes est répercutée dans la fiche mariage ainsi que dans les devis et factures liés.",
+  "V5.5.3 PROD — Statuts mariages corrigés : priorité aux factures, acomptes et paiements réellement enregistrés.",
+  "V5.5.0 PROD — Suivi mariages simplifié : quatre onglets métier et cartes allégées, triées par date de livraison.",
   "V5.0.5 — Référentiel détaillé unique : mêmes créations dans le portail et l’assistant de création manuelle, avec champ Autre.",
   "V5.0.3 — Liste standard unique synchronisée entre le questionnaire, la fiche mariage et le devis.",
   "V5.0.2 — Synchronisation portail : la fiche mariage et le devis reprennent uniquement les créations choisies par la future mariée.",
@@ -84,7 +94,7 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"",
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3,
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
@@ -97,8 +107,175 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"" };
 var fileHandle = null;
+
+/* ===================== Calendrier Apple synchronisé ===================== */
+var CALENDAR_WORKER_URL="https://atelier-fleurs-calendar.latelierfleursetsens.workers.dev";
+var calendarPublishTimer=null;
+function calendarRandomToken(){
+  var a=new Uint8Array(32);
+  if(window.crypto&&window.crypto.getRandomValues) window.crypto.getRandomValues(a);
+  else for(var i=0;i<a.length;i++) a[i]=Math.floor(Math.random()*256);
+  return Array.prototype.map.call(a,function(x){return x.toString(16).padStart(2,"0");}).join("");
+}
+function calendarFeedUrl(){
+  var t=(state.settings&&state.settings.calendarFeedToken)||"";
+  return t ? CALENDAR_WORKER_URL+"/calendar/"+encodeURIComponent(t)+".ics" : "";
+}
+function calendarWebcalUrl(){
+  var u=calendarFeedUrl();
+  return u ? u.replace(/^https:/,"webcal:") : "";
+}
+function calendarEscape(s){
+  return String(s==null?"":s).replace(/\\/g,"\\\\").replace(/\r?\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");
+}
+function calendarFoldLine(line){
+  line=String(line||"");
+  if(line.length<=72) return [line];
+  var out=[];
+  while(line.length>72){ out.push(line.slice(0,72)); line=" "+line.slice(72); }
+  out.push(line); return out;
+}
+function calendarPush(lines,line){ calendarFoldLine(line).forEach(function(x){lines.push(x);}); }
+function calendarLocalStamp(dateISO,time){
+  var tm=String(time||"09:00").split(":");
+  return String(dateISO||"").replace(/-/g,"")+"T"+String(tm[0]||"09").padStart(2,"0")+String(tm[1]||"00").padStart(2,"0")+"00";
+}
+function calendarAllDayStamp(dateISO){ return String(dateISO||"").replace(/-/g,""); }
+function calendarNowStamp(){ return new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z"); }
+function mariageRdvInfo(m){
+  if(!m) return null;
+  var date=m.rdvDateSouhaitee||m.rdvDate||"", heure=m.rdvHeureSouhaitee||m.rdvHeure||"";
+  if((!date||!heure) && m.sourceDemandeId){
+    var d=(state.demandesMariage||[]).find(function(x){return x.id===m.sourceDemandeId;});
+    if(d){ date=date||d.rdvDateSouhaitee||""; heure=heure||d.rdvHeureSouhaitee||""; }
+  }
+  return date ? {date:date,heure:heure||"09:00"} : null;
+}
+function calendarBuildIcs(){
+  var lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//L Atelier Fleurs et Sens//MyBusiness 6//FR","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:MyBusiness - Planning","X-WR-CALDESC:Rendez-vous téléphoniques, livraisons, mariages et ateliers","X-WR-TIMEZONE:Europe/Paris",
+    "BEGIN:VTIMEZONE","TZID:Europe/Paris","X-LIC-LOCATION:Europe/Paris","BEGIN:DAYLIGHT","TZOFFSETFROM:+0100","TZOFFSETTO:+0200","TZNAME:CEST","DTSTART:19700329T020000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU","END:DAYLIGHT","BEGIN:STANDARD","TZOFFSETFROM:+0200","TZOFFSETTO:+0100","TZNAME:CET","DTSTART:19701025T030000","RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU","END:STANDARD","END:VTIMEZONE"];
+  function addEvent(uidVal,title,date,time,endTime,location,description,allDay,updatedAt){
+    if(!date) return;
+    lines.push("BEGIN:VEVENT");
+    calendarPush(lines,"UID:"+calendarEscape(uidVal+"@latelierfleursetsens.fr"));
+    lines.push("DTSTAMP:"+calendarNowStamp());
+    if(updatedAt){
+      var u=new Date(updatedAt); if(!isNaN(u.getTime())) lines.push("LAST-MODIFIED:"+u.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z"));
+    }
+    if(allDay){
+      lines.push("DTSTART;VALUE=DATE:"+calendarAllDayStamp(date));
+      lines.push("DTEND;VALUE=DATE:"+calendarAllDayStamp(addDays(date,1)));
+    }else{
+      lines.push("DTSTART;TZID=Europe/Paris:"+calendarLocalStamp(date,time));
+      lines.push("DTEND;TZID=Europe/Paris:"+calendarLocalStamp(date,endTime||time));
+    }
+    calendarPush(lines,"SUMMARY:"+calendarEscape(title));
+    if(location) calendarPush(lines,"LOCATION:"+calendarEscape(location));
+    if(description) calendarPush(lines,"DESCRIPTION:"+calendarEscape(description));
+    lines.push("STATUS:CONFIRMED");
+    lines.push("TRANSP:OPAQUE");
+    lines.push("END:VEVENT");
+  }
+  (state.mariages||[]).forEach(function(m){
+    if(!m || m.statut==="perdu") return;
+    var nom=m.nom||"Cliente";
+    var notes=[m.tel?"Téléphone : "+m.tel:"",m.email?"E-mail : "+m.email:"",m.modeLivraison?"Mode : "+m.modeLivraison:""].filter(Boolean).join("\n");
+    var rdv=mariageRdvInfo(m);
+    if(rdv){
+      var parts=rdv.heure.split(":"), mins=(Number(parts[0]||0)*60+Number(parts[1]||0)+30), eh=String(Math.floor(mins/60)%24).padStart(2,"0")+":"+String(mins%60).padStart(2,"0");
+      addEvent("rdv-"+m.id,"☎️ RDV téléphonique - "+nom,rdv.date,rdv.heure,eh,"",notes,false,m.updatedAt);
+    }
+    if(m.dateLivraison) addEvent("livraison-"+m.id,"📦 Livraison / retrait - "+nom,m.dateLivraison,"","",m.lieu||"",notes,true,m.updatedAt);
+    if(m.dateMariage) addEvent("mariage-"+m.id,"💍 Mariage - "+nom,m.dateMariage,"","",m.lieu||"",notes,true,m.updatedAt);
+  });
+  (state.devis||[]).forEach(function(d){
+    if(!d || !d.echeance || d.statut!=="envoye" || d.versionArchive) return;
+    var client=(d.client&&d.client.nom)||"Cliente";
+    var desc=[d.numero?"Devis : "+d.numero:"",d.montant!=null?"Montant : "+euro(d.montant):"",(d.client&&d.client.tel)?"Téléphone : "+d.client.tel:"",(d.client&&d.client.email)?"E-mail : "+d.client.email:""].filter(Boolean).join("\n");
+    addEvent("echeance-devis-"+d.id,"📄 Échéance devis - "+client,d.echeance,"","","",desc,true,d.updatedAt||d.date);
+  });
+  (state.factures||[]).forEach(function(f){
+    if(!f || !f.echeance || f.statut!=="envoyee" || f.versionArchive) return;
+    var client=(f.client&&f.client.nom)||"Cliente";
+    var desc=[f.numero?"Facture : "+f.numero:"",f.montant!=null?"Montant : "+euro(f.montant):"",(f.client&&f.client.tel)?"Téléphone : "+f.client.tel:"",(f.client&&f.client.email)?"E-mail : "+f.client.email:""].filter(Boolean).join("\n");
+    addEvent("echeance-facture-"+f.id,"💶 Échéance facture - "+client,f.echeance,"","","",desc,true,f.updatedAt||f.date);
+  });
+  (state.ateliers||[]).forEach(function(a){
+    if(!a || !a.date || a.statut==="annule") return;
+    var titre=(a.type||"Atelier")+(a.theme?" - "+a.theme:"");
+    var contact=a.organisatrice||a.structureNom||"";
+    var desc=[contact?"Contact : "+contact:"",a.contactTel?"Téléphone : "+a.contactTel:"",a.contactEmail?"E-mail : "+a.contactEmail:"",a.nbParticipantsPrevu?"Participants prévus : "+a.nbParticipantsPrevu:""] .filter(Boolean).join("\n");
+    var heure=a.heure||"09:00", p=heure.split(":"), total=Number(p[0]||0)*60+Number(p[1]||0)+120;
+    var fin=String(Math.floor(total/60)%24).padStart(2,"0")+":"+String(total%60).padStart(2,"0");
+    addEvent("atelier-"+a.id,"🌸 "+titre,a.date,heure,fin,a.lieu||"",desc,false,a.updatedAt||a.createdAt);
+  });
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n")+"\r\n";
+}
+async function checkCalendarWorker(manual){
+  ui.calendarWorkerStatus="checking"; ui.calendarWorkerMessage="Vérification en cours…"; if(manual) render();
+  try{
+    var r=await fetch(CALENDAR_WORKER_URL+"/health",{cache:"no-store"});
+    var data=await r.json().catch(function(){return {};});
+    if(!r.ok || !data.ok || !data.configured) throw new Error(data.message||"Le stockage KV du Worker n’est pas configuré.");
+    ui.calendarWorkerStatus="ready"; ui.calendarWorkerMessage="Service calendrier opérationnel.";
+    if(manual){ render(); toast("Service calendrier opérationnel."); }
+    return true;
+  }catch(e){
+    ui.calendarWorkerStatus="error"; ui.calendarWorkerMessage=e.message||"Service calendrier inaccessible.";
+    if(manual){ render(); toast("Calendrier non configuré : "+ui.calendarWorkerMessage); }
+    return false;
+  }
+}
+async function publishCalendarFeed(manual){
+  var token=(state.settings&&state.settings.calendarFeedToken)||"";
+  if(!token){ if(manual) toast("Active d’abord l’abonnement calendrier."); return false; }
+  var user=auth&&auth.currentUser;
+  if(!user){ if(manual) toast("Connexion administrateur requise."); return false; }
+  try{
+    var idToken=await user.getIdToken(true);
+    var r=await fetch(CALENDAR_WORKER_URL+"/publish",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+idToken},body:JSON.stringify({token:token,ics:calendarBuildIcs()})});
+    var body=await r.text();
+    if(!r.ok) throw new Error(body||("Erreur "+r.status));
+    state.settings.calendarFeedLastAt=new Date().toISOString();
+    state.settings.calendarFeedLastError="";
+    ui.calendarWorkerStatus="ready"; ui.calendarWorkerMessage="Service calendrier opérationnel.";
+    try{ localStorage.setItem("afs_cache",JSON.stringify({data:serialize()})); }catch(e){}
+    if(manual){ render(); toast("Calendrier Apple mis à jour."); }
+    return true;
+  }catch(e){
+    console.error("Publication calendrier",e);
+    state.settings.calendarFeedLastError=e.message||String(e);
+    ui.calendarWorkerStatus="error"; ui.calendarWorkerMessage=state.settings.calendarFeedLastError;
+    if(manual){ render(); toast("Impossible de publier le calendrier : "+(e.message||e)); }
+    return false;
+  }
+}
+function scheduleCalendarPublish(){
+  if(!(state.settings&&state.settings.calendarFeedToken)) return;
+  clearTimeout(calendarPublishTimer);
+  calendarPublishTimer=setTimeout(function(){ publishCalendarFeed(false); },1800);
+}
+async function enableCalendarFeed(regenerate){
+  if(regenerate && !confirm("Régénérer le lien rendra l’ancien abonnement inutilisable. Continuer ?")) return;
+  var ready=await checkCalendarWorker(false);
+  if(!ready){ render(); toast("Configure d’abord le Worker calendrier Cloudflare."); return; }
+  if(!state.settings.calendarFeedToken || regenerate) state.settings.calendarFeedToken=calendarRandomToken();
+  saveCache();
+  var ok=await publishCalendarFeed(true);
+  if(ok) render();
+}
+function copyCalendarFeedUrl(){
+  var u=calendarFeedUrl(); if(!u){toast("Active d’abord l’abonnement calendrier.");return;}
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(function(){toast("Lien privé du calendrier copié.");}).catch(function(){window.prompt("Copie ce lien :",u);});
+  else window.prompt("Copie ce lien :",u);
+}
+function openCalendarSubscription(){
+  var u=calendarWebcalUrl(); if(!u){toast("Active d’abord l’abonnement calendrier.");return;}
+  window.location.href=u;
+}
 
 /* ===================== Helpers ===================== */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
@@ -106,6 +283,8 @@ function r2(n){ return Math.round((Number(n)+Number.EPSILON)*100)/100; }
 function euro(n){ return (Number(n)||0).toLocaleString("fr-FR",{style:"currency",currency:"EUR"}); }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function addDays(iso,d){ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }
+function addOneMonth(iso){ var dt=new Date((iso||todayISO())+"T00:00:00"); var day=dt.getDate(); dt.setDate(1); dt.setMonth(dt.getMonth()+1); var last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(); dt.setDate(Math.min(day,last)); return dt.toISOString().slice(0,10); }
+function askDueDate(defaultDate,label){ var d=window.prompt("Date d’échéance "+(label||"du document")+" (AAAA-MM-JJ)",defaultDate||addOneMonth(todayISO())); if(d===null||!String(d).trim()) return defaultDate||addOneMonth(todayISO()); d=String(d).trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d+"T00:00:00").getTime())){ toast("Date d’échéance invalide : la date par défaut a été conservée."); return defaultDate||addOneMonth(todayISO()); } return d; }
 function frDate(iso){ return iso? new Date(iso+"T00:00:00").toLocaleDateString("fr-FR") : "—"; }
 var MOIS=["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
 var MOISL=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
@@ -131,28 +310,93 @@ function totals(lignes, partService){
   return { biens:r2(biens), services:r2(services), total:r2(total) };
 }
 
-function factureCalc(lignes, partService, f){
-  var base=totals(lignes, partService), total=base.total;
-  f=f||{};
-  var valRem=num(f.reductionValeur), remise=0;
-  if(valRem>0){
-    if(f.reductionType==="pourcent"){ remise=r2(total*valRem/100); }
-    else { remise=r2(valRem); }
+function normalizeAdjustments(doc){
+  doc=doc||{};
+  if(Array.isArray(doc.ajustements)) return doc.ajustements.map(function(a){
+    return {id:a.id||uid(),type:a.type||"remise_montant",label:a.label||"",valeur:Number(a.valeur)||0};
+  });
+  var out=[];
+  if(Number(doc.remiseValeur||0)>0){
+    out.push({id:uid(),type:doc.remiseType==="pourcent"?"remise_pourcent":"remise_montant",label:"Remise commerciale",valeur:Number(doc.remiseValeur)||0});
   }
-  remise=Math.min(remise,total);
-  var apres=r2(total-remise);
-  var acompte=Math.min(num(f.acompteDejaPaye),apres);
-  var net=r2(apres-acompte);
-  var ratio=total>0?apres/total:1;
-  return {
-    biens:r2(base.biens*ratio),
-    services:r2(base.services*ratio),
-    totalInitial:base.total,
-    remiseMontant:remise,
-    totalApresRemise:apres,
-    acompteDejaPaye:acompte,
-    total:net
-  };
+  return out;
+}
+function adjustmentLabel(a){
+  if(a&&a.label) return a.label;
+  return a&&a.type==="remise_pourcent"?"Remise commerciale":a&&a.type==="avoir"?"Avoir":a&&a.type==="ajustement"?"Ajustement":"Remise commerciale";
+}
+function calcAdjustments(baseTotal, adjustments){
+  var total=Number(baseTotal)||0, details=[];
+  (adjustments||[]).forEach(function(a){
+    var v=Number(a.valeur)||0, amount=0;
+    if(a.type==="remise_pourcent") amount=-Math.abs(r2(total*v/100));
+    else if(a.type==="remise_montant"||a.type==="avoir") amount=-Math.abs(r2(v));
+    else if(a.type==="ajustement") amount=r2(v);
+    if(!amount) return;
+    details.push({id:a.id||uid(),type:a.type,label:adjustmentLabel(a),valeur:v,montant:amount});
+  });
+  var sum=r2(details.reduce(function(x,a){return x+a.montant;},0));
+  return {details:details,totalAjustements:sum,totalApresAjustements:r2(Math.max(0,total+sum))};
+}
+function documentCalc(lignes,partService,doc){
+  var base=totals(lignes,partService), adj=calcAdjustments(base.total,normalizeAdjustments(doc));
+  var ratio=base.total>0?adj.totalApresAjustements/base.total:1;
+  return {biens:r2(base.biens*ratio),services:r2(base.services*ratio),totalInitial:base.total,ajustements:adj.details,totalAjustements:adj.totalAjustements,total:adj.totalApresAjustements};
+}
+function adjustmentsEditorHTML(prefix,list){
+  list=list||[];
+  var rows=list.map(function(a){
+    return '<div class="card" style="padding:10px;margin:8px 0;background:#fffaf8;" data-adjust-row="'+esc(a.id)+'">'+
+      '<div class="inline"><div><label class="field"><span>Type</span><select data-adjust-type="'+prefix+'" data-id="'+esc(a.id)+'">'+
+      '<option value="remise_pourcent"'+(a.type==="remise_pourcent"?' selected':'')+'>Remise %</option>'+ 
+      '<option value="remise_montant"'+(a.type==="remise_montant"?' selected':'')+'>Remise €</option>'+ 
+      '<option value="avoir"'+(a.type==="avoir"?' selected':'')+'>Avoir</option>'+ 
+      '<option value="ajustement"'+(a.type==="ajustement"?' selected':'')+'>Montant fixe (+ / -)</option></select></label></div>'+ 
+      '<div><label class="field"><span>Libellé</span><input data-adjust-label="'+prefix+'" data-id="'+esc(a.id)+'" value="'+esc(a.label||adjustmentLabel(a))+'"></label></div>'+ 
+      '<div><label class="field"><span>'+(a.type==="remise_pourcent"?'Pourcentage':'Montant €')+'</span><input type="number" step="0.01" data-adjust-value="'+prefix+'" data-id="'+esc(a.id)+'" value="'+esc(a.valeur||0)+'"></label></div></div>'+ 
+      '<button class="btn small danger" data-action="'+prefix+'-adjust-del-'+esc(a.id)+'">Supprimer cet ajustement</button></div>';
+  }).join('');
+  return rows+'<button class="btn small soft" data-action="'+prefix+'-adjust-add">+ Ajouter une remise, un avoir ou un montant fixe</button>';
+}
+
+function factureCalc(lignes, partService, f){
+  f=f||{};
+  var base=documentCalc(lignes,partService,f);
+
+  // Une facture d’acompte doit toujours être calculée sur le montant NET du devis,
+  // donc après toutes les remises, avoirs et autres ajustements commerciaux.
+  if(f.type==="acompte" && num(f.pourcentage)>0){
+    var taux=Math.max(0,Math.min(100,num(f.pourcentage)))/100;
+    return {
+      biens:r2(base.biens*taux),
+      services:r2(base.services*taux),
+      totalInitial:base.totalInitial,
+      ajustements:base.ajustements,
+      totalAjustements:base.totalAjustements,
+      totalApresAjustements:base.total,
+      acompteDejaPaye:0,
+      total:r2(base.total*taux)
+    };
+  }
+
+  // Pour une facture de solde, on repart également du montant net du devis
+  // puis on déduit exactement l’acompte déjà facturé.
+  if(f.type==="solde"){
+    var acompteSolde=Math.min(num(f.acompteMontant||f.acompteDejaPaye),base.total);
+    return {
+      biens:base.biens,
+      services:base.services,
+      totalInitial:base.totalInitial,
+      ajustements:base.ajustements,
+      totalAjustements:base.totalAjustements,
+      totalApresAjustements:base.total,
+      acompteDejaPaye:acompteSolde,
+      total:r2(base.total-acompteSolde)
+    };
+  }
+
+  var acompte=Math.min(num(f.acompteDejaPaye),base.total);
+  return {biens:base.biens,services:base.services,totalInitial:base.totalInitial,ajustements:base.ajustements,totalAjustements:base.totalAjustements,totalApresAjustements:base.total,acompteDejaPaye:acompte,total:r2(base.total-acompte)};
 }
 
 var ST_DEVIS={ brouillon:{l:"Brouillon",c:"var(--ink-s)",b:"#efe7df"}, envoye:{l:"Envoyé",c:"#6a5a2a",b:"#f3ead0"},
@@ -182,7 +426,7 @@ function portalDateISO(v){
 }
 function portalProjectToDemande(doc){
   var x=doc.data()||{};
-  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",souhaiteRdvTelephonique:x.souhaiteRdvTelephonique||"",rdvDateSouhaitee:x.rdvDateSouhaitee||"",rdvHeureSouhaitee:x.rdvHeureSouhaitee||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:portalDateISO(x.createdAt)||new Date().toISOString(),updatedAt:portalDateISO(x.updatedAt),securePortal:true};
+  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",souhaiteRdvTelephonique:x.souhaiteRdvTelephonique||"",rdvDateSouhaitee:x.rdvDateSouhaitee||"",rdvHeureSouhaitee:x.rdvHeureSouhaitee||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:portalDateISO(x.createdAt)||new Date().toISOString(),updatedAt:portalDateISO(x.updatedAt),clientModificationHistory:Array.isArray(x.clientModificationHistory)?x.clientModificationHistory:[],clientModificationPending:!!x.clientModificationPending,clientModificationCount:Number(x.clientModificationCount)||0,lastClientModificationAt:portalDateISO(x.lastClientModificationAt)||x.lastClientModificationAt||"",lastClientChanges:Array.isArray(x.lastClientChanges)?x.lastClientChanges:[],securePortal:true};
 }
 function startSecurePortalRequests(){
   if(portalProjectsUnsub) portalProjectsUnsub();
@@ -196,7 +440,11 @@ function startSecurePortalRequests(){
       if(i>=0){ var old=state.demandesMariage[i]; x.statut=old.statut||x.statut; state.demandesMariage[i]=Object.assign({},old,x); }
       else state.demandesMariage.unshift(x);
     });
-    try{render();}catch(e){}
+    // Ne jamais reconstruire toute l’interface pendant la saisie d’un champ :
+    // cela ferait perdre le focus après chaque enregistrement automatique.
+    if(!(typeof isTextEditing === "function" && isTextEditing())){
+      try{render();}catch(e){}
+    }
   },function(err){console.error("Lecture portail sécurisé impossible",err);});
 }
 function startSecurePortalDocumentDecisions(){
@@ -304,6 +552,60 @@ async function publishDocumentToClientPortal(kind,doc,pdf64){
   return payload;
 }
 
+
+function hidePortalDocumentVersion(kind,id){
+  try{
+    if(db&&auth&&auth.currentUser) db.collection("portalDocuments").doc(kind+"_"+id).set({visibleClient:false,archivedVersion:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(function(e){console.warn("Archivage portail impossible",e);});
+  }catch(e){}
+}
+
+// Conserve explicitement le lien entre une version de document et sa fiche mariage.
+function preserveDocumentMarriageAssociation(kind, original, nextDoc){
+  original=original||{}; nextDoc=nextDoc||{};
+  var mariage=null;
+  if(kind==="devis") {
+    mariage=(state.mariages||[]).find(function(m){return m.devisLie===original.id;})
+      || (original.mariageId?getMariage(original.mariageId):null)
+      || (nextDoc.mariageId?getMariage(nextDoc.mariageId):null);
+  } else {
+    mariage=(original.mariageId?getMariage(original.mariageId):null)
+      || (nextDoc.mariageId?getMariage(nextDoc.mariageId):null);
+    var devisId=nextDoc.devisId||original.devisId||nextDoc.devisLie||original.devisLie||"";
+    if(!mariage && devisId) mariage=(state.mariages||[]).find(function(m){return m.devisLie===devisId;})||null;
+  }
+  if(!mariage) return null;
+  nextDoc.mariageId=mariage.id;
+  if(mariage.ownerUid && !nextDoc.ownerUid) nextDoc.ownerUid=mariage.ownerUid;
+  if(mariage.clientId && !nextDoc.clientId) nextDoc.clientId=mariage.clientId;
+
+  if(kind==="devis") {
+    mariage.devisLie=nextDoc.id;
+    mariage.updatedAt=new Date().toISOString();
+    // Les documents non finalisés suivent la version active. Les factures payées restent
+    // rattachées à leur version d'origine, mais gardent le lien direct vers le mariage.
+    (state.factures||[]).forEach(function(f){
+      if(f.devisId===original.id){
+        f.mariageId=mariage.id;
+        if(f.statut!=="payee" && !f.versionArchive){
+          f.devisId=nextDoc.id;
+          f.devisNumero=nextDoc.numero||f.devisNumero;
+        }
+        f.updatedAt=new Date().toISOString();
+      }
+    });
+    (state.commandes||[]).forEach(function(c){
+      if(c.devisId===original.id){
+        c.mariageId=mariage.id;
+        if(!c.fait){ c.devisId=nextDoc.id; c.devisNumero=nextDoc.numero||c.devisNumero; }
+      }
+    });
+  } else {
+    nextDoc.devisId=nextDoc.devisId||original.devisId||mariage.devisLie||"";
+    nextDoc.devisNumero=nextDoc.devisNumero||original.devisNumero||((findDevis(nextDoc.devisId)||{}).numero)||"";
+  }
+  return mariage;
+}
+
 function publishSecureClientSpaces(){
   if(!auth.currentUser) return Promise.resolve();
   var jobs=[];
@@ -321,7 +623,7 @@ function publishSecureClientSpaces(){
       if(devis.portalFileName) quotePortal.fileName=devis.portalFileName;
       jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set(quotePortal,{merge:true}));
     }
-    facts.filter(function(f){return ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
+    facts.filter(function(f){return !f.versionArchive && ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
       var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
       if(f.portalPdfUrl) invoicePortal.pdfUrl=f.portalPdfUrl;
       if(f.portalStoragePath) invoicePortal.storagePath=f.portalStoragePath;
@@ -502,7 +804,7 @@ function saveCloud(){
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
     docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); })
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
 }
@@ -512,7 +814,7 @@ function saveCloudNow(){
   cloudStatus("☁️ Enregistrement…");
   var payload=serializeCloud();
   return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); return publishSecureClientSpaces(); })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); scheduleCalendarPublish(); return publishSecureClientSpaces(); })
     .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
 }
 function startSync(uidStr){
@@ -1352,10 +1654,80 @@ function viewNotificationsDashboard(){
   return html;
 }
 
+
+function mariagePlanningConfirmed(m){
+  return !!(m && m.dateMariage && m.statut!=="perdu" && mariageAcomptePaye(m));
+}
+function mariagePlanningYearsCount(){
+  var n=parseInt(state.settings.mariagePlanningYears,10);
+  return isFinite(n) && n>=3 ? n : 3;
+}
+function mariagePlanningWeekendStart(dateISO){
+  var d=new Date(dateISO+"T12:00:00");
+  if(isNaN(d.getTime())) return "";
+  var day=d.getDay();
+  var shift=day===0?-2:(day===6?-1:0); // vendredi du week-end
+  d.setDate(d.getDate()+shift);
+  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+}
+function mariagePlanningWeekendItems(startISO){
+  var endISO=addDays(startISO,2);
+  return (state.mariages||[]).filter(function(m){
+    return mariagePlanningConfirmed(m) && m.dateMariage>=startISO && m.dateMariage<=endISO;
+  }).sort(function(a,b){
+    return (a.dateMariage||"").localeCompare(b.dateMariage||"") || (a.nom||"").localeCompare(b.nom||"");
+  });
+}
+function mariagePlanningMonthRows(year,monthIndex){
+  var first=new Date(year,monthIndex,1,12,0,0), last=new Date(year,monthIndex+1,0,12,0,0);
+  var d=new Date(first);
+  while(d.getDay()!==6) d.setDate(d.getDate()+1); // premier samedi du mois
+  var rows=[];
+  while(d<=last){
+    var satISO=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+    var start=addDays(satISO,-1), end=addDays(satISO,1), count=mariagePlanningWeekendItems(start).length;
+    rows.push({start:start,end:end,count:count,saturday:satISO});
+    d.setDate(d.getDate()+7);
+  }
+  return rows;
+}
+function mariagePlanningCountStyle(count){
+  if(count<=0) return "background:#f5f2ee;color:var(--muted);border-color:var(--line);";
+  if(count===1) return "background:var(--green-s);color:var(--green);border-color:#b9cfaf;";
+  if(count===2) return "background:#f5ead2;color:#735a20;border-color:#dfc68e;";
+  return "background:var(--blush-s);color:var(--bordeaux);border-color:#d6a7a0;";
+}
+function viewDashboardMarriageWeekendPlanning(){
+  var startYear=new Date().getFullYear(), count=mariagePlanningYearsCount(), years=[];
+  for(var y=0;y<count;y++) years.push(startYear+y);
+  var html='<div class="card" style="margin-bottom:14px;border-color:var(--gold-s);background:#fffdfb;">'+
+    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning des mariages confirmés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Chaque case indique le nombre de mariages confirmés sur le week-end. Seuls les dossiers avec facture d’acompte payée sont comptés.</p></div>'+ 
+    '<button class="btn small gold" data-action="dash-marriage-add-year">+ Ajouter une année</button></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px;">';
+  years.forEach(function(year){
+    html+='<section style="border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;"><div class="serif" style="font-size:20px;font-weight:700;color:var(--bordeaux);margin-bottom:7px;">'+year+'</div>';
+    for(var mi=0;mi<12;mi++){
+      var rows=mariagePlanningMonthRows(year,mi);
+      html+='<div style="display:grid;grid-template-columns:58px 1fr;gap:7px;align-items:start;padding:5px 0;border-top:'+(mi?'1px solid #f0ebe6':'none')+';">'+
+        '<div style="font-size:11px;font-weight:800;color:var(--bordeaux);padding-top:5px;">'+MOIS[mi]+'</div><div style="display:flex;flex-wrap:wrap;gap:5px;">';
+      rows.forEach(function(w){
+        var startDay=Number(w.start.slice(8,10)), endDay=Number(w.end.slice(8,10));
+        var range=(w.start.slice(5,7)===w.end.slice(5,7))?(startDay+'–'+endDay):(startDay+'/'+Number(w.start.slice(5,7))+'–'+endDay+'/'+Number(w.end.slice(5,7)));
+        html+='<button class="btn small" data-action="dash-marriage-week-'+w.start+'" title="Week-end du '+frDate(w.start)+' au '+frDate(w.end)+' : '+w.count+' mariage'+(w.count>1?'s':'')+'" style="min-width:54px;padding:4px 6px;border:1px solid;'+mariagePlanningCountStyle(w.count)+'">'+
+          '<span style="display:block;font-size:9px;line-height:1;opacity:.8;">'+range+'</span><b style="display:block;font-size:15px;line-height:1.15;">'+w.count+'</b></button>';
+      });
+      html+='</div></div>';
+    }
+    html+='</section>';
+  });
+  html+='</div><div class="muted" style="font-size:11px;margin-top:9px;">0 = libre · 1, 2, 3… = nombre de mariages confirmés sur le week-end. Clique sur une case occupée pour ouvrir le ou les dossiers.</div></div>';
+  return html;
+}
 function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Tableau de bord</h2><div class="muted" style="font-size:12px;margin-top:3px;">Ton espace de travail du jour</div></div></div>'+ 
   viewVersionDashboard()+
+  viewDashboardMarriageWeekendPlanning()+
   viewDashboardHero()+
   viewTodoDashboard()+
   viewNotificationsDashboard()+
@@ -1406,6 +1778,31 @@ function jauge(lab,v,seuil,pct,color){
     '<div class="track"><div class="fill" style="width:'+pct+'%;background:'+color+';"></div></div></div>';
 }
 
+
+function deepCopyDoc(obj){ return JSON.parse(JSON.stringify(obj||{})); }
+function baseDocumentNumber(numero){ return String(numero||"").replace(/\s+V\d+$/i,""); }
+function nextDocumentVersion(list, doc){
+  var base=doc.baseNumero||baseDocumentNumber(doc.numero), max=Number(doc.version)||1;
+  (list||[]).forEach(function(x){ if((x.baseNumero||baseDocumentNumber(x.numero))===base) max=Math.max(max,Number(x.version)||1); });
+  return max+1;
+}
+function documentChangeSummary(oldDoc,newDoc){
+  var changes=[], oc=oldDoc.client||{}, nc=newDoc.client||{};
+  if((oc.nom||"")!==(nc.nom||"")) changes.push("Client");
+  if((oc.adresse||"")!==(nc.adresse||"")) changes.push("Adresse");
+  if((oc.email||"")!==(nc.email||"")) changes.push("E-mail");
+  if((oc.tel||"")!==(nc.tel||"")) changes.push("Téléphone");
+  if((oldDoc.notes||"")!==(newDoc.notes||"")) changes.push("Notes");
+  if(JSON.stringify(oldDoc.lignes||[])!==JSON.stringify(newDoc.lignes||[])) changes.push("Lignes / quantités / prix");
+  if(JSON.stringify(normalizeAdjustments(oldDoc))!==JSON.stringify(normalizeAdjustments(newDoc))) changes.push("Ajustements commerciaux");
+  if(Number(oldDoc.acompteDejaPaye||0)!==Number(newDoc.acompteDejaPaye||0)) changes.push("Acompte déjà payé");
+  return changes.length?changes:["Document actualisé"];
+}
+function versionMetaHTML(doc){
+  var v=Number(doc&&doc.version)||1;
+  return '<span class="pill" style="background:#efe7df;color:var(--ink-s);">V'+v+(doc&&doc.versionArchive?' · archivée':'')+'</span>';
+}
+
 /* ===================== Devis : liste ===================== */
 function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
 function viewDevis(){
@@ -1451,11 +1848,14 @@ function viewDevis(){
     var sd=ST_DEVIS[d.statut]||ST_DEVIS.brouillon;
     var delPending = ui.confirmDelete === "devis:"+d.id;
     html+='<div class="card"><div class="flexb"><div>'+
-      '<div style="font-weight:700;color:var(--bordeaux);">'+esc(d.numero)+' · '+esc(d.client&&d.client.nom)+'</div>'+
-      '<div class="muted">'+frDate(d.date)+' · '+euro(t.total)+' ('+euro(t.biens)+' biens · '+euro(t.services)+' services)</div></div>'+
+      '<div style="font-weight:700;color:var(--bordeaux);">'+esc(d.numero)+' · '+esc(d.client&&d.client.nom)+' '+versionMetaHTML(d)+'</div>'+
+      (d.changesSummary&&d.changesSummary.length?'<div class="muted" style="font-size:11px;">Modifications : '+esc(d.changesSummary.join(' · '))+'</div>':'')+
+      '<div class="muted">'+frDate(d.date)+' · échéance '+frDate(d.echeance||d.validite)+' · '+euro(t.total)+' ('+euro(t.biens)+' biens · '+euro(t.services)+' services)</div></div>'+
       '<span class="badge" style="color:'+sd.c+';background:'+sd.b+';">'+sd.l+'</span></div>'+
       '<div class="row-actions">'+
         '<button class="btn small ghost" data-action="devis-preview-'+d.id+'">Aperçu / PDF</button>'+
+        '<button class="btn small soft" data-action="devis-edit-'+d.id+'">Modifier</button>'+
+        '<button class="btn small ghost" data-action="devis-version-'+d.id+'">Nouvelle version</button>'+
         '<button class="btn small gold" data-action="devis-email-'+d.id+'">Envoyer par email</button>'+
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
         (d.statut!=="accepte"&&d.statut!=="refuse"&&d.statut!=="archive"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
@@ -1473,11 +1873,18 @@ function viewDevis(){
   return html;
 }
 /* ===================== Devis : assistant ===================== */
-function newWizard(){ ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], notes:"", date:todayISO() }; }
-function wzTotals(){ return totals(ui.wizard.lignes,state.settings.partService); }
+function newWizard(editDoc,forceVersion){
+  if(editDoc){
+    var clientId=(editDoc.client&&editDoc.client.id)||"";
+    ui.wizard={step:1,editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),clientMode:clientId?"existant":"nouveau",clientId:clientId,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),ajustements:normalizeAdjustments(editDoc),notes:editDoc.notes||"",date:editDoc.date||todayISO(),echeance:editDoc.echeance||editDoc.validite||addOneMonth(editDoc.date||todayISO())};
+  }else{
+    ui.wizard={ step:1, clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:""}, lignes:[], ajustements:[], notes:"", date:todayISO(), echeance:addOneMonth(todayISO()) };
+  }
+}
+function wzTotals(){ return documentCalc(ui.wizard.lignes,state.settings.partService,ui.wizard); }
 function viewWizard(){
   var w=ui.wizard, dot=function(n,l){ return '<div style="display:flex;align-items:center;gap:7px;"><div style="width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:'+(w.step>=n?"var(--bordeaux)":"#fff")+';color:'+(w.step>=n?"#fff":"var(--ink-s)")+';border:1px solid '+(w.step>=n?"var(--bordeaux)":"var(--line)")+';">'+n+'</div><span style="font-size:12px;font-weight:600;color:'+(w.step>=n?"var(--ink)":"var(--ink-s)")+';">'+l+'</span></div>'; };
-  var head='<div class="card"><div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px;">'+dot(1,"Client")+'<span style="color:var(--line);">—</span>'+dot(2,"Créations")+'<span style="color:var(--line);">—</span>'+dot(3,"Validation")+'</div>';
+  var head='<div class="card">'+(w.editId?'<div class="summary" style="margin-bottom:12px;"><b>✏️ Modification de '+esc((w.originalSnapshot&&w.originalSnapshot.numero)||"devis")+'</b>'+(w.forceNewVersion?' · nouvelle version':'')+'</div>':'')+'<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px;">'+dot(1,"Client")+'<span style="color:var(--line);">—</span>'+dot(2,"Créations")+'<span style="color:var(--line);">—</span>'+dot(3,"Validation")+'</div>';
   var body="";
   if(w.step===1){
     var modeBtns='<div class="row-actions" style="margin-top:0;margin-bottom:14px;">'+
@@ -1521,27 +1928,35 @@ function viewWizard(){
   else {
     var t2=wzTotals(); var cn = w.clientMode==="existant" ? (state.clients.find(function(c){return c.id===w.clientId;})||{}).nom : w.client.nom;
     body='<h3 style="margin:0 0 12px;">Vérification</h3>'+
+      '<div class="inline"><div><label class="field"><span>Date du devis</span><input id="wzDate" type="date" value="'+esc(w.date||todayISO())+'"></label></div><div><label class="field"><span>Date d’échéance du devis</span><input id="wzEcheance" type="date" value="'+esc(w.echeance||addOneMonth(w.date||todayISO()))+'"></label></div></div>'+
+      '<div class="hint" style="margin-top:-8px;margin-bottom:10px;">Par défaut : un mois après la date du devis. Tu peux choisir une autre date.</div>'+
       '<label class="field"><span>Note pour le client (facultatif)</span><textarea id="wzNotes" placeholder="Ex : Retrait en atelier, livraison sur Valenciennes…">'+esc(w.notes)+'</textarea></label>'+
+      '<div class="section-title">Ajustements commerciaux</div>'+adjustmentsEditorHTML("wz",w.ajustements||[])+
+      '<div id="wzTotFinal" style="padding:12px;background:var(--cream);border-radius:10px;font-size:14px;margin:12px 0;">'+wizTotHTML(t2)+'</div>'+
       '<div style="padding:12px;background:var(--cream);border-radius:10px;font-size:14px;margin-bottom:12px;">'+
         '<div><b>Client :</b> '+esc(cn)+'</div><div><b>Lignes :</b> '+w.lignes.length+'</div>'+
-        '<div><b>Total :</b> '+euro(t2.total)+' ('+euro(t2.biens)+' biens · '+euro(t2.services)+' services)</div>'+
-        '<div class="muted" style="margin-top:4px;">Validité jusqu\'au '+frDate(addDays(w.date,state.settings.validiteDevis))+'</div></div>'+
-      '<div class="flexb"><button class="btn ghost" data-action="wz-back">← Retour</button><button class="btn gold" data-action="wz-finish">Créer le devis</button></div>';
+        '<div><b>Total final :</b> '+euro(t2.total)+' ('+euro(t2.biens)+' biens · '+euro(t2.services)+' services)</div>'+
+        '<div class="muted" style="margin-top:4px;">Échéance : '+frDate(w.echeance||addOneMonth(w.date||todayISO()))+'</div></div>'+
+      '<div class="flexb"><button class="btn ghost" data-action="wz-back">← Retour</button><button class="btn gold" data-action="wz-finish">'+(w.editId?'Enregistrer les modifications':'Créer le devis')+'</button></div>';
   }
   return head+body+'</div>';
 }
 function wizTotHTML(t){
-  return '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+
-    '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>'+
+  var adj=(t.ajustements||[]).map(function(a){return '<div class="totrow muted"><span>'+esc(a.label)+'</span><span>'+(a.montant<0?'– ':'+ ')+euro(Math.abs(a.montant))+'</span></div>';}).join('');
+  return '<div class="totrow muted"><span>Sous-total</span><span>'+euro(t.totalInitial!=null?t.totalInitial:t.total)+'</span></div>'+adj+
+    '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
+    '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>'+ 
     '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:6px;"><span>Total devis</span><span>'+euro(t.total)+'</span></div>';
 }
+function refreshWizardFinalTotals(){var b=document.getElementById("wzTotFinal");if(b&&ui.wizard)b.innerHTML=wizTotHTML(wzTotals());}
+
 function captureWizardInputs(){ // lit les champs avant un changement d'étape
-  var w=ui.wizard; if(!w) return;
+  var w=ui.wizard; if(!w) return; w.ajustements=w.ajustements||[];
   if(w.step===1&&w.clientMode==="nouveau"){
     var g=function(id){var e=document.getElementById(id);return e?e.value:"";};
     w.client={nom:g("wzNom"),adresse:g("wzAdr"),email:g("wzEmail"),tel:g("wzTel")};
   }
-  if(w.step===3){ var n=document.getElementById("wzNotes"); if(n) w.notes=n.value; }
+  if(w.step===3){ var n=document.getElementById("wzNotes"); if(n) w.notes=n.value; var wd=document.getElementById("wzDate"), we=document.getElementById("wzEcheance"); if(wd) w.date=wd.value||todayISO(); if(we) w.echeance=we.value||addOneMonth(w.date); }
 }
 
 /* ===================== Factures : liste ===================== */
@@ -1568,12 +1983,15 @@ function factureCardHTML(f){
   var sf=ST_FAC[f.statut]||ST_FAC.a_envoyer;
   var delPending = ui.confirmDelete === "facture:"+f.id;
   return '<div class="card" style="margin-bottom:10px;"><div class="flexb"><div>'+
-    '<div style="font-weight:700;color:var(--bordeaux);">'+esc(f.numero)+' · '+esc(TYPE_FAC[f.type]||"Facture")+(f.origine==="manuelle"?' <span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">saisie directe</span>':'')+'</div>'+
-    '<div class="muted">'+esc(f.client&&f.client.nom)+' · '+frDate(f.date)+' · <b>'+euro(f.montant)+'</b></div>'+
+    '<div style="font-weight:700;color:var(--bordeaux);">'+esc(f.numero)+' · '+esc(TYPE_FAC[f.type]||"Facture")+' '+versionMetaHTML(f)+(f.origine==="manuelle"?' <span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">saisie directe</span>':'')+'</div>'+
+    (f.changesSummary&&f.changesSummary.length?'<div class="muted" style="font-size:11px;">Modifications : '+esc(f.changesSummary.join(' · '))+'</div>':'')+
+    '<div class="muted">'+esc(f.client&&f.client.nom)+' · '+frDate(f.date)+' · échéance '+frDate(f.echeance)+' · <b>'+euro(f.montant)+'</b></div>'+
     '<div class="muted">'+euro(f.montantBiens)+' biens · '+euro(f.montantServices)+' services'+(f.datePaiement?" · payée le "+frDate(f.datePaiement):"")+(f.paiementClient?" · paiement : "+esc(f.paiementClient):"")+'</div></div>'+
     '<span class="badge" style="color:'+sf.c+';background:'+sf.b+';">'+sf.l+'</span></div>'+
     '<div class="row-actions">'+
       '<button class="btn small ghost" data-action="fac-preview-'+f.id+'">Aperçu / PDF</button>'+
+      '<button class="btn small soft" data-action="fac-edit-'+f.id+'">Modifier</button>'+
+      '<button class="btn small ghost" data-action="fac-version-'+f.id+'">Nouvelle version</button>'+
       '<button class="btn small gold" data-action="fac-email-'+f.id+'">Envoyer par email</button>'+ 
       '<button class="btn small ghost" data-action="fac-paymethod-'+f.id+'">Moyen de paiement</button>'+
       (f.statut==="a_envoyer"?'<button class="btn small soft" data-action="fac-st-'+f.id+'-envoyee">Marquer envoyée</button>':'')+
@@ -1610,7 +2028,7 @@ function viewFactures(){
   if(ui.factureDraft){ html+=viewFactureManualForm(); }
   if(state.factures.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>'; return html; }
 
-  var sorted=state.factures.slice().sort(function(a,b){
+  var sorted=state.factures.filter(function(f){return !f.versionArchive;}).slice().sort(function(a,b){
     return (b.date||"").localeCompare(a.date||"") || (b.numero||"").localeCompare(a.numero||"");
   });
   var groups={
@@ -1622,10 +2040,17 @@ function viewFactures(){
   html+=viewFactureGroup("a_envoyer","À envoyer",groups.a_envoyer,true);
   html+=viewFactureGroup("envoyee","Envoyées / en attente de paiement",groups.envoyee,true);
   html+=viewFactureGroup("payee","Payées",groups.payee,false);
+  var archivedVersions=state.factures.filter(function(f){return !!f.versionArchive;}).sort(function(a,b){return (b.updatedAt||b.date||"").localeCompare(a.updatedAt||a.date||"");});
+  if(archivedVersions.length) html+=viewFactureGroup("versions_archivees","Versions archivées",archivedVersions,false);
   return html;
 }
-function newFactureDraft(){
-  ui.factureDraft={ date:todayISO(), echeance:addDays(todayISO(),state.settings.delaiPaiement), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, paiementClient:"", notes:"" };
+function newFactureDraft(editDoc,forceVersion){
+  if(editDoc){
+    var cid=(editDoc.client&&editDoc.client.id)||"";
+    ui.factureDraft={editId:editDoc.id,forceNewVersion:!!forceVersion,originalSnapshot:deepCopyDoc(editDoc),date:editDoc.date||todayISO(),echeance:editDoc.echeance||addOneMonth(editDoc.date||todayISO()),statut:editDoc.statut||"a_envoyer",clientMode:cid?"existant":"nouveau",clientId:cid,client:deepCopyDoc(editDoc.client||{}),lignes:deepCopyDoc(editDoc.lignes||[]),ajustements:normalizeAdjustments(editDoc),reductionType:editDoc.remiseType||"montant",reductionValeur:Number(editDoc.remiseValeur||0),acompteDejaPaye:Number(editDoc.acompteDejaPaye||0),paiementClient:editDoc.paiementClient||"",notes:editDoc.notes||""};
+  }else{
+    ui.factureDraft={ date:todayISO(), echeance:addOneMonth(todayISO()), statut:"a_envoyer", clientMode:state.clients.length?"existant":"nouveau", clientId:state.clients[0]?state.clients[0].id:"", client:{nom:"",adresse:"",email:"",tel:"",canal:""}, lignes:[], ajustements:[], reductionType:"montant", reductionValeur:0, acompteDejaPaye:0, paiementClient:"", notes:"" };
+  }
 }
 function facDraftTotals(){ return factureCalc(ui.factureDraft?ui.factureDraft.lignes:[], state.settings.partService, ui.factureDraft); }
 function viewFactureManualForm(){
@@ -1659,30 +2084,32 @@ function viewFactureManualForm(){
       '<td style="padding:6px;"><button data-action="fac-delline-'+l.id+'" style="border:none;background:none;color:#9b3b3b;cursor:pointer;font-size:18px;">×</button></td></tr>';
   }).join("");
   var table=f.lignes.length? '<div class="scroll" style="margin-bottom:12px;"><table style="min-width:520px;"><thead><tr class="muted" style="text-align:left;"><th style="padding:6px;">Désignation</th><th style="padding:6px;">Type</th><th style="padding:6px;">Qté</th><th style="padding:6px;">Prix unit.</th><th style="padding:6px;">Total</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '<p class="muted">Ajoutez au moins une ligne de facturation.</p>';
-  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">Nouvelle facture directe</h3><button class="btn small ghost" data-action="fac-cancel-manual">Annuler</button></div>'+ 
+  return '<div class="card" style="border-color:var(--gold-s);"><div class="flexb" style="margin-bottom:10px;"><h3 style="margin:0;">'+(f.editId?'Modifier la facture '+esc((f.originalSnapshot&&f.originalSnapshot.numero)||''):'Nouvelle facture directe')+'</h3><button class="btn small ghost" data-action="fac-cancel-manual">Annuler</button></div>'+ 
     '<div class="inline"><div><label class="field"><span>Date de facture</span><input id="facDate" type="date" value="'+esc(f.date)+'"></label></div>'+ 
     '<div><label class="field"><span>Échéance</span><input id="facEcheance" type="date" value="'+esc(f.echeance)+'"></label></div>'+ 
     '</div>'+ 
     clientPart+ 
     '<div class="section-title">Lignes de facture</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">'+cat+'</div>'+table+ 
     '<button class="btn small soft" data-action="fac-addfree">+ Ligne libre</button>'+ 
-    '<div class="section-title">Réduction / acompte déjà payé</div>'+ 
-    '<div class="inline"><div><label class="field"><span>Type de réduction</span><select id="facReductionType"><option value="montant"'+(f.reductionType!=="pourcent"?" selected":"")+'>Montant €</option><option value="pourcent"'+(f.reductionType==="pourcent"?" selected":"")+'>Pourcentage %</option></select></label></div>'+ 
-    '<div><label class="field"><span>Réduction</span><input id="facReductionValeur" type="number" min="0" step="0.01" value="'+esc(f.reductionValeur||0)+'"></label></div>'+ 
-    '<div><label class="field"><span>Acompte déjà payé (€)</span><input id="facAcompteDejaPaye" type="number" min="0" step="0.01" value="'+esc(f.acompteDejaPaye||0)+'"></label></div></div>'+ 
+    '<div class="section-title">Ajustements commerciaux</div>'+adjustmentsEditorHTML("fac",f.ajustements||[])+
+    '<div style="margin-top:12px;"><label class="field"><span>Acompte déjà payé (€)</span><input id="facAcompteDejaPaye" type="number" min="0" step="0.01" value="'+esc(f.acompteDejaPaye||0)+'"></label></div>'+ 
     '<label class="field"><span>Moyen de paiement de la cliente</span><select id="facPaiementClient">'+paymentOptions(f.paiementClient||"")+'</select><div class="hint">Utile si la facture ou un acompte est déjà payé.</div></label>'+
     '<div id="facTot" style="margin-top:14px;padding:12px;background:var(--cream);border-radius:10px;font-size:14px;">'+facTotHTML(facDraftTotals())+'</div>'+ 
     '<label class="field" style="margin-top:12px;"><span>Note sur la facture (facultatif)</span><textarea id="facNotes">'+esc(f.notes||"")+'</textarea></label>'+ 
-    '<div class="row-actions"><button class="btn gold" data-action="fac-create-manual">Créer la facture</button><button class="btn ghost" data-action="fac-cancel-manual">Annuler</button></div></div>';
+    '<div class="row-actions"><button class="btn gold" data-action="fac-create-manual">'+(f.editId?'Enregistrer les modifications':'Créer la facture')+'</button><button class="btn ghost" data-action="fac-cancel-manual">Annuler</button></div></div>';
 }
 function facTotHTML(t){
-  return '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
+  var adj=(t.ajustements||[]).map(function(a){return '<div class="totrow muted"><span>'+esc(a.label)+'</span><span>'+(a.montant<0?'– ':'+ ')+euro(Math.abs(a.montant))+'</span></div>';}).join('');
+  return '<div class="totrow muted"><span>Sous-total</span><span>'+euro(t.totalInitial)+'</span></div>'+adj+
+    (t.acompteDejaPaye?'<div class="totrow muted"><span>Acompte déjà payé</span><span>– '+euro(t.acompteDejaPaye)+'</span></div>':'')+
+    '<div class="totrow muted"><span>Biens</span><span>'+euro(t.biens)+'</span></div>'+ 
     '<div class="totrow muted"><span>Services</span><span>'+euro(t.services)+'</span></div>'+ 
     '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:6px;"><span>Total facture</span><span>'+euro(t.total)+'</span></div>';
 }
+
 function captureFactureDraft(){
   var f=ui.factureDraft; if(!f) return;
-  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addDays(f.date,state.settings.delaiPaiement); f.statut="a_envoyer"; f.notes=val("facNotes"); f.reductionType=val("facReductionType")||"montant"; f.reductionValeur=num(val("facReductionValeur")); f.acompteDejaPaye=num(val("facAcompteDejaPaye")); f.paiementClient=val("facPaiementClient"); f.paiementClient=val("facPaiementClient");
+  f.date=val("facDate")||todayISO(); f.echeance=val("facEcheance")||addOneMonth(f.date); f.statut="a_envoyer"; f.notes=val("facNotes"); f.ajustements=f.ajustements||[]; f.acompteDejaPaye=num(val("facAcompteDejaPaye")); f.paiementClient=val("facPaiementClient"); f.paiementClient=val("facPaiementClient");
   if(f.clientMode==="existant"&&state.clients.length){ f.clientId=val("facClient")||f.clientId; }
   else { f.client={nom:val("facNom"),adresse:val("facAdr"),email:val("facEmail"),tel:val("facTel"),canal:val("facCanal")}; }
 }
@@ -1701,7 +2128,25 @@ function createManualFacture(){
   if(!f.lignes.length){ toast("Ajoute au moins une ligne."); return; }
   var t=factureCalc(f.lignes,state.settings.partService,f);
   if(t.totalInitial<=0){ toast("Le total de la facture doit être supérieur à 0 €."); return; }
-  var facture={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:f.date, echeance:f.echeance, client:client, lignes:f.lignes, notes:f.notes, montantBiens:t.biens, montantServices:t.services, montant:t.total, totalInitial:t.totalInitial, remiseType:f.reductionType, remiseValeur:num(f.reductionValeur), remiseMontant:t.remiseMontant, totalApresRemise:t.totalApresRemise, acompteDejaPaye:t.acompteDejaPaye, paiementClient:f.paiementClient||"", statut:"a_envoyer", datePaiement:null, origine:"manuelle" };
+  var payload={date:f.date,echeance:f.echeance,client:deepCopyDoc(client),lignes:deepCopyDoc(f.lignes),ajustements:deepCopyDoc(f.ajustements||[]),notes:f.notes,montantBiens:t.biens,montantServices:t.services,montant:t.total,totalInitial:t.totalInitial,totalAjustements:t.totalAjustements,totalApresAjustements:t.totalApresAjustements,acompteDejaPaye:t.acompteDejaPaye,paiementClient:f.paiementClient||""};
+  if(f.editId){
+    var original=state.factures.find(function(x){return x.id===f.editId;});
+    if(!original){ toast("Facture introuvable."); return; }
+    var makeVersion=original.statut==="payee"||f.forceNewVersion;
+    if(!makeVersion) makeVersion=confirm("Souhaites-tu conserver la facture initiale et créer une nouvelle version ?\n\nOK = nouvelle version\nAnnuler = remplacer la facture actuelle");
+    var candidate=Object.assign({},deepCopyDoc(original),payload), changes=documentChangeSummary(original,candidate);
+    if(makeVersion){
+      var base=original.baseNumero||baseDocumentNumber(original.numero), nv=nextDocumentVersion(state.factures,original);
+      original.baseNumero=base; original.version=Number(original.version)||1; original.versionArchive=true; original.updatedAt=new Date().toISOString();
+      var nf=Object.assign({},deepCopyDoc(original),payload,{id:uid(),numero:base+" V"+nv,baseNumero:base,version:nv,versionArchive:false,previousVersionId:original.id,statut:"a_envoyer",datePaiement:null,changesSummary:changes,updatedAt:new Date().toISOString()});
+      preserveDocumentMarriageAssociation("facture",original,nf);
+      original.replacedBy=nf.id; hidePortalDocumentVersion("facture",original.id); state.factures.unshift(nf); ui.factureDraft=null; saveCache(); render(); toast("Nouvelle version "+nf.numero+" créée et conservée dans la même fiche mariage. L’original est archivé."); return;
+    }
+    Object.assign(original,payload,{changesSummary:changes,updatedAt:new Date().toISOString()});
+    preserveDocumentMarriageAssociation("facture",original,original);
+    ui.factureDraft=null; saveCache(); render(); toast("Facture "+original.numero+" modifiée."); return;
+  }
+  var facture=Object.assign({ id:uid(), numero:prochainNumero("facture"), type:"totale", statut:"a_envoyer", datePaiement:null, origine:"manuelle",version:1,versionArchive:false },payload);
   state.factures.unshift(facture); ui.factureDraft=null; saveCache(); render(); toast("Facture "+facture.numero+" créée.");
 }
 
@@ -1771,6 +2216,14 @@ function mariageTermine(m){ return !!(m && (m.livre || m.statut==="realise")); }
 function mariageGroupKey(m){
   if(mariageTermine(m)) return "archives";
   if(mariageReady(m)) return "livraison";
+
+  // Dès qu'un acompte est encaissé, le dossier quitte l'étude commerciale
+  // et passe automatiquement en préparation de commande.
+  var acomptePaye=mariageFacturesLiees(m).some(function(f){
+    return f && f.type==="acompte" && f.statut==="payee";
+  });
+  if(acomptePaye) return "creation";
+
   var arts=m&&m.articles?m.articles:[];
   if(arts.some(function(a){return !!a.fait;})) return "creation";
   return "preparation";
@@ -4125,7 +4578,7 @@ function atelierCreateFacture(a,p,mode){
   var lignes=[{id:uid(),designation:label,type:"service",qte:1,prix:amount}];
   var t=totals(lignes,state.settings.partService), date=todayISO();
   var client=atelierClientFromParticipant(p);
-  var f={id:uid(),numero:prochainNumero("facture"),type:type,pourcentage:mode==="acompte30"?30:null,date:date,echeance:addDays(date,state.settings.delaiPaiement),
+  var f={id:uid(),numero:prochainNumero("facture"),type:type,pourcentage:mode==="acompte30"?30:null,date:date,echeance:addOneMonth(date),
     client:client,lignes:lignes,montantBiens:t.biens,montantServices:t.services,montant:t.total,statut:"a_envoyer",paiementClient:"",
     datePaiement:null,origine:"atelier",atelierId:a.id,participantId:p.id,atelierType:a.type,atelierTheme:a.theme,atelierDate:a.date,notes:"Facture générée depuis l’onglet Atelier."};
   if(mode==="acompte30"){ f.devisTotal=total; f.acompteMontant=amount; }
@@ -4328,6 +4781,8 @@ function calDateKey(d){
 function calEvents(){
   var events=[];
   (state.mariages||[]).forEach(function(m){
+    var rdv=mariageRdvInfo(m);
+    if(rdv) events.push({date:rdv.date,type:"rdv",icon:"☎️",title:"RDV téléphonique "+(m.nom||"cliente"),sub:rdv.heure+(m.tel?" · "+m.tel:""),action:"mar-open-"+m.id});
     if(m.dateMariage) events.push({date:m.dateMariage,type:"mariage",icon:"💍",title:m.nom||"Mariage",sub:m.lieu||"",action:"mar-open-"+m.id});
     if(m.dateLivraison) events.push({date:m.dateLivraison,type:"mariage",icon:"📦",title:"Livraison "+(m.nom||"mariage"),sub:m.modeLivraison||"",action:"mar-open-"+m.id});
   });
@@ -4360,8 +4815,18 @@ function viewCalendrier(){
   var first=new Date(year,month,1), start=new Date(first), day=(first.getDay()+6)%7;
   start.setDate(first.getDate()-day);
   var today=todayISO();
-  var html='<div class="cal-head"><h2 style="margin:0;">📆 Calendrier</h2><div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="cal-prev">← Mois précédent</button><button class="btn small soft" data-action="cal-today">Aujourd’hui</button><button class="btn small ghost" data-action="cal-next">Mois suivant →</button></div></div>'+
-    '<div class="card"><div class="flexb"><h3 style="margin:0;text-transform:capitalize;">'+esc(monthName)+'</h3><div class="muted">💍 Mariages · 🌸 Ateliers · 💶 Paiements</div></div><div class="cal-grid" style="margin-top:12px;">';
+  var feedUrl=calendarFeedUrl();
+  var workerStatus=ui.calendarWorkerStatus||"unknown";
+  var workerBadge=workerStatus==="ready"?"Service prêt":(workerStatus==="error"?"À configurer":(workerStatus==="checking"?"Vérification…":"Non vérifié"));
+  var statusColor=workerStatus==="ready"?"ok":(workerStatus==="error"?"warn":"");
+  var feedCard='<div class="card" style="margin-bottom:14px;"><div class="flexb"><div><h3 style="margin:0;">📱 Synchronisation Calendrier Apple</h3><p class="muted" style="margin:6px 0 0;">Une fois l’abonnement ajouté sur l’iPhone, les rendez-vous téléphoniques, livraisons/retraits, dates de mariage et ateliers sont mis à jour depuis MyBusiness, même lorsque tu travailles sur le PC.</p></div><span class="badge '+statusColor+'">'+esc(workerBadge)+'</span></div>'+
+    '<div class="onboarding-steps" style="margin:16px 0 10px;"><div class="onboarding-step"><div class="onboarding-number">1</div><h3>Service sécurisé</h3><p>Le Worker Cloudflare publie uniquement le calendrier privé.</p><button class="btn small soft" data-action="cal-feed-check" style="margin-top:10px;">Vérifier le service</button></div><div class="onboarding-step"><div class="onboarding-number">2</div><h3>Activer le lien</h3><p>MyBusiness crée un lien privé difficile à deviner.</p>'+
+      (feedUrl?'<span class="status ok" style="margin-top:10px;">Activé</span>':'<button class="btn small primary" data-action="cal-feed-enable" style="margin-top:10px;">Activer l’abonnement</button>')+'</div><div class="onboarding-step"><div class="onboarding-number">3</div><h3>Ajouter sur l’iPhone</h3><p>Ajoute le lien une seule fois dans Calendrier Apple.</p>'+
+      (feedUrl?'<button class="btn small primary" data-action="cal-feed-open" style="margin-top:10px;">Ouvrir l’abonnement</button>':'<span class="muted">Disponible après activation</span>')+'</div></div>'+
+    (ui.calendarWorkerMessage?'<p class="muted" style="font-size:12px;margin:8px 0;">'+esc(ui.calendarWorkerMessage)+'</p>':'')+
+    (feedUrl?'<label class="field" style="margin-top:12px;"><span>Lien privé d’abonnement</span><input readonly value="'+esc(feedUrl)+'"></label><div class="row-actions"><button class="btn primary" data-action="cal-feed-copy">Copier le lien</button><button class="btn soft" data-action="cal-feed-publish">Mettre à jour maintenant</button><button class="btn ghost" data-action="cal-feed-regenerate">Régénérer le lien</button></div><p class="muted" style="font-size:12px;">Dernière publication : '+(state.settings.calendarFeedLastAt?new Date(state.settings.calendarFeedLastAt).toLocaleString("fr-FR"):"jamais")+'. Apple choisit la fréquence de rafraîchissement : une modification peut mettre quelques minutes à apparaître. Ne partage pas ce lien privé.</p>':'<p class="muted" style="font-size:12px;">Le calendrier reste inactif tant que le Worker Cloudflare n’est pas configuré et que tu n’as pas activé le lien.</p>')+'</div>';
+  var html='<div class="cal-head"><h2 style="margin:0;">📆 Calendrier</h2><div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="cal-prev">← Mois précédent</button><button class="btn small soft" data-action="cal-today">Aujourd’hui</button><button class="btn small ghost" data-action="cal-next">Mois suivant →</button></div></div>'+feedCard+
+    '<div class="card"><div class="flexb"><h3 style="margin:0;text-transform:capitalize;">'+esc(monthName)+'</h3><div class="muted">☎️ RDV · 💍 Mariages · 📦 Livraisons · 🌸 Ateliers · 💶 Paiements</div></div><div class="cal-grid" style="margin-top:12px;">';
   ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"].forEach(function(n){html+='<div class="cal-dayname">'+n+'</div>';});
   for(var i=0;i<42;i++){
     var cur=new Date(start); cur.setDate(start.getDate()+i);
@@ -4503,7 +4968,7 @@ function captureCommandeOpen(){
   c.client=c.clientObj.nom; c.montant=totals(c.lignes||[],state.settings.partService).total;
   c.label=(c.lignes||[]).map(function(l){return (num(l.qte)>1?l.qte+" x ":"")+l.designation;}).filter(function(x){return x.trim();}).join(" · ") || "Commande";
   var f=c.factureId?state.factures.find(function(x){return x.id===c.factureId;}):null;
-  if(f){ var t=totals(c.lignes||[],state.settings.partService); f.date=c.dateCommande; f.echeance=addDays(c.dateCommande,state.settings.delaiPaiement); f.client=c.clientObj; f.lignes=(c.lignes||[]).map(function(l){return Object.assign({},l);}); f.notes=c.notes; f.montantBiens=t.biens; f.montantServices=t.services; f.montant=t.total; }
+  if(f){ var t=totals(c.lignes||[],state.settings.partService); f.date=c.dateCommande; f.echeance=addOneMonth(c.dateCommande); f.client=c.clientObj; f.lignes=(c.lignes||[]).map(function(l){return Object.assign({},l);}); f.notes=c.notes; f.montantBiens=t.biens; f.montantServices=t.services; f.montant=t.total; }
 }
 function lierFactureACommande(devisId, facture){
   if(!devisId||!facture) return;
@@ -4529,29 +4994,29 @@ function factureHeriteInfosDevis(d,f){
   return f;
 }
 function creerAcompte(d){
-  var t=totals(d.lignes,state.settings.partService), p=state.settings.acompteParDefaut, date=todayISO();
+  var t=documentCalc(d.lignes,state.settings.partService,d), p=state.settings.acompteParDefaut, date=todayISO();
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
-  var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:askDueDate(addOneMonth(date),"de la facture d’acompte"),
+    devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:mb, montantServices:ms, montant:r2(t.total*p/100), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
 }
 function creerSolde(d){
-  var t=totals(d.lignes,state.settings.partService); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
+  var t=documentCalc(d.lignes,state.settings.partService,d); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
-  var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(mb+ms), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:askDueDate(addOneMonth(date),"de la facture de solde"),
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(t.total-ac.montant), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
   return f;
 }
 function creerTotale(d){
-  var t=totals(d.lignes,state.settings.partService), date=todayISO();
-  var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:addDays(date,state.settings.delaiPaiement),
-    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
+  var t=documentCalc(d.lignes,state.settings.partService,d), date=todayISO();
+  var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:askDueDate(addOneMonth(date),"de la facture"),
+    devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
   lierFactureACommande(d.id, f);
@@ -4690,6 +5155,7 @@ function viewClientDetail(c){
       stat("Panier moyen",euro(st.panier),false)+
       stat("Paiement habituel",esc(st.paiementHabituel),false)+
     '</div>'+
+    '<label class="field"><span>Nom / prénom ou nom du couple</span><input id="cdNom" value="'+esc(c.nom||"")+'"></label>'+
     '<div class="inline"><div><label class="field"><span>Email</span><input id="cdEmail" value="'+esc(c.email||"")+'"></label></div>'+
     '<div><label class="field"><span>Téléphone</span><input id="cdTel" value="'+esc(c.tel||"")+'"></label></div></div>'+
     '<label class="field"><span>Adresse</span><input id="cdAdr" value="'+esc(c.adresse||"")+'"></label>'+
@@ -4887,7 +5353,7 @@ function viewParams(){
 
 /* ===================== Document (devis / facture) ===================== */
 function viewDoc(p){
-  var s=state.settings, doc=p.doc, kind=p.kind, t=totals(doc.lignes,s.partService);
+  var s=state.settings, doc=p.doc, kind=p.kind, t=(kind==="facture"?factureCalc(doc.lignes,s.partService,doc):documentCalc(doc.lignes,s.partService,doc));
   var titre = kind==="devis" ? "DEVIS N° "+esc(doc.numero) : TYPE_FAC[doc.type].toUpperCase()+" N° "+esc(doc.numero);
   var emetteur='<div class="serif" style="font-size:19px;color:var(--bordeaux);font-weight:700;">'+esc(s.nomEntreprise)+'</div>'+
     '<div class="muted" style="font-size:10.5px;margin-top:3px;">'+
@@ -4910,10 +5376,9 @@ function viewDoc(p){
   var acEncart = (kind==="facture"&&doc.type==="acompte")?'<div style="margin-top:20px;padding:12px;border:1px solid var(--line);border-radius:8px;">Acompte de '+doc.pourcentage+' % sur le devis '+esc(doc.devisNumero)+' d\'un montant total de <b>'+euro(doc.devisTotal)+'</b>.</div>':'';
   var rows=doc.lignes.map(function(l){ return '<tr style="border-bottom:1px solid var(--line);"><td style="padding:6px;overflow-wrap:break-word;word-break:normal;">'+esc(l.designation)+'</td><td style="text-align:center;padding:6px;">'+esc(l.qte)+'</td><td style="text-align:right;padding:6px;">'+euro(l.prix)+'</td><td style="text-align:right;padding:6px;">'+euro(num(l.qte)*num(l.prix))+'</td></tr>'; }).join("");
   function tr(l,v,strong,soft){ return '<div class="totrow" style="font-size:'+(strong?14:12)+'px;font-weight:'+(strong?700:400)+';color:'+(strong?"var(--bordeaux)":soft?"var(--ink-s)":"var(--ink)")+';'+(strong?"border-top:2px solid var(--bordeaux);":"")+'"><span>'+esc(l)+'</span><span>'+v+'</span></div>'; }
+  var adjustmentRows=(t.ajustements||[]).map(function(a){return tr(a.label,(a.montant<0?"– ":"+ ")+euro(Math.abs(a.montant)),false,true);}).join("");
   var tot='<div style="display:flex;justify-content:flex-end;margin-top:8px;"><div style="min-width:280px;">'+
-    tr("Total",euro(doc.totalInitial||t.total))+tr(s.mentionTVA,"—",false,true)+
-    (kind==="facture"&&doc.remiseMontant?tr("Réduction","– "+euro(doc.remiseMontant),false,true):'')+
-    (kind==="facture"&&doc.remiseMontant?tr("Total après réduction",euro(doc.totalApresRemise||((doc.totalInitial||t.total)-doc.remiseMontant)),false,false):'')+
+    tr("Sous-total",euro(t.totalInitial))+tr(s.mentionTVA,"—",false,true)+adjustmentRows+
     (kind==="facture"&&doc.type==="acompte"?tr("Acompte "+doc.pourcentage+" %",euro(doc.montant),true):'')+
     (kind==="facture"&&doc.type==="solde"?tr("Acompte déjà versé ("+(doc.acompteNumero||"")+")","– "+euro(doc.acompteMontant),false,true)+tr("Net à payer (solde)",euro(doc.montant),true):'')+
     (kind==="facture"&&doc.type==="totale"&&doc.acompteDejaPaye?tr("Acompte déjà payé","– "+euro(doc.acompteDejaPaye),false,true):'')+
@@ -5125,16 +5590,23 @@ function viewDemandesMariage(){
     var emptyLabel=filtre==="transformees"?"Aucune demande transformée en mariage":filtre==="sans_suite"?"Aucune demande sans suite ou annulée":"Aucune nouvelle demande";
     return html+'<div class="card empty"><h3>'+emptyLabel+'</h3><p>Les demandes correspondant à ce classement apparaîtront ici automatiquement.</p></div>';
   }
-  html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle"; return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span></div><p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><div class="row-actions"><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button><button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>'; }).join('')+'</div>';
+  html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle"; return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">'+(d.clientModificationPending?'<span class="badge" style="background:#fce8e8;color:#9b2335;">🔴 Modification cliente</span>':'')+'<span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span></div></div><p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><div class="row-actions"><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button><button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>'; }).join('')+'</div>';
   return html;
 }
+function demandeChangeLabel(c){return esc((c&&c.label)||(c&&c.field)||'Champ modifié');}
+function demandeChangeHistoryHtml(d){
+  var hist=Array.isArray(d.clientModificationHistory)?d.clientModificationHistory:[];
+  if(!hist.length)return '';
+  return '<div class="card" style="margin-top:14px;background:#fffaf7;"><div class="flexb"><div><h3 style="margin:0;">📜 Historique des modifications clientes</h3><p class="muted" style="margin:4px 0 0;">'+esc(String(d.clientModificationCount||hist.length))+' modification(s) enregistrée(s).</p></div>'+(d.clientModificationPending?'<button class="btn small primary" data-action="dem-changes-viewed-'+esc(d.id)+'">Marquer comme consulté</button>':'<span class="badge">✓ Consulté</span>')+'</div>'+hist.map(function(h){var dt=portalDateISO(h.date)||String(h.date||'');return '<div style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:white;"><b>'+esc(dt?new Date(dt).toLocaleString('fr-FR'):'Date inconnue')+'</b>'+((h.changes||[]).map(function(c){return '<div style="padding:8px 0;border-top:1px solid var(--line);margin-top:8px;"><b>'+demandeChangeLabel(c)+'</b><div class="muted">Avant : '+esc(c.from||'Non renseigné')+'</div><div>Après : <b>'+esc(c.to||'Non renseigné')+'</b></div></div>';}).join('')||'<p class="muted">Détail non disponible.</p>')+'</div>';}).join('')+'</div>';
+}
+function demandeFieldStyle(d,field){var arr=Array.isArray(d.lastClientChanges)?d.lastClientChanges:[];return d.clientModificationPending&&arr.some(function(c){return c.field===field;})?' style="background:#fff3bf;border-color:#e0b84b;"':'';}
 function viewDemandeMariageDetail(d){
   var photos=(d.photos||[]).map(function(p,index){
     var src=(p&&typeof p==="object")?(p.url||p.downloadURL||p.dataUrl||p.data||""):p;
     return src?'<button type="button" data-action="dem-photo-open-'+index+'" title="Ouvrir la photo en grand" aria-label="Ouvrir la photo d’inspiration en grand" style="padding:0;border:0;background:transparent;cursor:zoom-in;border-radius:12px;"><img src="'+esc(src)+'" alt="Inspiration" style="display:block;width:120px;height:120px;object-fit:cover;border-radius:12px;border:1px solid var(--line);"></button>':'';
   }).join('');
   var receivedAt=portalDateISO(d.createdAt);
-  return '<div class="row-actions"><button class="btn ghost" data-action="dem-back">← Retour aux demandes</button><a class="btn ghost" href="portail-mariage.html?dossier='+encodeURIComponent(d.id)+'" target="_blank">Voir le portail cliente</a></div><div class="card"><div class="flexb"><div><h2 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h2><p class="muted">Demande reçue le '+esc(receivedAt?receivedAt.slice(0,10):"Date non renseignée")+'</p></div><select id="demStatut">'+Object.keys(DEMANDE_STATUTS).map(function(k){return '<option value="'+k+'"'+((d.statut||"nouvelle")===k?' selected':'')+'>'+esc(DEMANDE_STATUTS[k])+'</option>';}).join('')+'</select></div><div class="form-grid"><label>Email<input id="demEmail" value="'+esc(d.email||"")+'"></label><label>Téléphone<input id="demTel" value="'+esc(d.tel||"")+'"></label><label>Date du mariage<input id="demDate" type="date" value="'+esc(d.dateMariage||"")+'"></label><label>Lieu / ville<input id="demLieu" value="'+esc(d.lieu||d.ville||"")+'"></label><label>Thème / style<input id="demTheme" value="'+esc(d.style||d.theme||"")+'"></label><label>Budget<input id="demBudget" value="'+esc(d.budget||"")+'"></label></div><p><b>Prestations demandées :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Couleurs :</b> '+esc(d.couleurs||"Non renseignées")+'</p><p><b>Fleurs premium stabilisées souhaitées :</b> '+esc(d.fleursAimees||"Non renseignées")+'</p>'+(d.fleursRefusees?'<p><b>Éléments refusés :</b> '+esc(d.fleursRefusees)+'</p>':'')+((d.description||d.commentaire)?'<p><b>Ancienne description :</b><br>'+esc(d.description||d.commentaire)+'</p>':'')+'<p><b>Rendez-vous téléphonique souhaité :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui":d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p>'+(d.souhaiteRdvTelephonique==="oui"?'<p><b>Créneau demandé :</b> '+esc([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"Non renseigné")+'</p>':'')+'<p class="muted"><b>Disponibilités :</b> du samedi au lundi de 9 h à 20 h ; du mardi au vendredi de 18 h à 20 h.</p><label>Notes internes<textarea id="demNotes" rows="4">'+esc(d.notesInternes||"")+'</textarea></label>'+(photos?'<h3>Inspirations</h3><div class="row-actions">'+photos+'</div>':'')+'<div class="row-actions"><button class="btn primary" data-action="dem-save-'+d.id+'">Enregistrer</button>'+(d.statut!=="transformee"?'<button class="btn gold" data-action="dem-transform-'+d.id+'">Créer la fiche mariage</button>':'<span class="badge">Fiche mariage créée</span>')+'<button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>';
+  return '<div class="row-actions"><button class="btn ghost" data-action="dem-back">← Retour aux demandes</button><a class="btn ghost" href="portail-mariage.html?dossier='+encodeURIComponent(d.id)+'" target="_blank">Voir le portail cliente</a></div>'+(d.clientModificationPending?'<div class="card" style="background:#fff3bf;border-color:#e0b84b;"><b>⚠️ Modifications clientes à consulter</b><div class="muted" style="margin-top:4px;">Dernière modification : '+esc(d.lastClientModificationAt?new Date(d.lastClientModificationAt).toLocaleString('fr-FR'):'date inconnue')+'</div></div>':'')+'<div class="card"><div class="flexb"><div><h2 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h2><p class="muted">Demande reçue le '+esc(receivedAt?receivedAt.slice(0,10):"Date non renseignée")+'</p></div><select id="demStatut">'+Object.keys(DEMANDE_STATUTS).map(function(k){return '<option value="'+k+'"'+((d.statut||"nouvelle")===k?' selected':'')+'>'+esc(DEMANDE_STATUTS[k])+'</option>';}).join('')+'</select></div><div class="form-grid"><label>Email<input id="demEmail"'+demandeFieldStyle(d,'email')+' value="'+esc(d.email||"")+'"></label><label>Téléphone<input id="demTel"'+demandeFieldStyle(d,'tel')+' value="'+esc(d.tel||"")+'"></label><label>Date du mariage<input id="demDate"'+demandeFieldStyle(d,'dateMariage')+' type="date" value="'+esc(d.dateMariage||"")+'"></label><label>Lieu / ville<input id="demLieu"'+demandeFieldStyle(d,'ville')+' value="'+esc(d.lieu||d.ville||"")+'"></label><label>Thème / style<input id="demTheme"'+demandeFieldStyle(d,'style')+' value="'+esc(d.style||d.theme||"")+'"></label><label>Budget<input id="demBudget" value="'+esc(d.budget||"")+'"></label></div><p><b>Prestations demandées :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Couleurs :</b> '+esc(d.couleurs||"Non renseignées")+'</p><p><b>Fleurs premium stabilisées souhaitées :</b> '+esc(d.fleursAimees||"Non renseignées")+'</p>'+(d.fleursRefusees?'<p><b>Éléments refusés :</b> '+esc(d.fleursRefusees)+'</p>':'')+((d.description||d.commentaire)?'<p><b>Ancienne description :</b><br>'+esc(d.description||d.commentaire)+'</p>':'')+'<p><b>Rendez-vous téléphonique souhaité :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui":d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p>'+(d.souhaiteRdvTelephonique==="oui"?'<p><b>Créneau demandé :</b> '+esc([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"Non renseigné")+'</p>':'')+'<p class="muted"><b>Disponibilités :</b> du samedi au lundi de 9 h à 20 h ; du mardi au vendredi de 18 h à 20 h.</p><label>Notes internes<textarea id="demNotes" rows="4">'+esc(d.notesInternes||"")+'</textarea></label>'+(photos?'<h3>Inspirations</h3><div class="row-actions">'+photos+'</div>':'')+'<div class="row-actions"><button class="btn primary" data-action="dem-save-'+d.id+'">Enregistrer</button>'+(d.statut!=="transformee"?'<button class="btn gold" data-action="dem-transform-'+d.id+'">Créer la fiche mariage</button>':'<span class="badge">Fiche mariage créée</span>')+'<button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>'+demandeChangeHistoryHtml(d);
 }
 function saveDemandeFromView(d){
   d.email=val("demEmail"); d.tel=val("demTel"); d.dateMariage=val("demDate"); d.lieu=val("demLieu"); d.theme=val("demTheme"); d.budget=val("demBudget"); d.notesInternes=val("demNotes"); d.statut=val("demStatut")||d.statut||"nouvelle"; d.updatedAt=new Date().toISOString();
@@ -5144,7 +5616,7 @@ function transformDemandeToMariage(d){
   var full=((d.prenom||"")+" "+(d.nom||"")).trim();
   var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
   if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
-  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||""};
+  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||"",souhaiteRdvTelephonique:d.souhaiteRdvTelephonique||"",rdvDateSouhaitee:d.rdvDateSouhaitee||"",rdvHeureSouhaitee:d.rdvHeureSouhaitee||""};
   if(!Array.isArray(state.mariages)) state.mariages=[];
   state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
   d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
@@ -5302,7 +5774,7 @@ function newMariage(){
 function captureMariageInputs(){
   var m=getMariage(ui.mariageOpen); if(!m) return null;
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
-  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate","coutMatieres"].forEach(function(k){
+  ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","besoins","synthese","relance","devisDate","factureDate","coutMatieres","rdvDateSouhaitee","rdvHeureSouhaitee"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
   captureMariagePrestations(m);
@@ -5373,10 +5845,42 @@ function viewMariagePrestationsComplementaires(m){
   html+='<p class="muted" style="margin:10px 0 0;font-size:12px;">Ces catégories restent internes : elles ne s’affichent pas sur le devis ni sur la facture client.</p></div>';
   return html;
 }
+function mariageFacturesLiees(m){
+  if(!m) return [];
+  var devisId=m.devisLie||"";
+  return (state.factures||[]).filter(function(f){
+    if(!f) return false;
+    if(devisId && f.devisId===devisId) return true;
+    if(f.mariageId && f.mariageId===m.id) return true;
+    return false;
+  });
+}
+function mariageDevisLie(m){
+  if(!m) return null;
+  if(m.devisLie) return (state.devis||[]).find(function(d){return d.id===m.devisLie;})||null;
+  return null;
+}
 function mariageSimpleStatus(m,stage){
   if(stage==="archives") return {l:"Livré",c:"#3f5236",b:"#dbe6d2"};
   if(stage==="livraison") return {l:"Prêt à livrer",c:"var(--green)",b:"var(--green-s)"};
-  if(stage==="creation") return {l:"En création",c:"var(--bordeaux)",b:"var(--blush-s)"};
+
+  var factures=mariageFacturesLiees(m);
+  var soldePaye=factures.some(function(f){return (f.type==="solde"||f.type==="totale") && f.statut==="payee";});
+  var acomptePaye=factures.some(function(f){return f.type==="acompte" && f.statut==="payee";});
+  var factureEnvoyee=factures.some(function(f){return f.statut==="envoyee";});
+  var factureCreee=factures.length>0;
+  var devis=mariageDevisLie(m);
+  var devisAccepte=!!(devis && devis.statut==="accepte");
+  var devisEnvoye=!!(m.devisEnvoye || (devis && devis.statut && devis.statut!=="brouillon"));
+
+  // Le statut le plus avancé prime toujours sur l'ancien statut manuel de la fiche.
+  if(soldePaye) return {l:"Payé",c:"var(--green)",b:"var(--green-s)"};
+  if(acomptePaye) return {l:"Acompte payé",c:"var(--bordeaux)",b:"var(--blush-s)"};
+  if(stage==="creation") return {l:"Préparation commande",c:"var(--bordeaux)",b:"var(--blush-s)"};
+  if(factureEnvoyee) return {l:"Facture envoyée",c:"#6a5a2a",b:"#f3ead0"};
+  if(factureCreee && devisAccepte) return {l:"Facture créée",c:"#6a5a2a",b:"#f3ead0"};
+  if(devisAccepte) return {l:"Devis accepté",c:"var(--green)",b:"var(--green-s)"};
+  if(devisEnvoye) return {l:"Devis envoyé",c:"#6a5a2a",b:"#f3ead0"};
   return STATUT_MAR[m.statut]||STATUT_MAR.contact;
 }
 function mariageCardHTML(m){
@@ -5392,8 +5896,8 @@ function mariageCardHTML(m){
 }
 function mariageStageTabs(groups,current){
   var tabs=[
-    {id:"preparation",label:"📋 Préparation"},
-    {id:"creation",label:"🌸 Création"},
+    {id:"preparation",label:"📋 Études mariage"},
+    {id:"creation",label:"🌸 Préparation commande"},
     {id:"livraison",label:"📦 Livraison"},
     {id:"archives",label:"✅ Archives"}
   ];
@@ -5417,8 +5921,8 @@ function viewMariages(){
   if(!groups[current]) current="preparation";
   ui.mariageStageFilter=current;
   var labels={
-    preparation:"Dossiers à préparer avant le début de la fabrication.",
-    creation:"Mariages dont au moins une création a été commencée.",
+    preparation:"Contacts, rendez-vous et devis à étudier.",
+    creation:"Commandes confirmées avec acompte payé, ou dont la fabrication a commencé.",
     livraison:"Toutes les créations sont terminées : il reste la remise, l’envoi ou la livraison.",
     archives:"Mariages livrés et terminés."
   };
@@ -5946,7 +6450,8 @@ function viewMariageDetail(m){
     '<div class="inline"><div>'+F("Email","marEmail",m.email)+'</div><div>'+F("Téléphone","marTel",m.tel)+'</div></div>'+ 
     '<label class="field"><span>Canal de communication</span><select id="marCanalCommunication">'+mariageCommunicationOptions(m.canalCommunication||"")+'</select><div class="hint">Canal préféré pour échanger avec la cliente.</div></label>'+ 
     '<div class="inline"><div>'+F("Date du mariage","marDateMariage",m.dateMariage,"date")+'</div><div>'+F("Lieu de réception","marLieu",m.lieu)+'</div></div>'+ 
-    '<div class="inline"><div>'+F("Date de livraison","marDateLivraison",m.dateLivraison,"date")+'</div><div><label class="field"><span>Mode de livraison</span><select id="marModeLivraison">'+livraisonOptions(m.modeLivraison||"")+'</select></label></div></div>'+ 
+    '<div class="inline"><div>'+F("Date de livraison","marDateLivraison",m.dateLivraison,"date")+'</div><div><label class="field"><span>Mode de livraison</span><select id="marModeLivraison">'+livraisonOptions(m.modeLivraison||"")+'</select></label></div></div>'+
+    '<div class="inline"><div>'+F("Date du rendez-vous téléphonique","marRdvDateSouhaitee",(mariageRdvInfo(m)||{}).date||"","date")+'</div><div>'+F("Heure du rendez-vous","marRdvHeureSouhaitee",(mariageRdvInfo(m)||{}).heure||"","time")+'</div></div>'+ 
     '<div class="inline"><div>'+F("Thème & couleurs","marTheme",m.theme)+'</div><div>'+F("Budget estimé","marBudget",m.budget)+'</div></div>'+ 
     '<label class="field"><span>Statut du projet</span><select id="marStatut" data-action="mar-statut">'+stOpts+'</select></label>'+ 
     F("Me rappeler de la relancer le…","marRelance",m.relance,"date")+
@@ -6642,6 +7147,7 @@ async function handleAction(action){
   if(action.indexOf("dem-filter-")===0){ ui.demandeMariageFilter=action.slice(11)||"nouvelles"; ui.demandeMariageOpen=null; render(); window.scrollTo(0,0); return; }
   if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
   if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("dem-changes-viewed-")===0){var dv=demandeById(action.slice(19));if(dv){dv.clientModificationPending=false;(dv.clientModificationHistory||[]).forEach(function(h){h.viewed=true;});if(dv.securePortal&&dv.ownerUid){try{await db.collection("portalProjects").doc(dv.ownerUid).set({clientModificationPending:false,clientModificationHistory:dv.clientModificationHistory,clientModificationViewedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Consulté localement, mais la synchronisation portail a échoué.");}}saveCache();render();toast("Modifications marquées comme consultées.");}return;}
   if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();if(ds.securePortal&&ds.ownerUid){try{await db.collection("portalProjects").doc(ds.ownerUid).set({statutAdmin:ds.statut||"nouvelle",notesInternes:ds.notesInternes||"",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Enregistré localement, mais la synchronisation portail a échoué.");}}render();toast("Demande enregistrée.");} return; }
   if(action.indexOf("dem-transform-")===0){
     var dt=demandeById(action.slice(14));
@@ -6912,6 +7418,8 @@ async function handleAction(action){
 
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
+  if(action.indexOf("devis-edit-")===0){ var ed=findDevis(action.slice(11)); if(ed){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(ed,false); render(); window.scrollTo(0,0); } return; }
+  if(action.indexOf("devis-version-")===0){ var vd=findDevis(action.slice(14)); if(vd){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(vd,true); render(); window.scrollTo(0,0); } return; }
   if(action==="go-calendrier"){ ui.tab="calendrier"; render(); return; }
 
   
@@ -7031,6 +7539,12 @@ async function handleAction(action){
   if(action==="cal-prev"){ calSetMonth(-1); return; }
   if(action==="cal-next"){ calSetMonth(1); return; }
   if(action==="cal-today"){ ui.calMonth=todayISO().slice(0,7); render(); return; }
+  if(action==="cal-feed-check"){ checkCalendarWorker(true); return; }
+  if(action==="cal-feed-enable"){ enableCalendarFeed(false); return; }
+  if(action==="cal-feed-open"){ openCalendarSubscription(); return; }
+  if(action==="cal-feed-copy"){ copyCalendarFeedUrl(); return; }
+  if(action==="cal-feed-publish"){ publishCalendarFeed(true); return; }
+  if(action==="cal-feed-regenerate"){ enableCalendarFeed(true); return; }
   if(action.indexOf("email-preview-devis-")===0){ var ed=findDevis(action.slice(20)); if(ed){ ui.preview={kind:"devis",doc:ed}; renderModal(); } return; }
   if(action.indexOf("email-preview-facture-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(22);}); if(ef){ ui.preview={kind:"facture",doc:ef}; renderModal(); } return; }
   if(action==="google-login"){ doGoogleLogin(); return; }
@@ -7060,6 +7574,8 @@ async function handleAction(action){
   if(action==="wz-addfree"){ ui.wizard.lignes.push({id:uid(),designation:"",type:"bien",qte:1,prix:0}); render(); return; }
   if(action.indexOf("wz-add-")===0){ var it=state.catalogue.find(function(c){return c.id===action.slice(7);}); if(it){ ui.wizard.lignes.push({id:uid(),designation:it.designation,type:it.type,qte:1,prix:it.prix}); render(); } return; }
   if(action.indexOf("wz-delline-")===0){ var lid=action.slice(11); ui.wizard.lignes=ui.wizard.lignes.filter(function(l){return l.id!==lid;}); render(); return; }
+  if(action==="wz-adjust-add"){ ui.wizard.ajustements=ui.wizard.ajustements||[]; ui.wizard.ajustements.push({id:uid(),type:"remise_montant",label:"Remise commerciale",valeur:0}); render(); return; }
+  if(action.indexOf("wz-adjust-del-")===0){ var waid=action.slice(14); ui.wizard.ajustements=(ui.wizard.ajustements||[]).filter(function(a){return a.id!==waid;}); render(); return; }
   if(action==="wz-finish"){ finishWizard(); return; }
 
   // devis
@@ -7109,6 +7625,8 @@ async function handleAction(action){
 
   // facture directe
   if(action==="fac-new"){ newFactureDraft(); ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("fac-edit-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(9);}); if(ef){ newFactureDraft(ef,false); ui.tab="factures"; render(); window.scrollTo(0,0); } return; }
+  if(action.indexOf("fac-version-")===0){ var vf=state.factures.find(function(x){return x.id===action.slice(12);}); if(vf){ newFactureDraft(vf,true); ui.tab="factures"; render(); window.scrollTo(0,0); } return; }
   if(action==="fac-cancel-manual"){ ui.factureDraft=null; render(); return; }
   if(action==="fac-mode-nouveau"){ captureFactureDraft(); ui.factureDraft.clientMode="nouveau"; render(); return; }
   if(action==="fac-mode-existant"){ captureFactureDraft(); ui.factureDraft.clientMode="existant"; if(!ui.factureDraft.clientId&&state.clients[0]) ui.factureDraft.clientId=state.clients[0].id; render(); return; }
@@ -7165,6 +7683,8 @@ async function handleAction(action){
   }
 
   // factures
+  if(action==="fac-adjust-add"){ if(ui.factureDraft){ui.factureDraft.ajustements=ui.factureDraft.ajustements||[];ui.factureDraft.ajustements.push({id:uid(),type:"remise_montant",label:"Remise commerciale",valeur:0});render();} return; }
+  if(action.indexOf("fac-adjust-del-")===0){ if(ui.factureDraft){var faid=action.slice(15);ui.factureDraft.ajustements=(ui.factureDraft.ajustements||[]).filter(function(a){return a.id!==faid;});render();} return; }
   if(action.indexOf("fac-preview-")===0){ var f=state.factures.find(function(x){return x.id===action.slice(12);}); ui.preview={kind:"facture",doc:f}; renderModal(); return; }
   if(action.indexOf("fac-email-")===0){ var fe=state.factures.find(function(x){return x.id===action.slice(10);}); envoyerDocumentEmail("facture", fe); return; }
   if(action.indexOf("fac-paymethod-")===0){
@@ -7241,7 +7761,7 @@ async function handleAction(action){
   }
   if(action.indexOf("cli-open-")===0){ ui.clientOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action==="cli-back"){ ui.clientOpen=null; render(); return; }
-  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ cc.email=val("cdEmail"); cc.tel=val("cdTel"); cc.adresse=val("cdAdr"); cc.canal=val("cdCanal"); cc.anniversaire=val("cdAnniv"); cc.notes=val("cdNotes"); cc.updatedAt=new Date().toISOString(); (state.mariages||[]).forEach(function(m){ var cm=clientContactForMariage(m); if(cm&&cm.id===cc.id){ m.nom=cc.nom||m.nom||""; m.email=cc.email||""; m.tel=cc.tel||""; m.canalCommunication=cc.canal||m.canalCommunication||""; m.updatedAt=new Date().toISOString(); syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:false}); } }); saveCache(); render(); toast("Contact enregistré. Fiche mariage et devis lié actualisés si nécessaire."); } return; }
+  if(action.indexOf("cli-savecontact-")===0){ var cc=state.clients.find(function(x){return x.id===action.slice(16);}); if(cc){ var previousContact=clientContactSnapshot(cc); cc.nom=val("cdNom").trim()||cc.nom||""; cc.email=val("cdEmail").trim(); cc.tel=val("cdTel").trim(); cc.adresse=val("cdAdr").trim(); cc.canal=val("cdCanal"); cc.anniversaire=val("cdAnniv"); cc.notes=val("cdNotes"); cc.updatedAt=new Date().toISOString(); var synced=syncClientContactEverywhere(cc,previousContact); saveCache(); render(); toast("Contact enregistré. "+synced.mariages+" fiche(s) mariage, "+synced.devis+" devis et "+synced.factures+" facture(s) actualisés."); } return; }
   if(action.indexOf("cli-del-")===0){ var clid=action.slice(8); if(confirm("Supprimer cette fiche cliente ? (son historique de ventes n'est pas supprimé)")){ state.clients=state.clients.filter(function(c){return c.id!==clid;}); ui.clientOpen=null; saveCache(); render(); } return; }
 
   // logo
@@ -7281,6 +7801,24 @@ async function handleAction(action){
   if(action==="mar-view-preparer"){ ui.mariageView="preparer"; render(); return; }
   if(action==="goto-preparer"){ ui.tab="mariages"; ui.mariageView="preparer"; ui.mariageOpen=null; render(); window.scrollTo(0,0); return; }
   if(action==="goto-commandes-suivi"){ ui.tab="commandes"; ui.commandeOpen=null; render(); window.scrollTo(0,0); return; }
+  if(action==="dash-marriage-add-year"){
+    state.settings.mariagePlanningYears=mariagePlanningYearsCount()+1;
+    saveCache(); render(); toast("Une année supplémentaire a été ajoutée au planning."); return;
+  }
+  if(action.indexOf("dash-marriage-week-")===0){
+    var weekStart=action.slice("dash-marriage-week-".length), weddings=mariagePlanningWeekendItems(weekStart);
+    if(!weddings.length){ toast("Aucun mariage confirmé sur ce week-end."); return; }
+    var selected=weddings[0];
+    if(weddings.length>1){
+      var choices=weddings.map(function(m,i){return (i+1)+". "+(m.nom||"Cliente")+" — "+frDate(m.dateMariage);}).join("\n");
+      var answer=prompt("Mariages confirmés sur ce week-end :\n\n"+choices+"\n\nIndique le numéro du dossier à ouvrir :","1");
+      if(answer===null) return;
+      var idx=parseInt(answer,10)-1;
+      if(!isFinite(idx)||idx<0||idx>=weddings.length){ toast("Choix invalide."); return; }
+      selected=weddings[idx];
+    }
+    ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=selected.id; ui.mariageDetailTab="resume"; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return;
+  }
   if(action.indexOf("dash-month-")===0 && action!=="dash-month-close"){ var mi=parseInt(action.slice(11),10); var an=String(ui.anneeDash); if(ui.monthDetail && ui.monthDetail.year===an && ui.monthDetail.month===mi){ ui.monthDetail=null; } else { ui.monthDetail={year:an,month:mi}; } render(); return; }
   if(action==="dash-month-close"){ ui.monthDetail=null; render(); return; }
   if(action==="prep-cmd-add"){ var lbl=val("cmdLabel"); if(!lbl.trim()){ toast("Indique l'article à préparer."); return; } state.commandes.unshift({ id:uid(), label:lbl, client:val("cmdClient"), dateLivraison:val("cmdDate"), fait:false, createdAt:todayISO() }); saveCache(); render(); return; }
@@ -7375,6 +7913,43 @@ function clientContactForMariage(m){
   }
   return null;
 }
+function clientContactSnapshot(c){
+  return {nom:String((c&&c.nom)||""),adresse:String((c&&c.adresse)||""),email:String((c&&c.email)||""),tel:String((c&&c.tel)||""),canal:String((c&&c.canal)||"")};
+}
+function contactMatchesSnapshot(contact,snap){
+  if(!contact||!snap) return false;
+  var email=String(contact.email||"").trim().toLowerCase(), oldEmail=String(snap.email||"").trim().toLowerCase();
+  if(oldEmail && email===oldEmail) return true;
+  var tel=digitsOnly(contact.tel||""), oldTel=digitsOnly(snap.tel||"");
+  var sameName=normName(contact.nom||"")===normName(snap.nom||"");
+  if(oldTel && tel===oldTel && sameName) return true;
+  return !!(snap.nom && sameName && !oldEmail && !oldTel);
+}
+function applyClientContact(target,c){
+  if(!target||!c) return target;
+  target.nom=c.nom||""; target.adresse=c.adresse||""; target.email=c.email||""; target.tel=c.tel||"";
+  return target;
+}
+function syncClientContactEverywhere(c,previous){
+  if(!c) return {mariages:0,devis:0,factures:0};
+  previous=previous||clientContactSnapshot(c);
+  var linkedDevisIds={}, counts={mariages:0,devis:0,factures:0};
+  (state.mariages||[]).forEach(function(m){
+    var linked=m.clientId===c.id || contactMatchesSnapshot({nom:m.nom,email:m.email,tel:m.tel},previous);
+    if(!linked) return;
+    m.clientId=c.id; m.nom=c.nom||""; m.email=c.email||""; m.tel=c.tel||""; m.adresse=c.adresse||""; m.adresseCliente=c.adresse||""; m.canalCommunication=c.canal||m.canalCommunication||""; m.updatedAt=new Date().toISOString();
+    if(m.devisLie) linkedDevisIds[m.devisLie]=true;
+    syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:false});
+    counts.mariages++;
+  });
+  (state.devis||[]).forEach(function(d){
+    if(linkedDevisIds[d.id] || contactMatchesSnapshot(d.client,previous)){ d.client=applyClientContact(Object.assign({},d.client||{}),c); d.updatedAt=new Date().toISOString(); linkedDevisIds[d.id]=true; counts.devis++; }
+  });
+  (state.factures||[]).forEach(function(f){
+    if((f.devisId&&linkedDevisIds[f.devisId]) || contactMatchesSnapshot(f.client,previous)){ f.client=applyClientContact(Object.assign({},f.client||{}),c); f.updatedAt=new Date().toISOString(); counts.factures++; }
+  });
+  return counts;
+}
 function syncMariageContactToClient(m){
   if(!m) return null;
   var c=clientContactForMariage(m);
@@ -7455,7 +8030,8 @@ function syncMariageLinkedDevis(m, opts){
     else console.warn("Synchronisation lignes mariage ignorée : elle aurait ramené le devis à 0 €.",d.numero);
   }
   d.updatedAt=new Date().toISOString();
-  if(!opts.silent) toast("Coordonnées du devis lié mises à jour.");
+  (state.factures||[]).forEach(function(f){ if(f.devisId===d.id || f.devisLie===d.id){ f.client=Object.assign({},f.client||{},d.client||{}); f.updatedAt=new Date().toISOString(); } });
+  if(!opts.silent) toast("Coordonnées du devis et des factures liés mises à jour.");
   return true;
 }
 function persistMariageForm(opts){
@@ -7492,32 +8068,36 @@ function finishWizard(){
   var w=ui.wizard, client;
   var linkedMariage = ui.wizardLinkMariage ? getMariage(ui.wizardLinkMariage) : null;
   if(linkedMariage){
-    // Pour un devis mariage, on ne se fie pas aux champs du wizard si une fiche cliente existe :
-    // cela évite de remettre un ancien téléphone dans le devis.
     client=clientContactForMariage(linkedMariage);
-    if(!client){
-      client=Object.assign({id:uid(),updatedAt:todayISO()}, devisClientFromMariage(linkedMariage));
-      state.clients.push(client);
-      linkedMariage.clientId=client.id;
-    }
+    if(!client){ client=Object.assign({id:uid(),updatedAt:todayISO()}, devisClientFromMariage(linkedMariage)); state.clients.push(client); linkedMariage.clientId=client.id; }
   } else if(w.clientMode==="existant"){ client=state.clients.find(function(c){return c.id===w.clientId;}); }
   else {
-    var k=normName(w.client.nom);
-    client=state.clients.find(function(c){return normName(c.nom)===k;});
-    if(client){
-      if(w.client.email) client.email=w.client.email;
-      if(w.client.tel) client.tel=w.client.tel;
-      if(w.client.adresse) client.adresse=w.client.adresse;
-      client.updatedAt=todayISO();
-    }
+    var k=normName(w.client.nom); client=state.clients.find(function(c){return normName(c.nom)===k;});
+    if(client){ if(w.client.email) client.email=w.client.email; if(w.client.tel) client.tel=w.client.tel; if(w.client.adresse) client.adresse=w.client.adresse; client.updatedAt=todayISO(); }
     else { client=Object.assign({id:uid(),updatedAt:todayISO()},w.client); state.clients.push(client); }
   }
   var devisClient = linkedMariage ? devisClientFromMariage(linkedMariage) : Object.assign({}, client||{});
-  var d={ id:uid(), numero:prochainNumero("devis"), date:w.date, validite:addDays(w.date,state.settings.validiteDevis), client:devisClient, lignes:w.lignes, notes:w.notes, statut:"brouillon" };
-  state.devis.unshift(d);
-  if(linkedMariage){ linkedMariage.devisLie=d.id; }
-  ui.wizardLinkMariage=null;
-  ui.wizard=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+d.numero+" créé.");
+  var dc=documentCalc(w.lignes,state.settings.partService,w); var payload={date:w.date,echeance:w.echeance||addOneMonth(w.date),validite:w.echeance||addOneMonth(w.date),client:deepCopyDoc(devisClient),lignes:deepCopyDoc(w.lignes),ajustements:deepCopyDoc(w.ajustements||[]),totalInitial:dc.totalInitial,totalAjustements:dc.totalAjustements,montant:dc.total,notes:w.notes};
+  if(w.editId){
+    var original=findDevis(w.editId); if(!original){toast("Devis introuvable.");return;}
+    var makeVersion=original.statut==="accepte"||w.forceNewVersion;
+    if(!makeVersion) makeVersion=confirm("Souhaites-tu conserver le devis initial et créer une nouvelle version ?\n\nOK = nouvelle version\nAnnuler = remplacer le devis actuel");
+    var candidate=Object.assign({},deepCopyDoc(original),payload), changes=documentChangeSummary(original,candidate);
+    if(makeVersion){
+      var base=original.baseNumero||baseDocumentNumber(original.numero), nv=nextDocumentVersion(state.devis,original);
+      original.baseNumero=base; original.version=Number(original.version)||1; original.statut="archive"; original.versionArchive=true; original.updatedAt=new Date().toISOString();
+      var nd=Object.assign({},deepCopyDoc(original),payload,{id:uid(),numero:base+" V"+nv,baseNumero:base,version:nv,versionArchive:false,previousVersionId:original.id,statut:"brouillon",changesSummary:changes,updatedAt:new Date().toISOString()});
+      preserveDocumentMarriageAssociation("devis",original,nd);
+      original.replacedBy=nd.id; hidePortalDocumentVersion("devis",original.id); state.devis.unshift(nd);
+      ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Nouvelle version "+nd.numero+" créée et définie comme active dans la fiche mariage. L’original est archivé."); return;
+    }
+    Object.assign(original,payload,{changesSummary:changes,updatedAt:new Date().toISOString()});
+    preserveDocumentMarriageAssociation("devis",original,original);
+    ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+original.numero+" modifié."); return;
+  }
+  var d=Object.assign({ id:uid(), numero:prochainNumero("devis"), statut:"brouillon",version:1,versionArchive:false },payload);
+  state.devis.unshift(d); if(linkedMariage){ linkedMariage.devisLie=d.id; }
+  ui.wizardLinkMariage=null; ui.wizard=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+d.numero+" créé.");
 }
 function saveParams(){
   captureParamsForm();
@@ -7589,6 +8169,8 @@ document.addEventListener("input", function(e){
   if(t && t.id==="stockSearch"){ ui.stockSearch=t.value; stockFilterRowsFromDOM(); return; }
   if(t && t.id==="atelierLibrarySearch"){ ui.atelierLibrarySearch=t.value; var caret=t.selectionStart||t.value.length; render(); setTimeout(function(){var f=document.getElementById("atelierLibrarySearch");if(f){f.focus();try{f.setSelectionRange(caret,caret);}catch(_e){}}},0); return; }
   if(isTodoField(t)){ ui.todoEditing=true; saveTodoLocalOnly(); return; }
+  if(t.hasAttribute&&t.hasAttribute("data-adjust-label")){ var ap=t.getAttribute("data-adjust-label"), aid=t.getAttribute("data-id"), al=ap==="wz"?(ui.wizard&&ui.wizard.ajustements):(ui.factureDraft&&ui.factureDraft.ajustements); var aa=al&&al.find(function(x){return x.id===aid;}); if(aa){aa.label=t.value;} return; }
+  if(t.hasAttribute&&t.hasAttribute("data-adjust-value")){ var avp=t.getAttribute("data-adjust-value"), avid=t.getAttribute("data-id"), avl=avp==="wz"?(ui.wizard&&ui.wizard.ajustements):(ui.factureDraft&&ui.factureDraft.ajustements); var ava=avl&&avl.find(function(x){return x.id===avid;}); if(ava){ava.valeur=t.value;if(avp==="wz")refreshWizardFinalTotals();else refreshFactureTotals();} return; }
   if(t.hasAttribute&&t.hasAttribute("data-linefield")){
     var id=t.getAttribute("data-id"), field=t.getAttribute("data-linefield");
     var l=ui.wizard&&ui.wizard.lignes.find(function(x){return x.id===id;}); if(l){ l[field]=t.value; refreshWizardTotals(); }
@@ -7620,6 +8202,7 @@ document.addEventListener("input", function(e){
 });
 document.addEventListener("change", function(e){
   var t=e.target;
+  if(t.hasAttribute&&t.hasAttribute("data-adjust-type")){ var atp=t.getAttribute("data-adjust-type"), atid=t.getAttribute("data-id"), atl=atp==="wz"?(ui.wizard&&ui.wizard.ajustements):(ui.factureDraft&&ui.factureDraft.ajustements); var ata=atl&&atl.find(function(x){return x.id===atid;}); if(ata){ata.type=t.value;if(!ata.label||["Remise commerciale","Avoir","Ajustement"].indexOf(ata.label)>=0)ata.label=adjustmentLabel(ata);render();} return; }
   if(t.id==="achatFileInput"){ if(t.files&&t.files[0]) readAchatFile(t.files[0]); return; }
   if(t.id==="stockCategoryFilter"){ ui.stockCategoryFilter=t.value; stockFilterRowsFromDOM(); return; }
   if(t.id==="atelierLibraryStatus"){ ui.atelierLibraryStatus=t.value||"all"; render(); return; }

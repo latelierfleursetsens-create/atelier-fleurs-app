@@ -1,16 +1,37 @@
-# MyBusiness — V5.5.0 TEST
+# MyBusiness V6.4.4 TEST
 
-Version de test basée sur la V5.4.7 PROD.
+## Nouveautés
 
-## Suivi mariages simplifié
+- Date d’échéance demandée à la création ou à la modification d’un devis.
+- Échéance proposée par défaut à un mois, modifiable librement.
+- Date d’échéance demandée pour les factures créées depuis un devis.
+- Les factures directes conservent leur champ d’échéance, proposé à un mois.
+- Les devis envoyés et non acceptés apparaissent dans le calendrier Apple.
+- Les factures envoyées et non payées apparaissent dans le calendrier Apple.
+- Dès qu’un devis est accepté/refusé ou qu’une facture est payée, l’échéance disparaît automatiquement du calendrier lors de la prochaine synchronisation.
+- Les rendez-vous téléphoniques, livraisons, mariages et ateliers restent conservés dans l’historique du calendrier.
 
-Quatre onglets essentiels :
+Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécessaire.
 
-- **Préparation** : aucune création commencée ;
-- **Création** : au moins un article est commencé ;
-- **Livraison** : tous les articles sont terminés ;
-- **Archives** : mariage livré ou terminé.
 
-Les cartes affichent uniquement le nom, la date du mariage, la date de livraison, le statut, le compte à rebours et le bouton d’ouverture. Le tri se fait automatiquement par date de livraison.
+## V6.4.0 — Suivi des modifications clientes
+- Détail avant/après dans le mail de notification.
+- Badge « Modification cliente » dans la liste des demandes.
+- Mise en évidence des champs modifiés.
+- Historique permanent avec date et heure.
+- Bouton « Marquer comme consulté ».
 
-Cette archive est destinée au dossier GitHub `test`.
+## V6.4.3 TEST — Planning mariages compact
+
+- Affichage automatique de l'année en cours et des deux années suivantes.
+- Bouton « Ajouter une année » pour étendre le planning sans limite prédéfinie.
+- Une case par week-end, avec le nombre exact de mariages confirmés.
+- Seuls les mariages liés à une facture d'acompte marquée payée sont comptés.
+- Clic sur une case occupée pour ouvrir le dossier correspondant ; choix proposé si plusieurs mariages sont présents.
+
+
+## V6.4.4 TEST — Correctif facture d’acompte
+
+- L’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.
+- Exemple vérifié : 156,00 € - 10 % = 140,40 €, puis acompte 30 % = 42,12 €.
+- La facture de solde est calculée sur le même montant net et déduit l’acompte exact.
