@@ -1,17 +1,17 @@
-/* V6.4.13 PROD — Passage automatique au statut envoyé après un envoi par e-mail réussi. */
+/* V6.4.15 TEST — Correctif robuste du statut après envoi par e-mail. */
 "use strict";
 
-var APP_VERSION="V6.4.13 PROD";
+var APP_VERSION="V6.4.15 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.13 PROD — Devis et factures automatiquement marqués envoyés après confirmation de l’envoi par e-mail, avec conservation du bouton manuel.",
-  "V6.4.12 PROD — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
-  "V6.4.10 PROD — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
-  "V6.4.9 PROD — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
-  "V6.4.8 PROD — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
-  "V6.4.7 PROD — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
-  "V6.4.4 PROD — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
-  "V6.4.3 PROD — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
+  "V6.4.15 TEST — Le document canonique est retrouvé dans la base puis marqué envoyé immédiatement après confirmation de l’envoi par e-mail.",
+  "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
+  "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
+  "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
+  "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
+  "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
+  "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
+  "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
@@ -7249,12 +7249,26 @@ function appendDocumentSendHistory(kind, doc, mode, sentAt){
   doc.historique.unshift({date:sentAt,texte:label,type:"envoi",mode:mode});
   if(doc.historique.length>50) doc.historique=doc.historique.slice(0,50);
 }
+function canonicalDocument(kind, doc){
+  if(!doc) return null;
+  var list=kind==="devis"?(state.devis||[]):(state.factures||[]);
+  var found=null;
+  if(doc.id) found=list.find(function(x){return x&&x.id===doc.id;});
+  if(!found && doc.numero){
+    found=list.find(function(x){
+      return x && x.numero===doc.numero && String(x.version||"")===String(doc.version||"");
+    });
+  }
+  return found||doc;
+}
 function markDocSent(kind, doc, mode){
-  if(!doc) return;
+  doc=canonicalDocument(kind,doc);
+  if(!doc) return null;
   mode=mode||"email";
   var sentAt=new Date().toISOString();
   if(kind==="devis"){
-    if(doc.statut==="brouillon" || doc.statut==="a_envoyer") doc.statut="envoye";
+    // Un renvoi ne doit pas faire perdre un statut final déjà atteint.
+    if(["accepte","refuse"].indexOf(doc.statut)<0) doc.statut="envoye";
     doc.emailEnvoyeLe=todayISO();
     doc.emailEnvoyeAt=sentAt;
     doc.dernierEnvoiAt=sentAt;
@@ -7284,6 +7298,10 @@ function markDocSent(kind, doc, mode){
     }
   }
   appendDocumentSendHistory(kind,doc,mode,sentAt);
+  if(ui.preview && ui.preview.kind===kind && ui.preview.doc && ui.preview.doc.id===doc.id){
+    ui.preview.doc=doc;
+  }
+  return doc;
 }
 async function envoyerDocumentEmail(kind, doc){
   if(!doc){ toast("Document introuvable."); return; }
@@ -7330,7 +7348,22 @@ async function envoyerDocumentEmail(kind, doc){
     var res=await fetch(MAIL_WORKER_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
-    markDocSent(kind, doc, "email");
+    // L'envoi a réussi : enregistrer immédiatement le nouveau statut avant
+    // toute autre opération asynchrone (publication portail, historique, etc.).
+    // Sans cette sauvegarde immédiate, un ancien instantané Firebase pouvait
+    // réécrire le document en "À envoyer" pendant la publication du portail.
+    doc=markDocSent(kind, doc, "email")||doc;
+    // Sauvegarde locale immédiate et rendu depuis l’objet canonique de state.
+    saveCache();
+    render();
+    renderModal();
+    try{
+      await saveCloudNow();
+    }catch(statusSyncErr){
+      console.error("Synchronisation immédiate du statut impossible",statusSyncErr);
+      toast("L’e-mail est bien parti. Le statut est mis à jour localement, mais la synchronisation cloud devra être vérifiée.");
+    }
+
     var portalMessage="";
     try{
       await publishDocumentToClientPortal(kind,doc,pdf64);
