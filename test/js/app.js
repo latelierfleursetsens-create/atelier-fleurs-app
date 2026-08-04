@@ -1,10 +1,10 @@
-/* V6.4.16 TEST — Correctif robuste du statut après envoi par e-mail. */
+/* V6.4.17 TEST — Acomptes en attente regroupés dans un bandeau compact et repliable. */
 "use strict";
 
-var APP_VERSION="V6.4.16 TEST";
+var APP_VERSION="V6.4.17 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.16 TEST — Le document canonique est retrouvé dans la base puis marqué envoyé immédiatement après confirmation de l’envoi par e-mail.",
+  "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
   "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
@@ -2045,20 +2045,65 @@ function captureWizardInputs(){ // lit les champs avant un changement d'étape
 /* ===================== Factures : liste ===================== */
 function devisAFacturerHTML(){
   var devis=state.devis.filter(function(d){ return d.statut==="accepte"; });
-  var html="";
+  var aFacturer=[];
+  var acomptesAttente=[];
+  var soldesDisponibles=[];
+
   devis.forEach(function(d){
     var fs=facturesDuDevis(d.id);
-    var ac=fs.find(function(f){return f.type==="acompte";});
+    var ac=fs.find(function(f){return f.type==="acompte" && !f.versionArchive;}) || fs.find(function(f){return f.type==="acompte";});
     var hasAcompte=!!ac;
-    var hasSolde=fs.some(function(f){return f.type==="solde";});
-    var hasTotale=fs.some(function(f){return f.type==="totale";});
+    var hasSolde=fs.some(function(f){return f.type==="solde" && !f.versionArchive;});
+    var hasTotale=fs.some(function(f){return f.type==="totale" && !f.versionArchive;});
     var acomptePaye=!!(ac && ac.statut==="payee");
-    var t=totals(d.lignes,state.settings.partService);
-    if(!hasAcompte && !hasTotale){
-      html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
-    } else if(hasAcompte && !hasSolde && !hasTotale){
-      html+='<div class="card" style="border-color:var(--line);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte créé '+(acomptePaye?'et payé. Tu peux créer le solde.':'mais pas encore marqué payé. Le solde sera disponible après paiement de l\'acompte.')+'</div><div class="row-actions">'+(acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'<button class="btn small soft" disabled>Solde disponible après paiement de l\'acompte</button>')+'</div></div>';
+    if(!hasAcompte && !hasTotale) aFacturer.push({devis:d});
+    else if(hasAcompte && !hasSolde && !hasTotale && !acomptePaye) acomptesAttente.push({devis:d,facture:ac});
+    else if(hasAcompte && !hasSolde && !hasTotale && acomptePaye) soldesDisponibles.push({devis:d,facture:ac});
+  });
+
+  var html="";
+  aFacturer.forEach(function(x){
+    var d=x.devis, t=totals(d.lignes,state.settings.partService);
+    html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
+  });
+
+  if(acomptesAttente.length){
+    var now=todayISO();
+    var retard=0, proche=0;
+    acomptesAttente.forEach(function(x){
+      var e=x.facture&&x.facture.echeance||"";
+      if(e && e<now) retard++;
+      else if(e){ var diff=Math.ceil((new Date(e+'T12:00:00')-new Date(now+'T12:00:00'))/86400000); if(diff<=7) proche++; }
+    });
+    var open=!!ui.acomptesAttenteOpen;
+    var bg=retard?'#f7dddd':(proche?'#f6ead2':'var(--green-s)');
+    var color=retard?'#8b2f2f':(proche?'#7a5a12':'var(--green)');
+    html+='<div class="card" style="padding:0;overflow:hidden;border-color:'+color+';margin-bottom:14px;">'+
+      '<button data-action="fac-acomptes-toggle" style="width:100%;border:none;background:'+bg+';padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+        '<div class="flexb"><div style="font-weight:800;color:'+color+';">'+(open?'▾':'▸')+' Acomptes en attente de paiement <span class="muted">('+acomptesAttente.length+')</span></div>'+
+        '<div style="font-size:12px;color:'+color+';font-weight:700;">'+(retard?retard+' en retard':(proche?proche+' à échéance sous 7 jours':'Aucune urgence'))+'</div></div>'+
+      '</button>';
+    if(open){
+      html+='<div style="padding:10px 12px 4px;">';
+      acomptesAttente.slice().sort(function(a,b){return ((a.facture&&a.facture.echeance)||'9999').localeCompare((b.facture&&b.facture.echeance)||'9999');}).forEach(function(x){
+        var d=x.devis, ac=x.facture, e=ac&&ac.echeance||"";
+        var stateTxt='Échéance '+frDate(e);
+        var stateColor='var(--muted)';
+        if(e && e<now){ stateTxt='Échéance dépassée le '+frDate(e); stateColor='#8b2f2f'; }
+        else if(e){ var dd=Math.ceil((new Date(e+'T12:00:00')-new Date(now+'T12:00:00'))/86400000); if(dd<=7){stateTxt='Échéance dans '+dd+' jour'+(dd>1?'s':'')+' · '+frDate(e);stateColor='#7a5a12';} }
+        html+='<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap;">'+
+          '<div><div style="font-weight:700;color:var(--bordeaux);">'+esc(d.client&&d.client.nom||'Client')+' · '+esc(d.numero)+'</div><div style="font-size:12px;color:'+stateColor+';">'+stateTxt+' · Acompte '+euro(ac&&ac.montant||0)+'</div></div>'+
+          '<div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="fac-preview-'+esc(ac.id)+'">Aperçu</button><button class="btn small gold" data-action="fac-paid-'+esc(ac.id)+'">Marquer payé</button></div>'+
+        '</div>';
+      });
+      html+='</div>';
     }
+    html+='</div>';
+  }
+
+  soldesDisponibles.forEach(function(x){
+    var d=x.devis;
+    html+='<div class="card" style="border-color:var(--green-s);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte payé. La facture de solde peut être créée.</div><div class="row-actions"><button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button></div></div>';
   });
   return html;
 }
@@ -7679,6 +7724,7 @@ async function handleAction(action){
     return;
   }
 
+  if(action==="fac-acomptes-toggle"){ ui.acomptesAttenteOpen=!ui.acomptesAttenteOpen; render(); return; }
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
   if(action.indexOf("devis-edit-")===0){ var ed=findDevis(action.slice(11)); if(ed){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(ed,false); render(); window.scrollTo(0,0); } return; }
