@@ -1,17 +1,17 @@
-/* V6.4.13 PROD — Passage automatique au statut envoyé après un envoi par e-mail réussi. */
+/* V6.4.14 TEST — Passage automatique au statut envoyé après un envoi par e-mail réussi. */
 "use strict";
 
-var APP_VERSION="V6.4.13 PROD";
+var APP_VERSION="V6.4.14 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.13 PROD — Devis et factures automatiquement marqués envoyés après confirmation de l’envoi par e-mail, avec conservation du bouton manuel.",
-  "V6.4.12 PROD — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
-  "V6.4.10 PROD — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
-  "V6.4.9 PROD — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
-  "V6.4.8 PROD — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
-  "V6.4.7 PROD — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
-  "V6.4.4 PROD — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
-  "V6.4.3 PROD — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
+  "V6.4.14 TEST — Devis et factures automatiquement marqués envoyés après confirmation de l’envoi par e-mail, avec conservation du bouton manuel.",
+  "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
+  "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
+  "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
+  "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
+  "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
+  "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
+  "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
@@ -7330,7 +7330,20 @@ async function envoyerDocumentEmail(kind, doc){
     var res=await fetch(MAIL_WORKER_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
+    // L'envoi a réussi : enregistrer immédiatement le nouveau statut avant
+    // toute autre opération asynchrone (publication portail, historique, etc.).
+    // Sans cette sauvegarde immédiate, un ancien instantané Firebase pouvait
+    // réécrire le document en "À envoyer" pendant la publication du portail.
     markDocSent(kind, doc, "email");
+    saveCache();
+    render();
+    try{
+      await saveCloudNow();
+    }catch(statusSyncErr){
+      console.error("Synchronisation immédiate du statut impossible",statusSyncErr);
+      toast("L’e-mail est bien parti. Le statut est mis à jour localement, mais la synchronisation cloud devra être vérifiée.");
+    }
+
     var portalMessage="";
     try{
       await publishDocumentToClientPortal(kind,doc,pdf64);
