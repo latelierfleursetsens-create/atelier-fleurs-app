@@ -1,17 +1,17 @@
-/* V6.4.15 TEST — Correctif robuste du statut après envoi par e-mail. */
+/* V6.4.17 PROD — Acomptes en attente regroupés dans un bandeau compact et repliable. */
 "use strict";
 
-var APP_VERSION="V6.4.15 TEST";
+var APP_VERSION="V6.4.17 PROD";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.15 TEST — Le document canonique est retrouvé dans la base puis marqué envoyé immédiatement après confirmation de l’envoi par e-mail.",
-  "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
-  "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
-  "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
-  "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
-  "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
-  "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
-  "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
+  "V6.4.17 PROD — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
+  "V6.4.12 PROD — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
+  "V6.4.10 PROD — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
+  "V6.4.9 PROD — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
+  "V6.4.8 PROD — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
+  "V6.4.7 PROD — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
+  "V6.4.4 PROD — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
+  "V6.4.3 PROD — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
@@ -2045,20 +2045,65 @@ function captureWizardInputs(){ // lit les champs avant un changement d'étape
 /* ===================== Factures : liste ===================== */
 function devisAFacturerHTML(){
   var devis=state.devis.filter(function(d){ return d.statut==="accepte"; });
-  var html="";
+  var aFacturer=[];
+  var acomptesAttente=[];
+  var soldesDisponibles=[];
+
   devis.forEach(function(d){
     var fs=facturesDuDevis(d.id);
-    var ac=fs.find(function(f){return f.type==="acompte";});
+    var ac=fs.find(function(f){return f.type==="acompte" && !f.versionArchive;}) || fs.find(function(f){return f.type==="acompte";});
     var hasAcompte=!!ac;
-    var hasSolde=fs.some(function(f){return f.type==="solde";});
-    var hasTotale=fs.some(function(f){return f.type==="totale";});
+    var hasSolde=fs.some(function(f){return f.type==="solde" && !f.versionArchive;});
+    var hasTotale=fs.some(function(f){return f.type==="totale" && !f.versionArchive;});
     var acomptePaye=!!(ac && ac.statut==="payee");
-    var t=totals(d.lignes,state.settings.partService);
-    if(!hasAcompte && !hasTotale){
-      html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
-    } else if(hasAcompte && !hasSolde && !hasTotale){
-      html+='<div class="card" style="border-color:var(--line);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte créé '+(acomptePaye?'et payé. Tu peux créer le solde.':'mais pas encore marqué payé. Le solde sera disponible après paiement de l\'acompte.')+'</div><div class="row-actions">'+(acomptePaye?'<button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button>':'<button class="btn small soft" disabled>Solde disponible après paiement de l\'acompte</button>')+'</div></div>';
+    if(!hasAcompte && !hasTotale) aFacturer.push({devis:d});
+    else if(hasAcompte && !hasSolde && !hasTotale && !acomptePaye) acomptesAttente.push({devis:d,facture:ac});
+    else if(hasAcompte && !hasSolde && !hasTotale && acomptePaye) soldesDisponibles.push({devis:d,facture:ac});
+  });
+
+  var html="";
+  aFacturer.forEach(function(x){
+    var d=x.devis, t=totals(d.lignes,state.settings.partService);
+    html+='<div class="card" style="border-color:var(--gold-s);"><div class="flexb"><div><div style="font-weight:700;color:var(--bordeaux);">Devis accepté à facturer : '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Total du devis : '+euro(t.total)+' · Choisir le type de facture à créer</div></div></div><div class="row-actions"><button class="btn small gold" data-action="fac-acompte-'+d.id+'">Créer facture d\'acompte '+state.settings.acompteParDefaut+' %</button><button class="btn small ghost" data-action="fac-totale-'+d.id+'">Créer facture complète 100 %</button></div></div>';
+  });
+
+  if(acomptesAttente.length){
+    var now=todayISO();
+    var retard=0, proche=0;
+    acomptesAttente.forEach(function(x){
+      var e=x.facture&&x.facture.echeance||"";
+      if(e && e<now) retard++;
+      else if(e){ var diff=Math.ceil((new Date(e+'T12:00:00')-new Date(now+'T12:00:00'))/86400000); if(diff<=7) proche++; }
+    });
+    var open=!!ui.acomptesAttenteOpen;
+    var bg=retard?'#f7dddd':(proche?'#f6ead2':'var(--green-s)');
+    var color=retard?'#8b2f2f':(proche?'#7a5a12':'var(--green)');
+    html+='<div class="card" style="padding:0;overflow:hidden;border-color:'+color+';margin-bottom:14px;">'+
+      '<button data-action="fac-acomptes-toggle" style="width:100%;border:none;background:'+bg+';padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+        '<div class="flexb"><div style="font-weight:800;color:'+color+';">'+(open?'▾':'▸')+' Acomptes en attente de paiement <span class="muted">('+acomptesAttente.length+')</span></div>'+
+        '<div style="font-size:12px;color:'+color+';font-weight:700;">'+(retard?retard+' en retard':(proche?proche+' à échéance sous 7 jours':'Aucune urgence'))+'</div></div>'+
+      '</button>';
+    if(open){
+      html+='<div style="padding:10px 12px 4px;">';
+      acomptesAttente.slice().sort(function(a,b){return ((a.facture&&a.facture.echeance)||'9999').localeCompare((b.facture&&b.facture.echeance)||'9999');}).forEach(function(x){
+        var d=x.devis, ac=x.facture, e=ac&&ac.echeance||"";
+        var stateTxt='Échéance '+frDate(e);
+        var stateColor='var(--muted)';
+        if(e && e<now){ stateTxt='Échéance dépassée le '+frDate(e); stateColor='#8b2f2f'; }
+        else if(e){ var dd=Math.ceil((new Date(e+'T12:00:00')-new Date(now+'T12:00:00'))/86400000); if(dd<=7){stateTxt='Échéance dans '+dd+' jour'+(dd>1?'s':'')+' · '+frDate(e);stateColor='#7a5a12';} }
+        html+='<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap;">'+
+          '<div><div style="font-weight:700;color:var(--bordeaux);">'+esc(d.client&&d.client.nom||'Client')+' · '+esc(d.numero)+'</div><div style="font-size:12px;color:'+stateColor+';">'+stateTxt+' · Acompte '+euro(ac&&ac.montant||0)+'</div></div>'+
+          '<div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="fac-preview-'+esc(ac.id)+'">Aperçu</button><button class="btn small gold" data-action="fac-paid-'+esc(ac.id)+'">Marquer payé</button></div>'+
+        '</div>';
+      });
+      html+='</div>';
     }
+    html+='</div>';
+  }
+
+  soldesDisponibles.forEach(function(x){
+    var d=x.devis;
+    html+='<div class="card" style="border-color:var(--green-s);"><div style="font-weight:700;color:var(--bordeaux);">Devis '+esc(d.numero)+' · '+esc(d.client&&d.client.nom||"")+'</div><div class="muted">Acompte payé. La facture de solde peut être créée.</div><div class="row-actions"><button class="btn small gold" data-action="fac-solde-'+d.id+'">Créer facture de solde</button></div></div>';
   });
   return html;
 }
@@ -2106,25 +2151,47 @@ function viewFactureGroup(key,label,list,openDefault){
   return html;
 }
 function viewFactures(){
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Mes factures</h2><button class="btn primary" data-action="fac-new">+ Nouvelle facture</button></div>';
+  var filtre=ui.factureFiltre||"a_envoyer";
+  var actives=state.factures.filter(function(f){return !f.versionArchive;});
+  var aEnvoyer=actives.filter(function(f){return (f.statut||"a_envoyer")==="a_envoyer";});
+  var enAttente=actives.filter(function(f){return f.statut==="envoyee";});
+  var payees=actives.filter(function(f){return f.statut==="payee";});
+  var archivees=state.factures.filter(function(f){return !!f.versionArchive;});
+
+  var liste=aEnvoyer;
+  if(filtre==="envoyee") liste=enAttente;
+  if(filtre==="payee") liste=payees;
+  if(filtre==="archivees") liste=archivees;
+
+  liste=liste.slice().sort(function(a,b){
+    return (b.updatedAt||b.date||"").localeCompare(a.updatedAt||a.date||"") || (b.numero||"").localeCompare(a.numero||"");
+  });
+
+  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Mes factures</h2><p class="muted" style="margin:4px 0 0;">Vue simplifiée : affiche uniquement la catégorie sélectionnée.</p></div><button class="btn primary" data-action="fac-new">+ Nouvelle facture</button></div>';
   html+=devisAFacturerHTML();
   if(ui.factureDraft){ html+=viewFactureManualForm(); }
-  if(state.factures.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>'; return html; }
 
-  var sorted=state.factures.filter(function(f){return !f.versionArchive;}).slice().sort(function(a,b){
-    return (b.date||"").localeCompare(a.date||"") || (b.numero||"").localeCompare(a.numero||"");
-  });
-  var groups={
-    a_envoyer: sorted.filter(function(f){return (f.statut||"a_envoyer")==="a_envoyer";}),
-    envoyee: sorted.filter(function(f){return f.statut==="envoyee";}),
-    payee: sorted.filter(function(f){return f.statut==="payee";})
-  };
-  html+='<p class="muted" style="margin-top:-6px;">Factures classées par état. Clique sur une catégorie pour l’ouvrir ou la réduire.</p>';
-  html+=viewFactureGroup("a_envoyer","À envoyer",groups.a_envoyer,true);
-  html+=viewFactureGroup("envoyee","Envoyées / en attente de paiement",groups.envoyee,true);
-  html+=viewFactureGroup("payee","Payées",groups.payee,false);
-  var archivedVersions=state.factures.filter(function(f){return !!f.versionArchive;}).sort(function(a,b){return (b.updatedAt||b.date||"").localeCompare(a.updatedAt||a.date||"");});
-  if(archivedVersions.length) html+=viewFactureGroup("versions_archivees","Versions archivées",archivedVersions,false);
+  html+='<div class="row-actions" style="margin-bottom:14px;">'+
+    '<button class="btn small '+(filtre==="a_envoyer"?'primary':'ghost')+'" data-action="fac-filtre-a_envoyer">À envoyer ('+aEnvoyer.length+')</button>'+ 
+    '<button class="btn small '+(filtre==="envoyee"?'primary':'ghost')+'" data-action="fac-filtre-envoyee">Envoyées / en attente de paiement ('+enAttente.length+')</button>'+ 
+    '<button class="btn small '+(filtre==="payee"?'primary':'ghost')+'" data-action="fac-filtre-payee">Payées ('+payees.length+')</button>'+ 
+    '<button class="btn small '+(filtre==="archivees"?'primary':'ghost')+'" data-action="fac-filtre-archivees">Versions archivées / modifiées ('+archivees.length+')</button>'+ 
+  '</div>';
+
+  if(state.factures.length===0){
+    html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>';
+    return html;
+  }
+  if(!liste.length){
+    var msg="Aucune facture à envoyer.";
+    if(filtre==="envoyee") msg="Aucune facture envoyée en attente de paiement.";
+    if(filtre==="payee") msg="Aucune facture payée.";
+    if(filtre==="archivees") msg="Aucune ancienne version archivée ou modifiée.";
+    html+='<div class="card"><p class="muted" style="margin:0;">'+msg+'</p></div>';
+    return html;
+  }
+
+  liste.forEach(function(f){ html+=factureCardHTML(f); });
   return html;
 }
 function newFactureDraft(editDoc,forceVersion){
@@ -7657,6 +7724,7 @@ async function handleAction(action){
     return;
   }
 
+  if(action==="fac-acomptes-toggle"){ ui.acomptesAttenteOpen=!ui.acomptesAttenteOpen; render(); return; }
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
   if(action.indexOf("devis-edit-")===0){ var ed=findDevis(action.slice(11)); if(ed){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(ed,false); render(); window.scrollTo(0,0); } return; }
@@ -7824,6 +7892,7 @@ async function handleAction(action){
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
   if(action.indexOf("devis-filtre-")===0){ ui.devisFiltre=action.slice(13); ui.confirmDelete=null; render(); return; }
+  if(action.indexOf("fac-filtre-")===0){ ui.factureFiltre=action.slice(11); ui.confirmDelete=null; render(); return; }
   if(action.indexOf("devis-archive-")===0){ var da=findDevis(action.slice(14)); if(da){ da.statutAvantArchive=da.statut; da.statut="archive"; ui.devisFiltre="archives"; saveCache(); render(); toast("Devis archivé."); } return; }
   if(action.indexOf("devis-unarchive-")===0){ var du=findDevis(action.slice(16)); if(du){ du.statut=du.statutAvantArchive||"envoye"; delete du.statutAvantArchive; ui.devisFiltre=(du.statut==="accepte"?"acceptes":(du.statut==="refuse"?"refuses":"actifs")); saveCache(); render(); toast("Devis désarchivé."); } return; }
   if(action.indexOf("devis-del-")===0){ var did=action.slice(10), key="devis:"+did;
