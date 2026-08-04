@@ -1,9 +1,10 @@
-/* V6.4.8 TEST — Nouveau planning des week-ends basé sur le statut métier des fiches mariage. */
+/* V6.4.9 TEST — Nouveau planning en liste des week-ends occupés. */
 "use strict";
 
-var APP_VERSION="V6.4.8 TEST";
+var APP_VERSION="V6.4.9 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
+  "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
   "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
   "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
   "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
@@ -1657,70 +1658,119 @@ function viewNotificationsDashboard(){
 }
 
 
+function mariagePlanningClientMatch(m,f){
+  if(!m || !f) return false;
+  var c=f.client||{};
+  var me=String(m.email||"").trim().toLowerCase(), fe=String(c.email||"").trim().toLowerCase();
+  if(me && fe && me===fe) return true;
+  var mt=String(m.tel||"").replace(/\D/g,""), ft=String(c.tel||"").replace(/\D/g,"");
+  if(mt && ft && mt===ft) return true;
+  var mn=normName(m.nom||""), fn=normName(c.nom||"");
+  return !!(mn && fn && mn===fn);
+}
+function mariagePlanningDevisIds(m){
+  var ids=[];
+  function add(id){ if(id && ids.indexOf(id)<0) ids.push(id); }
+  add(m&&m.devisLie);
+  var linked=(state.devis||[]).find(function(d){return d && d.id===(m&&m.devisLie);});
+  if(linked){
+    var base=linked.baseNumero||baseDocumentNumber(linked.numero||"");
+    (state.devis||[]).forEach(function(d){
+      if(!d) return;
+      var db=d.baseNumero||baseDocumentNumber(d.numero||"");
+      if(base && db===base) add(d.id);
+      if(d.previousVersionId===linked.id || linked.previousVersionId===d.id || d.replacedBy===linked.id || linked.replacedBy===d.id) add(d.id);
+    });
+  }
+  return ids;
+}
 function mariagePlanningConfirmed(m){
   if(!m || !m.dateMariage || m.statut==="perdu") return false;
-  // Source unique et fiable : le même classement métier que dans Suivi mariages.
-  // Études mariage = non confirmé ; Préparation commande, Livraison et Archives = confirmé.
-  var stage=mariageGroupKey(m);
-  return stage==="creation" || stage==="livraison" || stage==="archives";
+
+  // Compatibilité avec les anciens dossiers déjà confirmés manuellement.
+  if(m.livre || ["acompte","confirme","realise"].indexOf(m.statut)>=0) return true;
+  if(m.acomptePaye===true || m.acompteVerse===true || m.acompteEncaisse===true || m.acompteRegle===true || m.reservationConfirmee===true) return true;
+
+  var devisIds=mariagePlanningDevisIds(m);
+  var commandes=(state.commandes||[]).filter(function(c){
+    return c && (c.mariageId===m.id || (c.devisId && devisIds.indexOf(c.devisId)>=0));
+  });
+  var factureIds=commandes.map(function(c){return c.factureId;}).filter(Boolean);
+
+  return (state.factures||[]).some(function(f){
+    if(!f || f.statut!=="payee") return false;
+    // Un acompte payé ou une facture totale payée valide au minimum la réservation.
+    if(["acompte","totale"].indexOf(f.type)<0) return false;
+    if(f.mariageId===m.id) return true;
+    if(f.devisId && devisIds.indexOf(f.devisId)>=0) return true;
+    if(factureIds.indexOf(f.id)>=0) return true;
+    // Dernier recours pour les anciens dossiers ayant perdu leur lien technique.
+    return mariagePlanningClientMatch(m,f);
+  });
 }
 function mariagePlanningYearsCount(){
   var n=parseInt(state.settings.mariagePlanningYears,10);
   return isFinite(n) && n>=3 ? n : 3;
 }
-function mariagePlanningWeekendItems(startISO){
-  var endISO=addDays(startISO,2);
-  return (state.mariages||[]).filter(function(m){
-    return mariagePlanningConfirmed(m) && m.dateMariage>=startISO && m.dateMariage<=endISO;
-  }).sort(function(a,b){
-    return (a.dateMariage||"").localeCompare(b.dateMariage||"") || (a.nom||"").localeCompare(b.nom||"");
+function mariagePlanningWeekendStart(dateISO){
+  var d=new Date(dateISO+"T12:00:00"), day=d.getDay(), offset;
+  if(day===5) offset=0;
+  else if(day===6) offset=-1;
+  else if(day===0) offset=-2;
+  else offset=(5-day+7)%7; // rattache les rares mariages en semaine au week-end qui suit
+  d.setDate(d.getDate()+offset);
+  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+}
+function mariagePlanningOccupiedWeekends(year){
+  var map={};
+  (state.mariages||[]).filter(mariagePlanningConfirmed).forEach(function(m){
+    if(String(m.dateMariage||"").slice(0,4)!==String(year)) return;
+    var start=mariagePlanningWeekendStart(m.dateMariage), key=start;
+    if(!map[key]) map[key]={start:start,end:addDays(start,2),weddings:[]};
+    map[key].weddings.push(m);
   });
-}
-function mariagePlanningMonthRows(year,monthIndex){
-  var first=new Date(year,monthIndex,1,12,0,0), last=new Date(year,monthIndex+1,0,12,0,0);
-  var d=new Date(first);
-  while(d.getDay()!==6) d.setDate(d.getDate()+1); // premier samedi du mois
-  var rows=[];
-  while(d<=last){
-    var satISO=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
-    var start=addDays(satISO,-1), end=addDays(satISO,1), weddings=mariagePlanningWeekendItems(start);
-    rows.push({start:start,end:end,count:weddings.length,weddings:weddings,saturday:satISO});
-    d.setDate(d.getDate()+7);
-  }
-  return rows;
-}
-function mariagePlanningCountStyle(count){
-  if(count<=0) return "background:#f5f2ee;color:var(--muted);border-color:var(--line);";
-  if(count===1) return "background:var(--green-s);color:var(--green);border-color:#b9cfaf;";
-  if(count===2) return "background:#f5ead2;color:#735a20;border-color:#dfc68e;";
-  return "background:var(--blush-s);color:var(--bordeaux);border-color:#d6a7a0;";
+  return Object.keys(map).sort().map(function(k){
+    map[k].weddings.sort(function(a,b){
+      return (a.dateMariage||"").localeCompare(b.dateMariage||"") || (a.nom||"").localeCompare(b.nom||"");
+    });
+    return map[k];
+  });
 }
 function viewDashboardMarriageWeekendPlanning(){
   var startYear=new Date().getFullYear(), count=mariagePlanningYearsCount(), years=[];
   for(var y=0;y<count;y++) years.push(startYear+y);
   var html='<div class="card" style="margin-bottom:14px;border-color:var(--gold-s);background:#fffdfb;">'+
-    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning graphique des week-ends</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Le nombre correspond aux mariages validés du vendredi au dimanche. Sont comptés uniquement les dossiers déjà classés en Préparation commande, Livraison ou Archives.</p></div>'+ 
-    '<button class="btn small gold" data-action="dash-marriage-add-year">+ Ajouter une année</button></div>'+ 
+    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning des mariages validés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Seuls les week-ends contenant au moins un mariage avec acompte versé sont affichés. Les noms sont visibles directement.</p></div>'+
+    '<button class="btn small gold" data-action="dash-marriage-add-year">+ Ajouter une année</button></div>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px;">';
+
   years.forEach(function(year){
-    html+='<section style="border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;"><div class="serif" style="font-size:20px;font-weight:700;color:var(--bordeaux);margin-bottom:7px;">'+year+'</div>';
-    for(var mi=0;mi<12;mi++){
-      var rows=mariagePlanningMonthRows(year,mi);
-      html+='<div style="display:grid;grid-template-columns:58px 1fr;gap:7px;align-items:start;padding:5px 0;border-top:'+(mi?'1px solid #f0ebe6':'none')+';">'+
-        '<div style="font-size:11px;font-weight:800;color:var(--bordeaux);padding-top:5px;">'+MOIS[mi]+'</div><div style="display:flex;flex-wrap:wrap;gap:5px;">';
-      rows.forEach(function(w){
-        var startDay=Number(w.start.slice(8,10)), endDay=Number(w.end.slice(8,10));
-        var range=(w.start.slice(5,7)===w.end.slice(5,7))?(startDay+'–'+endDay):(startDay+'/'+Number(w.start.slice(5,7))+'–'+endDay+'/'+Number(w.end.slice(5,7)));
-        var noms=(w.weddings||[]).map(function(m){return m.nom||'Mariage';}).join(' · ');
-        var title='Week-end du '+frDate(w.start)+' au '+frDate(w.end)+' : '+w.count+' mariage'+(w.count>1?'s':'')+(noms?' — '+noms:'');
-        html+='<button class="btn small" data-action="dash-marriage-week-'+w.start+'" title="'+esc(title)+'" style="min-width:54px;padding:4px 6px;border:1px solid;'+mariagePlanningCountStyle(w.count)+'">'+
-          '<span style="display:block;font-size:9px;line-height:1;opacity:.8;">'+range+'</span><b style="display:block;font-size:15px;line-height:1.15;">'+w.count+'</b></button>';
+    var weekends=mariagePlanningOccupiedWeekends(year);
+    html+='<section style="border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;"><div class="serif" style="font-size:20px;font-weight:700;color:var(--bordeaux);margin-bottom:9px;">'+year+'</div>';
+    if(!weekends.length){
+      html+='<div class="muted" style="font-size:12px;padding:8px 0;">Aucun mariage validé pour cette année.</div>';
+    }else{
+      var currentMonth=-1;
+      weekends.forEach(function(w){
+        var month=Number(w.start.slice(5,7))-1;
+        if(month!==currentMonth){
+          if(currentMonth!==-1) html+='</div>';
+          currentMonth=month;
+          html+='<div style="margin-top:8px;"><div style="font-size:12px;font-weight:800;color:var(--bordeaux);text-transform:uppercase;margin-bottom:5px;">'+MOIS[month]+'</div>';
+        }
+        html+='<div style="border:1px solid var(--line);border-radius:10px;padding:9px 10px;margin-bottom:7px;background:#fffaf8;">'+
+          '<div class="flexb" style="align-items:flex-start;gap:8px;"><div><b style="color:var(--bordeaux);">Week-end du '+frDate(w.start)+' au '+frDate(w.end)+'</b></div><span class="pill" style="background:var(--blush-s);color:var(--bordeaux);">'+w.weddings.length+' mariage'+(w.weddings.length>1?'s':'')+'</span></div>'+
+          '<div style="display:grid;gap:5px;margin-top:7px;">';
+        w.weddings.forEach(function(m){
+          html+='<button class="btn small ghost" data-action="mar-open-'+esc(m.id)+'" style="text-align:left;justify-content:flex-start;width:100%;">💍 '+esc(m.nom||'Cliente')+' · '+frDate(m.dateMariage)+'</button>';
+        });
+        html+='</div></div>';
       });
-      html+='</div></div>';
+      if(currentMonth!==-1) html+='</div>';
     }
     html+='</section>';
   });
-  html+='</div><div class="muted" style="font-size:11px;margin-top:9px;">0 = week-end libre · 1, 2, 3… = nombre exact de mariages validés. Clique sur une case occupée pour ouvrir le ou les dossiers.</div></div>';
+  html+='</div></div>';
   return html;
 }
 function viewDashboard(){

@@ -1,6 +1,6 @@
-# MyBusiness V6.4.8 TEST
+# MyBusiness V6.4.9 TEST
 
-## V6.4.8 TEST
+## V6.4.9 TEST
 - Nouveau planning graphique des week-ends fondé sur le classement métier des fiches : Préparation commande, Livraison et Archives.
 - Les dossiers encore dans Études mariage ne sont pas comptés.
 - Rendez-vous téléphoniques indisponibles du 24 août au 6 septembre 2026 inclus dans l’espace client.
