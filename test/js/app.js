@@ -1,7 +1,7 @@
-/* V6.4.4 TEST — Correctif calcul des factures d’acompte après remises et avoirs. */
+/* V6.4.5 TEST — Correctif ajout des photos d’inspiration sur Android. */
 "use strict";
 
-var APP_VERSION="V6.4.4 TEST";
+var APP_VERSION="V6.4.5 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
   "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
