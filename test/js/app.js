@@ -1,9 +1,10 @@
-/* V6.4.7 TEST — Refonte de la détection des mariages confirmés par acompte versé. */
+/* V6.4.8 TEST — Nouveau planning des week-ends basé sur le statut métier des fiches mariage. */
 "use strict";
 
-var APP_VERSION="V6.4.7 TEST";
+var APP_VERSION="V6.4.8 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
+  "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
   "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
   "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
   "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
@@ -1657,19 +1658,15 @@ function viewNotificationsDashboard(){
 
 
 function mariagePlanningConfirmed(m){
-  return !!(m && m.dateMariage && m.statut!=="perdu" && mariageAcomptePaye(m));
+  if(!m || !m.dateMariage || m.statut==="perdu") return false;
+  // Source unique et fiable : le même classement métier que dans Suivi mariages.
+  // Études mariage = non confirmé ; Préparation commande, Livraison et Archives = confirmé.
+  var stage=mariageGroupKey(m);
+  return stage==="creation" || stage==="livraison" || stage==="archives";
 }
 function mariagePlanningYearsCount(){
   var n=parseInt(state.settings.mariagePlanningYears,10);
   return isFinite(n) && n>=3 ? n : 3;
-}
-function mariagePlanningWeekendStart(dateISO){
-  var d=new Date(dateISO+"T12:00:00");
-  if(isNaN(d.getTime())) return "";
-  var day=d.getDay();
-  var shift=day===0?-2:(day===6?-1:0); // vendredi du week-end
-  d.setDate(d.getDate()+shift);
-  return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
 }
 function mariagePlanningWeekendItems(startISO){
   var endISO=addDays(startISO,2);
@@ -1686,8 +1683,8 @@ function mariagePlanningMonthRows(year,monthIndex){
   var rows=[];
   while(d<=last){
     var satISO=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
-    var start=addDays(satISO,-1), end=addDays(satISO,1), count=mariagePlanningWeekendItems(start).length;
-    rows.push({start:start,end:end,count:count,saturday:satISO});
+    var start=addDays(satISO,-1), end=addDays(satISO,1), weddings=mariagePlanningWeekendItems(start);
+    rows.push({start:start,end:end,count:weddings.length,weddings:weddings,saturday:satISO});
     d.setDate(d.getDate()+7);
   }
   return rows;
@@ -1702,8 +1699,8 @@ function viewDashboardMarriageWeekendPlanning(){
   var startYear=new Date().getFullYear(), count=mariagePlanningYearsCount(), years=[];
   for(var y=0;y<count;y++) years.push(startYear+y);
   var html='<div class="card" style="margin-bottom:14px;border-color:var(--gold-s);background:#fffdfb;">'+
-    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning des mariages confirmés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Chaque case indique le nombre de mariages confirmés sur le week-end. Seuls les dossiers avec au moins un acompte réellement versé sont comptés.</p></div>'+ 
-    '<button class="btn small gold" data-action="dash-marriage-add-year">+ Ajouter une année</button></div>'+
+    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning graphique des week-ends</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Le nombre correspond aux mariages validés du vendredi au dimanche. Sont comptés uniquement les dossiers déjà classés en Préparation commande, Livraison ou Archives.</p></div>'+ 
+    '<button class="btn small gold" data-action="dash-marriage-add-year">+ Ajouter une année</button></div>'+ 
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px;">';
   years.forEach(function(year){
     html+='<section style="border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;"><div class="serif" style="font-size:20px;font-weight:700;color:var(--bordeaux);margin-bottom:7px;">'+year+'</div>';
@@ -1714,14 +1711,16 @@ function viewDashboardMarriageWeekendPlanning(){
       rows.forEach(function(w){
         var startDay=Number(w.start.slice(8,10)), endDay=Number(w.end.slice(8,10));
         var range=(w.start.slice(5,7)===w.end.slice(5,7))?(startDay+'–'+endDay):(startDay+'/'+Number(w.start.slice(5,7))+'–'+endDay+'/'+Number(w.end.slice(5,7)));
-        html+='<button class="btn small" data-action="dash-marriage-week-'+w.start+'" title="Week-end du '+frDate(w.start)+' au '+frDate(w.end)+' : '+w.count+' mariage'+(w.count>1?'s':'')+'" style="min-width:54px;padding:4px 6px;border:1px solid;'+mariagePlanningCountStyle(w.count)+'">'+
+        var noms=(w.weddings||[]).map(function(m){return m.nom||'Mariage';}).join(' · ');
+        var title='Week-end du '+frDate(w.start)+' au '+frDate(w.end)+' : '+w.count+' mariage'+(w.count>1?'s':'')+(noms?' — '+noms:'');
+        html+='<button class="btn small" data-action="dash-marriage-week-'+w.start+'" title="'+esc(title)+'" style="min-width:54px;padding:4px 6px;border:1px solid;'+mariagePlanningCountStyle(w.count)+'">'+
           '<span style="display:block;font-size:9px;line-height:1;opacity:.8;">'+range+'</span><b style="display:block;font-size:15px;line-height:1.15;">'+w.count+'</b></button>';
       });
       html+='</div></div>';
     }
     html+='</section>';
   });
-  html+='</div><div class="muted" style="font-size:11px;margin-top:9px;">0 = libre · 1, 2, 3… = nombre de mariages confirmés sur le week-end. Clique sur une case occupée pour ouvrir le ou les dossiers.</div></div>';
+  html+='</div><div class="muted" style="font-size:11px;margin-top:9px;">0 = week-end libre · 1, 2, 3… = nombre exact de mariages validés. Clique sur une case occupée pour ouvrir le ou les dossiers.</div></div>';
   return html;
 }
 function viewDashboard(){
