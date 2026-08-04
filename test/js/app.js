@@ -1,7 +1,7 @@
-/* V6.4.5 TEST — Correctif ajout des photos d’inspiration sur Android. */
+/* V6.4.6 TEST — Correctif ajout des photos d’inspiration sur Android. */
 "use strict";
 
-var APP_VERSION="V6.4.5 TEST";
+var APP_VERSION="V6.4.6 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
   "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
@@ -5941,12 +5941,35 @@ function mariageDevisAccepte(m){
   var d=state.devis.find(function(x){return x.id===m.devisLie;});
   return !!(d && d.statut==="accepte");
 }
+function mariageDevisIdsLies(m){
+  if(!m) return [];
+  var ids={};
+  var queue=[];
+  if(m.devisLie) queue.push(m.devisLie);
+  while(queue.length){
+    var id=queue.shift();
+    if(!id || ids[id]) continue;
+    ids[id]=true;
+    var d=(state.devis||[]).find(function(x){return x && x.id===id;});
+    if(!d) continue;
+    if(d.previousVersionId && !ids[d.previousVersionId]) queue.push(d.previousVersionId);
+    if(d.replacedBy && !ids[d.replacedBy]) queue.push(d.replacedBy);
+    var base=d.baseNumero||"";
+    if(base){
+      (state.devis||[]).forEach(function(x){
+        if(x && (x.baseNumero===base || x.numero===base) && !ids[x.id]) queue.push(x.id);
+      });
+    }
+  }
+  return Object.keys(ids);
+}
 function mariageAcomptePaye(m){
-  if(!m || !m.devisLie) return false;
-  // Règle métier PROD V2.0.39 : un mariage passe dans “À préparer” uniquement si
-  // la facture d’acompte liée au devis est réellement marquée payée.
+  if(!m) return false;
+  var devisIds=mariageDevisIdsLies(m);
   return (state.factures||[]).some(function(f){
-    return f.devisId===m.devisLie && f.type==="acompte" && f.statut==="payee";
+    if(!f || f.type!=="acompte" || f.statut!=="payee" || f.versionArchive) return false;
+    if(f.mariageId && f.mariageId===m.id) return true;
+    return !!(f.devisId && devisIds.indexOf(f.devisId)>=0);
   });
 }
 
@@ -6069,8 +6092,13 @@ function mariageDevisTotal(m){
   try{ return totals(d.lignes||[], state.settings.partService).total; }catch(e){ return 0; }
 }
 function mariageFacturesLiees(m){
-  if(!m || !m.devisLie) return [];
-  return (state.factures||[]).filter(function(f){return f.devisId===m.devisLie;});
+  if(!m) return [];
+  var devisIds=mariageDevisIdsLies(m);
+  return (state.factures||[]).filter(function(f){
+    if(!f) return false;
+    if(f.mariageId && f.mariageId===m.id) return true;
+    return !!(f.devisId && devisIds.indexOf(f.devisId)>=0);
+  });
 }
 function mariageMontantPaye(m){
   return r2(mariageFacturesLiees(m).filter(function(f){return f.statut==="payee";}).reduce(function(s,f){return s+num(f.montant);},0));
