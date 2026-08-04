@@ -1,10 +1,10 @@
-/* V6.4.14 TEST — Passage automatique au statut envoyé après un envoi par e-mail réussi. */
+/* V6.4.16 TEST — Correctif robuste du statut après envoi par e-mail. */
 "use strict";
 
-var APP_VERSION="V6.4.14 TEST";
+var APP_VERSION="V6.4.16 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.14 TEST — Devis et factures automatiquement marqués envoyés après confirmation de l’envoi par e-mail, avec conservation du bouton manuel.",
+  "V6.4.16 TEST — Le document canonique est retrouvé dans la base puis marqué envoyé immédiatement après confirmation de l’envoi par e-mail.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
   "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
@@ -2106,25 +2106,47 @@ function viewFactureGroup(key,label,list,openDefault){
   return html;
 }
 function viewFactures(){
-  var html='<div class="flexb" style="margin-bottom:14px;"><h2 style="margin:0;">Mes factures</h2><button class="btn primary" data-action="fac-new">+ Nouvelle facture</button></div>';
+  var filtre=ui.factureFiltre||"a_envoyer";
+  var actives=state.factures.filter(function(f){return !f.versionArchive;});
+  var aEnvoyer=actives.filter(function(f){return (f.statut||"a_envoyer")==="a_envoyer";});
+  var enAttente=actives.filter(function(f){return f.statut==="envoyee";});
+  var payees=actives.filter(function(f){return f.statut==="payee";});
+  var archivees=state.factures.filter(function(f){return !!f.versionArchive;});
+
+  var liste=aEnvoyer;
+  if(filtre==="envoyee") liste=enAttente;
+  if(filtre==="payee") liste=payees;
+  if(filtre==="archivees") liste=archivees;
+
+  liste=liste.slice().sort(function(a,b){
+    return (b.updatedAt||b.date||"").localeCompare(a.updatedAt||a.date||"") || (b.numero||"").localeCompare(a.numero||"");
+  });
+
+  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Mes factures</h2><p class="muted" style="margin:4px 0 0;">Vue simplifiée : affiche uniquement la catégorie sélectionnée.</p></div><button class="btn primary" data-action="fac-new">+ Nouvelle facture</button></div>';
   html+=devisAFacturerHTML();
   if(ui.factureDraft){ html+=viewFactureManualForm(); }
-  if(state.factures.length===0){ html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>'; return html; }
 
-  var sorted=state.factures.filter(function(f){return !f.versionArchive;}).slice().sort(function(a,b){
-    return (b.date||"").localeCompare(a.date||"") || (b.numero||"").localeCompare(a.numero||"");
-  });
-  var groups={
-    a_envoyer: sorted.filter(function(f){return (f.statut||"a_envoyer")==="a_envoyer";}),
-    envoyee: sorted.filter(function(f){return f.statut==="envoyee";}),
-    payee: sorted.filter(function(f){return f.statut==="payee";})
-  };
-  html+='<p class="muted" style="margin-top:-6px;">Factures classées par état. Clique sur une catégorie pour l’ouvrir ou la réduire.</p>';
-  html+=viewFactureGroup("a_envoyer","À envoyer",groups.a_envoyer,true);
-  html+=viewFactureGroup("envoyee","Envoyées / en attente de paiement",groups.envoyee,true);
-  html+=viewFactureGroup("payee","Payées",groups.payee,false);
-  var archivedVersions=state.factures.filter(function(f){return !!f.versionArchive;}).sort(function(a,b){return (b.updatedAt||b.date||"").localeCompare(a.updatedAt||a.date||"");});
-  if(archivedVersions.length) html+=viewFactureGroup("versions_archivees","Versions archivées",archivedVersions,false);
+  html+='<div class="row-actions" style="margin-bottom:14px;">'+
+    '<button class="btn small '+(filtre==="a_envoyer"?'primary':'ghost')+'" data-action="fac-filtre-a_envoyer">À envoyer ('+aEnvoyer.length+')</button>'+ 
+    '<button class="btn small '+(filtre==="envoyee"?'primary':'ghost')+'" data-action="fac-filtre-envoyee">Envoyées / en attente de paiement ('+enAttente.length+')</button>'+ 
+    '<button class="btn small '+(filtre==="payee"?'primary':'ghost')+'" data-action="fac-filtre-payee">Payées ('+payees.length+')</button>'+ 
+    '<button class="btn small '+(filtre==="archivees"?'primary':'ghost')+'" data-action="fac-filtre-archivees">Versions archivées / modifiées ('+archivees.length+')</button>'+ 
+  '</div>';
+
+  if(state.factures.length===0){
+    html+='<div class="card"><p class="muted" style="margin:0;">Aucune facture. Vous pouvez créer une facture depuis un devis accepté, ou directement avec le bouton « Nouvelle facture ».</p></div>';
+    return html;
+  }
+  if(!liste.length){
+    var msg="Aucune facture à envoyer.";
+    if(filtre==="envoyee") msg="Aucune facture envoyée en attente de paiement.";
+    if(filtre==="payee") msg="Aucune facture payée.";
+    if(filtre==="archivees") msg="Aucune ancienne version archivée ou modifiée.";
+    html+='<div class="card"><p class="muted" style="margin:0;">'+msg+'</p></div>';
+    return html;
+  }
+
+  liste.forEach(function(f){ html+=factureCardHTML(f); });
   return html;
 }
 function newFactureDraft(editDoc,forceVersion){
@@ -7249,12 +7271,26 @@ function appendDocumentSendHistory(kind, doc, mode, sentAt){
   doc.historique.unshift({date:sentAt,texte:label,type:"envoi",mode:mode});
   if(doc.historique.length>50) doc.historique=doc.historique.slice(0,50);
 }
+function canonicalDocument(kind, doc){
+  if(!doc) return null;
+  var list=kind==="devis"?(state.devis||[]):(state.factures||[]);
+  var found=null;
+  if(doc.id) found=list.find(function(x){return x&&x.id===doc.id;});
+  if(!found && doc.numero){
+    found=list.find(function(x){
+      return x && x.numero===doc.numero && String(x.version||"")===String(doc.version||"");
+    });
+  }
+  return found||doc;
+}
 function markDocSent(kind, doc, mode){
-  if(!doc) return;
+  doc=canonicalDocument(kind,doc);
+  if(!doc) return null;
   mode=mode||"email";
   var sentAt=new Date().toISOString();
   if(kind==="devis"){
-    if(doc.statut==="brouillon" || doc.statut==="a_envoyer") doc.statut="envoye";
+    // Un renvoi ne doit pas faire perdre un statut final déjà atteint.
+    if(["accepte","refuse"].indexOf(doc.statut)<0) doc.statut="envoye";
     doc.emailEnvoyeLe=todayISO();
     doc.emailEnvoyeAt=sentAt;
     doc.dernierEnvoiAt=sentAt;
@@ -7284,6 +7320,10 @@ function markDocSent(kind, doc, mode){
     }
   }
   appendDocumentSendHistory(kind,doc,mode,sentAt);
+  if(ui.preview && ui.preview.kind===kind && ui.preview.doc && ui.preview.doc.id===doc.id){
+    ui.preview.doc=doc;
+  }
+  return doc;
 }
 async function envoyerDocumentEmail(kind, doc){
   if(!doc){ toast("Document introuvable."); return; }
@@ -7334,9 +7374,11 @@ async function envoyerDocumentEmail(kind, doc){
     // toute autre opération asynchrone (publication portail, historique, etc.).
     // Sans cette sauvegarde immédiate, un ancien instantané Firebase pouvait
     // réécrire le document en "À envoyer" pendant la publication du portail.
-    markDocSent(kind, doc, "email");
+    doc=markDocSent(kind, doc, "email")||doc;
+    // Sauvegarde locale immédiate et rendu depuis l’objet canonique de state.
     saveCache();
     render();
+    renderModal();
     try{
       await saveCloudNow();
     }catch(statusSyncErr){
@@ -7804,6 +7846,7 @@ async function handleAction(action){
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
   if(action.indexOf("devis-filtre-")===0){ ui.devisFiltre=action.slice(13); ui.confirmDelete=null; render(); return; }
+  if(action.indexOf("fac-filtre-")===0){ ui.factureFiltre=action.slice(11); ui.confirmDelete=null; render(); return; }
   if(action.indexOf("devis-archive-")===0){ var da=findDevis(action.slice(14)); if(da){ da.statutAvantArchive=da.statut; da.statut="archive"; ui.devisFiltre="archives"; saveCache(); render(); toast("Devis archivé."); } return; }
   if(action.indexOf("devis-unarchive-")===0){ var du=findDevis(action.slice(16)); if(du){ du.statut=du.statutAvantArchive||"envoye"; delete du.statutAvantArchive; ui.devisFiltre=(du.statut==="accepte"?"acceptes":(du.statut==="refuse"?"refuses":"actifs")); saveCache(); render(); toast("Devis désarchivé."); } return; }
   if(action.indexOf("devis-del-")===0){ var did=action.slice(10), key="devis:"+did;
