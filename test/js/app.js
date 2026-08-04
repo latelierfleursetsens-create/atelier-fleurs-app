@@ -1,9 +1,10 @@
-/* V6.4.6 TEST — Correctif ajout des photos d’inspiration sur Android. */
+/* V6.4.7 TEST — Refonte de la détection des mariages confirmés par acompte versé. */
 "use strict";
 
-var APP_VERSION="V6.4.6 TEST";
+var APP_VERSION="V6.4.7 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
+  "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
   "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
   "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
@@ -1701,7 +1702,7 @@ function viewDashboardMarriageWeekendPlanning(){
   var startYear=new Date().getFullYear(), count=mariagePlanningYearsCount(), years=[];
   for(var y=0;y<count;y++) years.push(startYear+y);
   var html='<div class="card" style="margin-bottom:14px;border-color:var(--gold-s);background:#fffdfb;">'+
-    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning des mariages confirmés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Chaque case indique le nombre de mariages confirmés sur le week-end. Seuls les dossiers avec facture d’acompte payée sont comptés.</p></div>'+ 
+    '<div class="flexb" style="align-items:flex-start;gap:10px;"><div><h3 style="margin:0;color:var(--bordeaux);">💍 Planning des mariages confirmés</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Chaque case indique le nombre de mariages confirmés sur le week-end. Seuls les dossiers avec au moins un acompte réellement versé sont comptés.</p></div>'+ 
     '<button class="btn small gold" data-action="dash-marriage-add-year">+ Ajouter une année</button></div>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:12px;">';
   years.forEach(function(year){
@@ -5963,13 +5964,60 @@ function mariageDevisIdsLies(m){
   }
   return Object.keys(ids);
 }
+function normaliserCleMariage(v){
+  return String(v||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9@]+/g,"").trim();
+}
+function factureEstPayee(f){
+  if(!f) return false;
+  var st=normaliserCleMariage(f.statut);
+  return st==="payee" || st==="paye" || st==="paid" || (!!f.datePaiement && num(f.montant)>0);
+}
+function factureConfirmeReservation(f){
+  if(!f || !factureEstPayee(f) || num(f.montant)<=0) return false;
+  var type=normaliserCleMariage(f.type);
+  var texte=normaliserCleMariage([f.numero,f.libelle,f.notes,f.devisNumero].filter(Boolean).join(" "));
+  // Un acompte payé confirme la réservation. Une facture totale déjà payée la confirme aussi.
+  return type==="acompte" || type==="factureacompte" || type==="totale" || type==="total" || texte.indexOf("acompte")>=0;
+}
+function factureCorrespondAuClientMariage(f,m){
+  if(!f || !m) return false;
+  var fc=f.client||{};
+  var emailM=normaliserCleMariage(m.email), emailF=normaliserCleMariage(fc.email||f.email);
+  if(emailM && emailF && emailM===emailF) return true;
+  var telM=normaliserCleMariage(m.tel), telF=normaliserCleMariage(fc.tel||f.tel);
+  if(telM && telF && telM===telF) return true;
+  var nomM=normaliserCleMariage(m.nom), nomF=normaliserCleMariage(fc.nom||f.clientNom);
+  return !!(nomM && nomF && nomM===nomF);
+}
 function mariageAcomptePaye(m){
   if(!m) return false;
+
+  // Les anciennes fiches ou encaissements saisis manuellement restent reconnus.
+  if(mariageWorkflowManual(m,"acompte_encaisse") || m.acomptePaye===true || m.acompteVerse===true || num(m.acompteMontant)>0) return true;
+
   var devisIds=mariageDevisIdsLies(m);
-  return (state.factures||[]).some(function(f){
-    if(!f || f.type!=="acompte" || f.statut!=="payee" || f.versionArchive) return false;
+  var factureIds={};
+  [m.factureAcompteId,m.factureId].forEach(function(id){ if(id) factureIds[id]=true; });
+  (state.commandes||[]).forEach(function(c){
+    if(!c) return;
+    if(c.mariageId===m.id || (c.devisId && devisIds.indexOf(c.devisId)>=0)){
+      if(c.factureId) factureIds[c.factureId]=true;
+      if(c.factureAcompteId) factureIds[c.factureAcompteId]=true;
+    }
+  });
+
+  var factures=(state.factures||[]);
+  var preuveLiee=factures.some(function(f){
+    if(!factureConfirmeReservation(f)) return false;
     if(f.mariageId && f.mariageId===m.id) return true;
+    if(f.id && factureIds[f.id]) return true;
     return !!(f.devisId && devisIds.indexOf(f.devisId)>=0);
+  });
+  if(preuveLiee) return true;
+
+  // Réparation des anciens dossiers dont le lien technique a été perdu : on exige une identité cliente exacte.
+  return factures.some(function(f){
+    return factureConfirmeReservation(f) && factureCorrespondAuClientMariage(f,m);
   });
 }
 
