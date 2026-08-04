@@ -1,6 +1,13 @@
-# MyBusiness V6.4.10 PROD
+# MyBusiness V6.4.13 PROD
 
-## V6.4.10 PROD
+## V6.4.13 PROD
+
+- Après un envoi par e-mail confirmé par le Worker, le devis ou la facture passe automatiquement au statut **Envoyé(e)**.
+- La date et l’heure précises ainsi que le mode d’envoi sont mémorisés.
+- En cas d’échec de l’e-mail, le statut reste inchangé.
+- Les boutons manuels **Marquer envoyé / Marquer envoyée** restent disponibles et sont distingués dans l’historique.
+
+## V6.4.12 PROD
 - Nouveau planning graphique des week-ends fondé sur le classement métier des fiches : Préparation commande, Livraison et Archives.
 - Les dossiers encore dans Études mariage ne sont pas comptés.
 - Rendez-vous téléphoniques indisponibles du 24 août au 6 septembre 2026 inclus dans l’espace client.
@@ -27,7 +34,7 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - Historique permanent avec date et heure.
 - Bouton « Marquer comme consulté ».
 
-## V6.4.3 TEST — Planning mariages compact
+## V6.4.3 PROD — Planning mariages compact
 
 - Affichage automatique de l'année en cours et des deux années suivantes.
 - Bouton « Ajouter une année » pour étendre le planning sans limite prédéfinie.
@@ -36,8 +43,13 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - Clic sur une case occupée pour ouvrir le dossier correspondant ; choix proposé si plusieurs mariages sont présents.
 
 
-## V6.4.4 TEST — Correctif facture d’acompte
+## V6.4.4 PROD — Correctif facture d’acompte
 
 - L’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.
 - Exemple vérifié : 156,00 € - 10 % = 140,40 €, puis acompte 30 % = 42,12 €.
 - La facture de solde est calculée sur le même montant net et déduit l’acompte exact.
+
+## V6.4.12 PROD
+
+- Barre de recherche globale centrée dans l’en-tête.
+- Contraste renforcé des boutons de l’aperçu devis/facture.

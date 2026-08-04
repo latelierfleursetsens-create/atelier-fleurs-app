@@ -1,15 +1,17 @@
-/* V6.4.10 PROD — Planning annuel compact des week-ends, une année à la fois. */
+/* V6.4.13 PROD — Passage automatique au statut envoyé après un envoi par e-mail réussi. */
 "use strict";
 
-var APP_VERSION="V6.4.10 PROD";
+var APP_VERSION="V6.4.13 PROD";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
+  "V6.4.13 PROD — Devis et factures automatiquement marqués envoyés après confirmation de l’envoi par e-mail, avec conservation du bouton manuel.",
+  "V6.4.12 PROD — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 PROD — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
-  "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
-  "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
-  "V6.4.7 TEST — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
-  "V6.4.4 TEST — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
-  "V6.4.3 TEST — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
+  "V6.4.9 PROD — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
+  "V6.4.8 PROD — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
+  "V6.4.7 PROD — Planning mariages fiabilisé : un mariage apparaît dès qu’un acompte est réellement versé, même après modification ou archivage des documents liés.",
+  "V6.4.4 PROD — Correctif : l’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.",
+  "V6.4.3 PROD — Planning compact des week-ends sur 3 ans minimum, avec ajout libre des années suivantes.",
   "V6.3.0 PROD — Date d’échéance demandée à la création des devis et factures, publication au calendrier Apple et retrait automatique après acceptation ou paiement.",
   "V6.0.1 PROD — Calendrier Apple opérationnel : Worker Cloudflare, lien privé, synchronisation automatique des rendez-vous, livraisons, mariages et ateliers.",
   "V6.0.0 PROD — Calendrier Apple synchronisé : flux iCalendar privé, assistant de configuration et mise à jour automatique des rendez-vous, livraisons et mariages.",
@@ -113,6 +115,9 @@ var DEFAULT_SETTINGS = {
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
 var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"" };
 var fileHandle = null;
+window.addEventListener("beforeunload",function(e){
+  if(documentEditorHasUnsavedChanges("devis")||documentEditorHasUnsavedChanges("facture")){ e.preventDefault(); e.returnValue=""; }
+});
 
 /* ===================== Calendrier Apple synchronisé ===================== */
 var CALENDAR_WORKER_URL="https://atelier-fleurs-calendar.latelierfleursetsens.workers.dev";
@@ -1154,11 +1159,13 @@ function globalSearchResults(q){
     addSearchResult(res,q,"client",c.id,"👤 "+(c.nom||"Client"),[c.email,c.tel,c.canal].filter(Boolean).join(" · "),[c],30);
   });
   (state.devis||[]).forEach(function(d){
-    var t=totals(d.lignes||[],state.settings.partService);
-    addSearchResult(res,q,"devis",d.id,"📄 "+(d.numero||"Devis")+" · "+((d.client&&d.client.nom)||"Client"),frDate(d.date)+" · "+euro(t.total),[d],50);
+    var t=totals(d.lignes||[],state.settings.partService), dv=(Number(d.version)||1);
+    var dState=d.versionArchive?"Version archivée":"Version active";
+    addSearchResult(res,q,"devis",d.id,"📄 "+(d.numero||"Devis")+" · "+((d.client&&d.client.nom)||"Client"),frDate(d.date)+" · "+euro(t.total)+" · V"+dv+" · "+dState,[d],50);
   });
   (state.factures||[]).forEach(function(f){
-    addSearchResult(res,q,"facture",f.id,"🧾 "+(f.numero||"Facture")+" · "+((f.client&&f.client.nom)||"Client"),frDate(f.date)+" · "+euro(f.montant||0)+" · "+(TYPE_FAC[f.type]||"Facture"),[f],50);
+    var fv=(Number(f.version)||1), fState=f.versionArchive?"Version archivée":"Version active";
+    addSearchResult(res,q,"facture",f.id,"🧾 "+(f.numero||"Facture")+" · "+((f.client&&f.client.nom)||"Client"),frDate(f.date)+" · "+euro(f.montant||0)+" · "+(TYPE_FAC[f.type]||"Facture")+" · V"+fv+" · "+fState,[f],50);
   });
   (state.mariages||[]).forEach(function(m){
     addSearchResult(res,q,"mariage",m.id,"💍 Mariage · "+(m.nom||"Cliente"),[m.dateMariage?frDate(m.dateMariage):"",m.lieu,m.theme].filter(Boolean).join(" · "),[m],40);
@@ -5428,6 +5435,27 @@ function viewParams(){
 }
 
 /* ===================== Document (devis / facture) ===================== */
+function documentEditorHasUnsavedChanges(kind){
+  try{
+    if(kind==="devis" && ui.wizard && ui.wizard.editId && ui.wizard.originalSnapshot){
+      var w=ui.wizard, o=w.originalSnapshot;
+      var current={client:w.client,lignes:w.lignes,ajustements:w.ajustements,notes:w.notes,date:w.date,echeance:w.echeance};
+      var original={client:o.client,lignes:o.lignes,ajustements:normalizeAdjustments(o),notes:o.notes||"",date:o.date||"",echeance:o.echeance||o.validite||""};
+      return JSON.stringify(current)!==JSON.stringify(original);
+    }
+    if(kind==="facture" && ui.factureDraft && ui.factureDraft.editId && ui.factureDraft.originalSnapshot){
+      var f=ui.factureDraft, of=f.originalSnapshot;
+      var cur={client:f.client,lignes:f.lignes,ajustements:f.ajustements,notes:f.notes,date:f.date,echeance:f.echeance,paiementClient:f.paiementClient,acompteDejaPaye:Number(f.acompteDejaPaye||0)};
+      var org={client:of.client,lignes:of.lignes,ajustements:normalizeAdjustments(of),notes:of.notes||"",date:of.date||"",echeance:of.echeance||"",paiementClient:of.paiementClient||"",acompteDejaPaye:Number(of.acompteDejaPaye||0)};
+      return JSON.stringify(cur)!==JSON.stringify(org);
+    }
+  }catch(e){}
+  return false;
+}
+function confirmEditorExit(kind){
+  if(!documentEditorHasUnsavedChanges(kind)) return true;
+  return window.confirm("Des modifications ne sont pas enregistrées. Voulez-vous quitter sans les enregistrer ?");
+}
 function viewDoc(p){
   var s=state.settings, doc=p.doc, kind=p.kind, t=(kind==="facture"?factureCalc(doc.lignes,s.partService,doc):documentCalc(doc.lignes,s.partService,doc));
   var titre = kind==="devis" ? "DEVIS N° "+esc(doc.numero) : TYPE_FAC[doc.type].toUpperCase()+" N° "+esc(doc.numero);
@@ -5467,8 +5495,9 @@ function viewDoc(p){
     (kind==="facture"?'<p style="margin:0 0 6px;">'+esc(s.penalites)+'</p>':'')+
     '<p style="margin:0;">'+esc(s.mentionTVA)+'.</p></div>';
   var signature = kind==="devis" ? '<div style="margin-top:14px;font-size:10.5px;"><div style="font-weight:700;">Bon pour accord</div><div class="muted">Date et signature du client :</div><div style="margin-top:18px;border-top:1px solid var(--line);width:200px;"></div></div>' : '';
+  var linkedMarriage=findMariageForDoc(kind,doc);
   return '<div class="modal" id="modal"><div class="modal-inner">'+
-    '<div class="modal-actions"><button class="btn gold" data-action="doc-test-pdf-only">Télécharger PDF</button><button class="btn ghost" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn primary" data-action="doc-email">Envoyer par email</button><button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
+    '<div class="modal-actions"><button class="btn doc-download" data-action="doc-test-pdf-only">📄 Télécharger PDF</button><button class="btn doc-print" data-action="doc-print">🖨️ Imprimer / Enregistrer en PDF</button><button class="btn doc-email" data-action="doc-email">✉️ Envoyer par email</button><button class="btn doc-edit" data-action="doc-edit">✏️ Modifier</button>'+(linkedMarriage?'<button class="btn doc-marriage" data-action="doc-open-marriage">💍 Ouvrir le mariage</button>':'')+'<button class="btn doc-close" data-action="doc-close">Fermer</button></div>'+
     '<div class="doc" id="doc" style="width:160mm;max-width:160mm;box-sizing:border-box;overflow-wrap:break-word;word-break:normal;margin:0;">'+
       '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;"><div>'+logoImg+emetteur+'</div><div style="text-align:right;">'+rightInfo+'</div></div>'+
       client+acEncart+
@@ -7213,20 +7242,48 @@ function prepareDocumentContactAndAmount(kind, doc){
   return true;
 }
 
-function markDocSent(kind, doc){
+function appendDocumentSendHistory(kind, doc, mode, sentAt){
+  if(!doc) return;
+  doc.historique=doc.historique||[];
+  var label=(kind==="devis"?"Devis":"Facture")+(mode==="email"?" envoyé(e) automatiquement par e-mail.":" marqué(e) comme envoyé(e) manuellement.");
+  doc.historique.unshift({date:sentAt,texte:label,type:"envoi",mode:mode});
+  if(doc.historique.length>50) doc.historique=doc.historique.slice(0,50);
+}
+function markDocSent(kind, doc, mode){
+  if(!doc) return;
+  mode=mode||"email";
+  var sentAt=new Date().toISOString();
   if(kind==="devis"){
-    if(doc.statut==="brouillon") doc.statut="envoye";
+    if(doc.statut==="brouillon" || doc.statut==="a_envoyer") doc.statut="envoye";
     doc.emailEnvoyeLe=todayISO();
+    doc.emailEnvoyeAt=sentAt;
+    doc.dernierEnvoiAt=sentAt;
+    doc.dernierEnvoiMode=mode;
     var m=state.mariages.find(function(x){return x.devisLie===doc.id;});
-    if(m){ m.devisEnvoye=true; if(!m.devisDate) m.devisDate=todayISO(); if(m.statut==="contact") m.statut="devis_envoye"; }
+    if(m){
+      m.devisEnvoye=true;
+      if(!m.devisDate) m.devisDate=todayISO();
+      if(m.statut==="contact") m.statut="devis_envoye";
+      m.historique=m.historique||[];
+      m.historique.unshift({date:sentAt,texte:"Devis "+(doc.numero||"")+ (mode==="email"?" envoyé par e-mail.":" marqué envoyé manuellement.")});
+    }
   } else if(kind==="facture"){
     if(doc.statut!=="payee") doc.statut="envoyee";
     doc.emailEnvoyeeLe=todayISO();
+    doc.emailEnvoyeeAt=sentAt;
+    doc.dernierEnvoiAt=sentAt;
+    doc.dernierEnvoiMode=mode;
     if(doc.devisId){
       var m2=state.mariages.find(function(x){return x.devisLie===doc.devisId;});
-      if(m2){ m2.factureEnvoyee=true; if(!m2.factureDate) m2.factureDate=todayISO(); }
+      if(m2){
+        m2.factureEnvoyee=true;
+        if(!m2.factureDate) m2.factureDate=todayISO();
+        m2.historique=m2.historique||[];
+        m2.historique.unshift({date:sentAt,texte:"Facture "+(doc.numero||"")+ (mode==="email"?" envoyée par e-mail.":" marquée envoyée manuellement.")});
+      }
     }
   }
+  appendDocumentSendHistory(kind,doc,mode,sentAt);
 }
 async function envoyerDocumentEmail(kind, doc){
   if(!doc){ toast("Document introuvable."); return; }
@@ -7273,7 +7330,7 @@ async function envoyerDocumentEmail(kind, doc){
     var res=await fetch(MAIL_WORKER_URL,{ method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
     var txt=await res.text();
     if(!res.ok){ throw new Error(txt||("Erreur HTTP "+res.status)); }
-    markDocSent(kind, doc);
+    markDocSent(kind, doc, "email");
     var portalMessage="";
     try{
       await publishDocumentToClientPortal(kind,doc,pdf64);
@@ -7711,7 +7768,7 @@ async function handleAction(action){
   if(action.indexOf("params-prestation-del-")===0){ captureParamsForm(); var pid=action.slice(22); state.settings.prestationsBibliotheque=prestationBibliothequeNormalisee().filter(function(p){return p.id!==pid;}); saveCache(); render(); toast("Prestation supprimée de la bibliothèque."); return; }
 
   // wizard
-  if(action==="wz-cancel"){ ui.wizard=null; render(); return; }
+  if(action==="wz-cancel"){ if(!confirmEditorExit("devis")) return; ui.wizard=null; render(); return; }
   if(action==="wz-mode-nouveau"){ captureWizardInputs(); ui.wizard.clientMode="nouveau"; render(); return; }
   if(action==="wz-mode-existant"){ ui.wizard.clientMode="existant"; render(); return; }
   if(action==="wz-next"){ captureWizardInputs();
@@ -7750,7 +7807,11 @@ async function handleAction(action){
       render();
       toast("Devis accepté : choisis maintenant facture d\'acompte ou facture complète.");
     }
-    else { d.statut=st; saveCache(); render(); }
+    else {
+      if(st==="envoye") markDocSent("devis",d,"manuel");
+      else d.statut=st;
+      saveCache(); render();
+    }
   } return; }
 
   // commandes
@@ -7778,7 +7839,7 @@ async function handleAction(action){
   if(action==="fac-new"){ newFactureDraft(); ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("fac-edit-")===0){ var ef=state.factures.find(function(x){return x.id===action.slice(9);}); if(ef){ newFactureDraft(ef,false); ui.tab="factures"; render(); window.scrollTo(0,0); } return; }
   if(action.indexOf("fac-version-")===0){ var vf=state.factures.find(function(x){return x.id===action.slice(12);}); if(vf){ newFactureDraft(vf,true); ui.tab="factures"; render(); window.scrollTo(0,0); } return; }
-  if(action==="fac-cancel-manual"){ ui.factureDraft=null; render(); return; }
+  if(action==="fac-cancel-manual"){ if(!confirmEditorExit("facture")) return; ui.factureDraft=null; render(); return; }
   if(action==="fac-mode-nouveau"){ captureFactureDraft(); ui.factureDraft.clientMode="nouveau"; render(); return; }
   if(action==="fac-mode-existant"){ captureFactureDraft(); ui.factureDraft.clientMode="existant"; if(!ui.factureDraft.clientId&&state.clients[0]) ui.factureDraft.clientId=state.clients[0].id; render(); return; }
   if(action==="fac-addfree"){ captureFactureDraft(); ui.factureDraft.lignes.push({id:uid(),designation:"",type:"bien",qte:1,prix:0}); render(); return; }
@@ -7879,9 +7940,10 @@ async function handleAction(action){
     var ff=state.factures.find(function(x){return x.id===fid;});
     if(ff){
       var finishStatus=function(){
-        ff.statut=st2;
+        if(st2==="envoyee") markDocSent("facture",ff,"manuel");
+        else ff.statut=st2;
         if(st2==="payee") ff.datePaiement=ff.datePaiement||todayISO();
-        else ff.datePaiement=null;
+        else if(st2!=="envoyee") ff.datePaiement=null;
         saveCache(); render();
       };
       if(st2==="payee" && !ff.paiementClient){
@@ -8023,6 +8085,20 @@ async function handleAction(action){
 
   // doc modal
   if(action==="doc-close"){ ui.preview=null; renderModal(); return; }
+  if(action==="doc-edit"){
+    if(!ui.preview||!ui.preview.doc){ toast("Document introuvable."); return; }
+    var editKind=ui.preview.kind, editDoc=ui.preview.doc;
+    ui.preview=null;
+    if(editKind==="devis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(editDoc,false); render(); window.scrollTo(0,0); return; }
+    if(editKind==="facture"){ newFactureDraft(editDoc,false); ui.tab="factures"; render(); window.scrollTo(0,0); return; }
+    return;
+  }
+  if(action==="doc-open-marriage"){
+    if(!ui.preview||!ui.preview.doc){ toast("Document introuvable."); return; }
+    var linkedMarriage=findMariageForDoc(ui.preview.kind,ui.preview.doc);
+    if(!linkedMarriage){ toast("Aucune fiche mariage liée à ce document."); return; }
+    ui.preview=null; ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=linkedMarriage.id; ui.mariageDetailTab="resume"; ui.atelierOpen=null; ui.commandeOpen=null; render(); window.scrollTo(0,0); return;
+  }
   if(action==="doc-print"){ if(ui.preview && prepareDocumentContactAndAmount(ui.preview.kind,ui.preview.doc)){ saveCache(); renderModal(); setTimeout(function(){window.print();},60); } return; }
   if(action==="doc-email"){ if(ui.preview){ envoyerDocumentEmail(ui.preview.kind, ui.preview.doc); } return; }
 }

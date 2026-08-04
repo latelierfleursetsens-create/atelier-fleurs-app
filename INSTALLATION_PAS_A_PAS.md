@@ -1,4 +1,4 @@
-# Installation V6.4.3 TEST
+# Installation V6.4.3 PROD
 
 1. Sauvegarder la version de production actuelle.
 2. Remplacer les fichiers de production par ceux de cette archive.
