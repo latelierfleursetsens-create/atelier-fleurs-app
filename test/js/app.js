@@ -1,10 +1,10 @@
-/* V6.4.11 TEST — Modification directe depuis l’aperçu des devis et factures. */
+/* V6.4.12 TEST — Ergonomie de la recherche globale et contraste des actions documentaires. */
 "use strict";
 
-var APP_VERSION="V6.4.11 TEST";
+var APP_VERSION="V6.4.12 TEST";
 var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
 var APP_CHANGELOG = [
-  "V6.4.11 TEST — Aperçu documents : boutons Modifier et Ouvrir le mariage, identification de la version active dans la recherche et alerte avant abandon d’une modification.",
+  "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
   "V6.4.9 TEST — Suppression du graphique à zéros : nouveau planning en liste, uniquement les week-ends contenant des mariages avec acompte versé.",
   "V6.4.8 TEST — Nouveau planning graphique des week-ends : seuls les dossiers en Préparation commande, Livraison ou Archives sont comptés. Indisponibilité des rendez-vous téléphoniques du 24/08 au 06/09 inclus.",
@@ -5496,7 +5496,7 @@ function viewDoc(p){
   var signature = kind==="devis" ? '<div style="margin-top:14px;font-size:10.5px;"><div style="font-weight:700;">Bon pour accord</div><div class="muted">Date et signature du client :</div><div style="margin-top:18px;border-top:1px solid var(--line);width:200px;"></div></div>' : '';
   var linkedMarriage=findMariageForDoc(kind,doc);
   return '<div class="modal" id="modal"><div class="modal-inner">'+
-    '<div class="modal-actions"><button class="btn gold" data-action="doc-test-pdf-only">Télécharger PDF</button><button class="btn ghost" data-action="doc-print">Imprimer / Enregistrer en PDF</button><button class="btn primary" data-action="doc-email">Envoyer par email</button><button class="btn soft" data-action="doc-edit">✏️ Modifier</button>'+(linkedMarriage?'<button class="btn ghost" data-action="doc-open-marriage">💍 Ouvrir le mariage</button>':'')+'<button class="btn ghost" data-action="doc-close">Fermer</button></div>'+
+    '<div class="modal-actions"><button class="btn doc-download" data-action="doc-test-pdf-only">📄 Télécharger PDF</button><button class="btn doc-print" data-action="doc-print">🖨️ Imprimer / Enregistrer en PDF</button><button class="btn doc-email" data-action="doc-email">✉️ Envoyer par email</button><button class="btn doc-edit" data-action="doc-edit">✏️ Modifier</button>'+(linkedMarriage?'<button class="btn doc-marriage" data-action="doc-open-marriage">💍 Ouvrir le mariage</button>':'')+'<button class="btn doc-close" data-action="doc-close">Fermer</button></div>'+
     '<div class="doc" id="doc" style="width:160mm;max-width:160mm;box-sizing:border-box;overflow-wrap:break-word;word-break:normal;margin:0;">'+
       '<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;"><div>'+logoImg+emetteur+'</div><div style="text-align:right;">'+rightInfo+'</div></div>'+
       client+acEncart+

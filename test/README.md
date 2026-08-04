@@ -1,6 +1,6 @@
-# MyBusiness V6.4.11 TEST
+# MyBusiness V6.4.12 TEST
 
-## V6.4.11 TEST
+## V6.4.12 TEST
 - Nouveau planning graphique des week-ends fondé sur le classement métier des fiches : Préparation commande, Livraison et Archives.
 - Les dossiers encore dans Études mariage ne sont pas comptés.
 - Rendez-vous téléphoniques indisponibles du 24 août au 6 septembre 2026 inclus dans l’espace client.
@@ -41,3 +41,8 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - L’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.
 - Exemple vérifié : 156,00 € - 10 % = 140,40 €, puis acompte 30 % = 42,12 €.
 - La facture de solde est calculée sur le même montant net et déduit l’acompte exact.
+
+## V6.4.12 TEST
+
+- Barre de recherche globale centrée dans l’en-tête.
+- Contraste renforcé des boutons de l’aperçu devis/facture.
