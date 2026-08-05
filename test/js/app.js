@@ -1,10 +1,10 @@
-/* V7.0.0 TEST — Étape 1 : réorganisation de la section Mes besoins de l’espace client. */
+/* V7.0.1 TEST — Étape 2 : ajout des quantités dans la section Mes besoins de l’espace client. */
 "use strict";
 
-var APP_VERSION="V7.0.0 TEST";
+var APP_VERSION="V7.0.1 TEST";
 var APP_VERSION_NOTE = "Correctif important : la synchronisation des rappels ne tourne plus en boucle et ne se déclenche que si la liste des devis surveillés a réellement changé.";
 var APP_CHANGELOG = [
-  "V7.0.0 TEST — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
+  "V7.0.1 TEST — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
   "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
   "V6.5.6 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",

@@ -1,6 +1,6 @@
-# MyBusiness V7.0.0 TEST
+# MyBusiness V7.0.1 TEST
 
-## V7.0.0 TEST
+## V7.0.1 TEST
 
 - Après un envoi par e-mail confirmé par le Worker, le devis ou la facture passe automatiquement au statut **Envoyé(e)**.
 - La date et l’heure précises ainsi que le mode d’envoi sont mémorisés.
@@ -55,7 +55,7 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - Contraste renforcé des boutons de l’aperçu devis/facture.
 
 
-## V7.0.0 TEST — Étape 1
+## V7.0.1 TEST — Étape 1
 - Réorganisation visuelle de « Mes besoins » par catégories.
 - Ajout de deux guides visuels des tailles de bouquet.
 - Aucune modification des données sauvegardées ni des anciens espaces clients.
