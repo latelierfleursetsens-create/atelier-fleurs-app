@@ -1,6 +1,6 @@
-# MyBusiness V6.6.0 PROD
+# MyBusiness V6.6.2 PROD
 
-## V6.6.0 PROD
+## V6.6.2 PROD
 
 - Après un envoi par e-mail confirmé par le Worker, le devis ou la facture passe automatiquement au statut **Envoyé(e)**.
 - La date et l’heure précises ainsi que le mode d’envoi sont mémorisés.
