@@ -1,4 +1,4 @@
-/* V7.0.4 TEST — Référentiel des créations mariage, enrichi par catégories. */
+/* V7.0.5 TEST — Référentiel des créations mariage, enrichi par catégories. */
 (function(global){
   "use strict";
   global.MARIAGE_CREATIONS_STANDARD = [
