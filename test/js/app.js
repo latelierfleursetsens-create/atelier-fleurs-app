@@ -4,7 +4,7 @@
 var APP_VERSION="V6.5.4 TEST";
 var APP_VERSION_NOTE = "Rappels automatiques des devis à J-14, J-7, J-2 et le jour de l’échéance via Cloudflare.";
 var APP_CHANGELOG = [
-  "V6.5.4 TEST — Worker Cloudflare complet, e-mail test, synchronisation sécurisée et suivi du dernier passage.",
+  "V6.5.4 TEST — Bandeaux repliables des devis mariage arrivant à échéance sous 15 jours et des devis expirés non traités.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -1950,70 +1950,72 @@ function versionMetaHTML(doc){
   return '<span class="pill" style="background:#efe7df;color:var(--ink-s);">V'+v+(doc&&doc.versionArchive?' · archivée':'')+'</span>';
 }
 
-
-function reminderEligibleQuote(d){
-  if(!(d && d.statut==="envoye" && !d.versionArchive && d.echeance && d.mariageId && d.client && String(d.client.email||"").indexOf("@")>0)) return false;
+/* ===================== Devis : liste ===================== */
+function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
+function devisMariageEligibleRappel(d){
+  if(!d || d.statut!=="envoye" || d.versionArchive || !d.echeance) return false;
+  if(!d.client || String(d.client.email||"").indexOf("@")<0) return false;
+  if(!d.mariageId) return false;
   var mariage=getMariage(d.mariageId);
   return !!(mariage && mariage.ownerUid);
 }
-function quoteDeadlineDiff(d){
-  if(!d || !d.echeance) return null;
-  var a=new Date(todayISO()+"T12:00:00"), b=new Date(d.echeance+"T12:00:00");
-  if(isNaN(a.getTime()) || isNaN(b.getTime())) return null;
-  return Math.round((b-a)/86400000);
+function joursAvantEcheanceDevis(echeance){
+  if(!echeance) return null;
+  var aujourdhui=todayISO();
+  var d1=new Date(aujourdhui+"T12:00:00");
+  var d2=new Date(String(echeance)+"T12:00:00");
+  if(isNaN(d2.getTime())) return null;
+  return Math.round((d2.getTime()-d1.getTime())/86400000);
 }
 function devisEcheancePanelsHTML(){
-  var upcoming=[], expired=[];
-  (state.devis||[]).forEach(function(d){
-    if(!reminderEligibleQuote(d)) return;
-    var diff=quoteDeadlineDiff(d);
-    if(diff===null) return;
-    if(diff>=0 && diff<15) upcoming.push({devis:d,diff:diff});
-    else if(diff<0) expired.push({devis:d,diff:diff});
-  });
-  upcoming.sort(function(a,b){return a.diff-b.diff;});
-  expired.sort(function(a,b){return b.diff-a.diff;});
+  var eligibles=(state.devis||[]).filter(devisMariageEligibleRappel);
+  var proches=eligibles.filter(function(d){ var j=joursAvantEcheanceDevis(d.echeance); return j!==null && j>=0 && j<15; })
+    .sort(function(a,b){ return String(a.echeance||"").localeCompare(String(b.echeance||"")); });
+  var expires=eligibles.filter(function(d){ var j=joursAvantEcheanceDevis(d.echeance); return j!==null && j<0; })
+    .sort(function(a,b){ return String(b.echeance||"").localeCompare(String(a.echeance||"")); });
   var html="";
-  function panel(items,kind){
-    if(!items.length) return "";
-    var open=kind==="upcoming"?!!ui.devisEcheancesOpen:!!ui.devisExpiresOpen;
-    var title=kind==="upcoming"?"Devis arrivant à échéance sous 15 jours":"Devis expirés non traités";
-    var color=kind==="upcoming"?"#7a5a12":"#8b2f2f";
-    var bg=kind==="upcoming"?"#f6ead2":"#f7dddd";
-    var action=kind==="upcoming"?"devis-echeances-toggle":"devis-expires-toggle";
-    var out='<div class="card" style="padding:0;overflow:hidden;border-color:'+color+';margin-bottom:14px;">'+
-      '<button data-action="'+action+'" style="width:100%;border:none;background:'+bg+';padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
-      '<div class="flexb"><div style="font-weight:800;color:'+color+';">'+(open?'▾':'▸')+' '+title+' <span class="muted">('+items.length+')</span></div></div></button>';
-    if(open){
-      out+='<div style="padding:10px 12px 4px;">';
-      items.forEach(function(x){
-        var d=x.devis, t=totals(d.lignes,state.settings.partService), stateTxt="", stateColor=color;
-        if(kind==="upcoming"){
-          if(x.diff===0) stateTxt="Échéance aujourd’hui";
-          else if(x.diff===1) stateTxt="Échéance demain";
-          else stateTxt="Échéance dans "+x.diff+" jours";
-        }else{
-          var late=Math.abs(x.diff);
-          stateTxt="Expiré depuis "+late+" jour"+(late>1?"s":"");
-        }
-        out+='<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap;">'+
-          '<div><div style="font-weight:700;color:var(--bordeaux);">'+esc(d.client&&d.client.nom||"Client")+' · '+esc(d.numero)+'</div>'+ 
-          '<div style="font-size:12px;color:'+stateColor+';">'+stateTxt+' · '+frDate(d.echeance)+' · '+euro(t.total)+'</div></div>'+ 
-          '<div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="devis-preview-'+esc(d.id)+'">Aperçu</button><button class="btn small soft" data-action="devis-edit-'+esc(d.id)+'">Modifier</button></div>'+ 
-          '</div>';
-      });
-      out+='</div>';
-    }
-    out+='</div>';
-    return out;
+
+  function ligne(d,expire){
+    var jours=joursAvantEcheanceDevis(d.echeance);
+    var t=totals(d.lignes,state.settings.partService);
+    var mariage=getMariage(d.mariageId);
+    var libelle="";
+    var color="var(--green)";
+    if(expire){
+      var retard=Math.abs(jours||0);
+      libelle="Expiré depuis "+retard+" jour"+(retard>1?"s":"");
+      color="#8b2f2f";
+    }else if(jours===0){ libelle="Expire aujourd’hui"; color="#8b2f2f"; }
+    else if(jours<=2){ libelle="Échéance dans "+jours+" jour"+(jours>1?"s":""); color="#b35c22"; }
+    else if(jours<=7){ libelle="Échéance dans "+jours+" jours"; color="#8a6a13"; }
+    else { libelle="Échéance dans "+jours+" jours"; color="var(--green)"; }
+    return '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap;">'+
+      '<div><div style="font-weight:700;color:var(--bordeaux);">'+esc(d.client&&d.client.nom||"Client")+' · '+esc(d.numero||"")+'</div>'+
+      '<div style="font-size:12px;color:'+color+';font-weight:700;">'+libelle+' · '+frDate(d.echeance)+' · '+euro(t.total)+'</div>'+
+      (mariage&&mariage.dateMariage?'<div class="muted" style="font-size:11px;">Mariage le '+frDate(mariage.dateMariage)+'</div>':'')+'</div>'+
+      '<div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="devis-preview-'+esc(d.id)+'">Aperçu</button><button class="btn small soft" data-action="devis-edit-'+esc(d.id)+'">Modifier</button></div>'+
+    '</div>';
   }
-  html+=panel(upcoming,"upcoming");
-  html+=panel(expired,"expired");
+
+  if(proches.length){
+    var open=!!ui.devisEcheancesOpen;
+    html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8a6a13;margin-bottom:14px;">'+
+      '<button data-action="devis-echeances-toggle" style="width:100%;border:none;background:#f6ead2;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+      '<div class="flexb"><div style="font-weight:800;color:#7a5a12;">'+(open?'▾':'▸')+' Devis arrivant à échéance sous 15 jours <span class="muted">('+proches.length+')</span></div><div style="font-size:12px;color:#7a5a12;font-weight:700;">Concernés par les relances automatiques</div></div></button>';
+    if(open){ html+='<div style="padding:10px 12px 4px;">'+proches.map(function(d){return ligne(d,false);}).join('')+'</div>'; }
+    html+='</div>';
+  }
+
+  if(expires.length){
+    var openExp=!!ui.devisExpiresOpen;
+    html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8b2f2f;margin-bottom:14px;">'+
+      '<button data-action="devis-expires-toggle" style="width:100%;border:none;background:#f7dddd;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+      '<div class="flexb"><div style="font-weight:800;color:#8b2f2f;">'+(openExp?'▾':'▸')+' Devis expirés non traités <span class="muted">('+expires.length+')</span></div><div style="font-size:12px;color:#8b2f2f;font-weight:700;">À vérifier</div></div></button>';
+    if(openExp){ html+='<div style="padding:10px 12px 4px;">'+expires.map(function(d){return ligne(d,true);}).join('')+'</div>'; }
+    html+='</div>';
+  }
   return html;
 }
-
-/* ===================== Devis : liste ===================== */
-function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
 function viewDevis(){
   var filtre = ui.devisFiltre || "actifs";
   var actifs = state.devis.filter(function(d){ return d.statut !== "accepte" && d.statut !== "refuse" && d.statut !== "archive"; });
@@ -2029,14 +2031,14 @@ function viewDevis(){
     '<div><h2 style="margin:0;">Mes devis</h2><p class="muted" style="margin:4px 0 0;">Vue simplifiée : seuls les devis à traiter restent visibles au premier coup d’œil.</p></div>'+
     '<button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
 
+  html += devisEcheancePanelsHTML();
+
   html += '<div class="row-actions" style="margin-bottom:14px;">'+
     '<button class="btn small '+(filtre==="actifs"?'primary':'ghost')+'" data-action="devis-filtre-actifs">À traiter ('+actifs.length+')</button>'+
     '<button class="btn small '+(filtre==="acceptes"?'primary':'ghost')+'" data-action="devis-filtre-acceptes">Acceptés ('+acceptes.length+')</button>'+
     '<button class="btn small '+(filtre==="refuses"?'primary':'ghost')+'" data-action="devis-filtre-refuses">Refusés ('+refuses.length+')</button>'+
     '<button class="btn small '+(filtre==="archives"?'primary':'ghost')+'" data-action="devis-filtre-archives">Archivés ('+archives.length+')</button>'+
   '</div>';
-
-  html += devisEcheancePanelsHTML();
 
   if(state.devis.length===0){
     html+='<div class="card"><p class="muted" style="margin:0;">Aucun devis. Quand un client vous appelle, touchez « Nouveau devis » et laissez-vous guider.</p></div>';
@@ -7875,8 +7877,6 @@ async function handleAction(action){
     return;
   }
 
-  if(action==="devis-echeances-toggle"){ ui.devisEcheancesOpen=!ui.devisEcheancesOpen; render(); return; }
-  if(action==="devis-expires-toggle"){ ui.devisExpiresOpen=!ui.devisExpiresOpen; render(); return; }
   if(action==="fac-acomptes-toggle"){ ui.acomptesAttenteOpen=!ui.acomptesAttenteOpen; render(); return; }
   if(action.indexOf("fac-group-toggle-")===0){ ui.factureGroups=ui.factureGroups||{}; var g=action.slice(17); ui.factureGroups[g]=!(ui.factureGroups[g]===undefined?true:ui.factureGroups[g]); render(); return; }
   if(action==="newdevis"){ ui.tab="documentsModule"; ui.documentsSub="devis"; newWizard(); render(); return; }
@@ -8042,6 +8042,8 @@ async function handleAction(action){
 
   // devis
   if(action.indexOf("facture-preview-")===0){ var fp=state.factures.find(function(f){return f.id===action.slice(16);}); if(fp){ ui.preview={kind:"facture",doc:fp}; renderModal(); } return; }
+  if(action==="devis-echeances-toggle"){ ui.devisEcheancesOpen=!ui.devisEcheancesOpen; render(); return; }
+  if(action==="devis-expires-toggle"){ ui.devisExpiresOpen=!ui.devisExpiresOpen; render(); return; }
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
   if(action.indexOf("devis-filtre-")===0){ ui.devisFiltre=action.slice(13); ui.confirmDelete=null; render(); return; }
