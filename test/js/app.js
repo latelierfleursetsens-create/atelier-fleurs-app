@@ -1,9 +1,10 @@
-/* V6.4.17 TEST — Acomptes en attente regroupés dans un bandeau compact et repliable. */
+/* V6.5.0 TEST — Rappels automatiques des devis avant échéance. */
 "use strict";
 
-var APP_VERSION="V6.4.17 TEST";
-var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
+var APP_VERSION="V6.5.0 TEST";
+var APP_VERSION_NOTE = "Rappels automatiques des devis à J-14, J-7, J-2 et le jour de l’échéance via Cloudflare.";
 var APP_CHANGELOG = [
+  "V6.5.0 TEST — Rappels automatiques des devis non acceptés à J-14, J-7, J-2 et Jour J, avec arrêt immédiat après acceptation/refus.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -100,7 +101,7 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3,
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3, rappelsDevisActifs:false, rappelsDevisJ14:true, rappelsDevisJ7:true, rappelsDevisJ2:true, rappelsDevisJ0:true, reminderWorkerUrl:"https://atelier-fleurs-reminders.latelierfleursetsens.workers.dev", reminderLastSync:"",
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
@@ -113,11 +114,63 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"", reminderWorkerStatus:"unknown", reminderWorkerMessage:"" };
 var fileHandle = null;
 window.addEventListener("beforeunload",function(e){
   if(documentEditorHasUnsavedChanges("devis")||documentEditorHasUnsavedChanges("facture")){ e.preventDefault(); e.returnValue=""; }
 });
+
+
+/* ===================== Rappels automatiques des devis ===================== */
+var reminderPublishTimer=null;
+function reminderWorkerUrl(){
+  return String((state.settings&&state.settings.reminderWorkerUrl)||"").replace(/\/+$/g,"");
+}
+function activeQuoteReminderPayload(){
+  var s=state.settings||{};
+  var offsets=[];
+  if(s.rappelsDevisJ14!==false) offsets.push(14);
+  if(s.rappelsDevisJ7!==false) offsets.push(7);
+  if(s.rappelsDevisJ2!==false) offsets.push(2);
+  if(s.rappelsDevisJ0!==false) offsets.push(0);
+  var quotes=(state.devis||[]).filter(function(d){
+    return d && d.statut==="envoye" && !d.versionArchive && d.echeance && d.client && String(d.client.email||"").indexOf("@")>0;
+  }).map(function(d){
+    return {
+      id:String(d.id||""), numero:String(d.numero||""), echeance:String(d.echeance||""), date:String(d.date||""),
+      clientNom:String(d.client&&d.client.nom||""), clientEmail:String(d.client&&d.client.email||""),
+      montant:Number(documentCalc(d.lignes||[],state.settings.partService,d).total||0), statut:String(d.statut||""),
+      portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
+    };
+  });
+  return {enabled:!!s.rappelsDevisActifs,offsets:offsets,quotes:quotes,company:{name:s.nomEntreprise||"L'Atelier Fleurs & Sens",email:s.email||"latelierfleursetsens@gmail.com",site:s.site||"www.latelierfleursetsens.fr"}};
+}
+function publishQuoteRemindersNow(showToast){
+  var url=reminderWorkerUrl();
+  if(!url){ if(showToast) toast("Renseigne l’URL du Worker de rappels dans Paramètres."); return Promise.resolve(false); }
+  if(!auth||!auth.currentUser){ if(showToast) toast("Connexion administrateur requise."); return Promise.resolve(false); }
+  ui.reminderWorkerStatus="loading"; ui.reminderWorkerMessage="Synchronisation…";
+  return auth.currentUser.getIdToken(true).then(function(token){
+    return fetch(url+"/sync",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(activeQuoteReminderPayload())});
+  }).then(function(res){ return res.text().then(function(txt){ if(!res.ok) throw new Error(txt||("HTTP "+res.status)); try{return JSON.parse(txt);}catch(_e){return {ok:true};} }); })
+  .then(function(data){
+    state.settings.reminderLastSync=new Date().toISOString(); ui.reminderWorkerStatus="ok"; ui.reminderWorkerMessage=(data&&data.count!=null?data.count:activeQuoteReminderPayload().quotes.length)+" devis synchronisé(s)";
+    try{localStorage.setItem("afs_cache",JSON.stringify({data:serialize()}));}catch(_e){}
+    if(showToast) toast("Rappels devis synchronisés."); return true;
+  }).catch(function(err){ console.error("Rappels devis",err); ui.reminderWorkerStatus="error"; ui.reminderWorkerMessage=err.message||"Erreur"; if(showToast) toast("Synchronisation des rappels impossible : "+(err.message||"erreur")); return false; });
+}
+function scheduleQuoteReminderPublish(){
+  if(!(state.settings&&state.settings.rappelsDevisActifs)) return;
+  clearTimeout(reminderPublishTimer);
+  reminderPublishTimer=setTimeout(function(){ publishQuoteRemindersNow(false); },1800);
+}
+function reminderStatusText(){
+  var s=state.settings||{};
+  if(!s.rappelsDevisActifs) return "Rappels désactivés";
+  if(ui.reminderWorkerStatus==="error") return "⚠️ "+(ui.reminderWorkerMessage||"Erreur de synchronisation");
+  if(s.reminderLastSync) return "Dernière synchronisation : "+new Date(s.reminderLastSync).toLocaleString("fr-FR")+(ui.reminderWorkerMessage?" · "+ui.reminderWorkerMessage:"");
+  return "À synchroniser après configuration du Worker Cloudflare";
+}
 
 /* ===================== Calendrier Apple synchronisé ===================== */
 var CALENDAR_WORKER_URL="https://atelier-fleurs-calendar.latelierfleursetsens.workers.dev";
@@ -813,7 +866,7 @@ function saveCloud(){
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
     docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); })
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
 }
@@ -823,7 +876,7 @@ function saveCloudNow(){
   cloudStatus("☁️ Enregistrement…");
   var payload=serializeCloud();
   return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); scheduleCalendarPublish(); return publishSecureClientSpaces(); })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); return publishSecureClientSpaces(); })
     .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
 }
 function startSync(uidStr){
@@ -5393,6 +5446,10 @@ function captureParamsForm(){
   s.mailMessageDevis=val("pMailMessageDevis"); s.mailMessageFacture=val("pMailMessageFacture"); s.mailMessageRelance=val("pMailMessageRelance");
   s.googleDriveUrl=val("pGoogleDriveUrl");
   var gda=document.getElementById("pGoogleDriveAuto"); s.googleDriveAuto=!!(gda&&gda.checked);
+  var rda=document.getElementById("pRappelsDevisActifs"); s.rappelsDevisActifs=!!(rda&&rda.checked);
+  var r14=document.getElementById("pRappelJ14"), r7=document.getElementById("pRappelJ7"), r2=document.getElementById("pRappelJ2"), r0=document.getElementById("pRappelJ0");
+  s.rappelsDevisJ14=!!(r14&&r14.checked); s.rappelsDevisJ7=!!(r7&&r7.checked); s.rappelsDevisJ2=!!(r2&&r2.checked); s.rappelsDevisJ0=!!(r0&&r0.checked);
+  s.reminderWorkerUrl=val("pReminderWorkerUrl");
   s.prestationsBibliotheque=prestationsSettingsFromDOM();
 }
 function viewPrestationsBibliothequeSettings(){
@@ -5447,6 +5504,23 @@ function viewMailTemplatesSettings(){
     '<label class="field"><span>Modèle de relance devis</span><textarea id="pMailMessageRelance" style="min-height:100px;">'+esc(s.mailMessageRelance||DEFAULT_SETTINGS.mailMessageRelance)+'</textarea><span class="hint">Ce modèle est sauvegardé pour la future fonction de relance automatique.</span></label>'+ 
   '</div>';
 }
+
+function viewQuoteReminderSettings(){
+  var s=state.settings||{};
+  return '<div class="card"><div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0 0 4px;">Rappels automatiques des devis</h3><p class="muted" style="margin:0;font-size:12px;">Les rappels partent même si MyBusiness est fermé, grâce au Worker Cloudflare planifié.</p></div><span class="pill" style="background:'+(s.rappelsDevisActifs?'var(--green-s)':'#eee')+';color:'+(s.rappelsDevisActifs?'var(--green)':'var(--ink-s)')+';">'+(s.rappelsDevisActifs?'Actifs':'Désactivés')+'</span></div>'+ 
+    '<label style="display:flex;gap:8px;align-items:center;margin:14px 0 10px;"><input type="checkbox" id="pRappelsDevisActifs" '+(s.rappelsDevisActifs?'checked':'')+' style="width:18px;height:18px;"> Activer les rappels automatiques</label>'+ 
+    '<div class="inline" style="gap:14px;flex-wrap:wrap;margin-bottom:10px;">'+
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ14" '+(s.rappelsDevisJ14!==false?'checked':'')+'> J-14</label>'+ 
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ7" '+(s.rappelsDevisJ7!==false?'checked':'')+'> J-7</label>'+ 
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ2" '+(s.rappelsDevisJ2!==false?'checked':'')+'> J-2</label>'+ 
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ0" '+(s.rappelsDevisJ0!==false?'checked':'')+'> Jour J</label>'+ 
+    '</div>'+ 
+    '<label class="field"><span>URL du Worker Cloudflare des rappels</span><input id="pReminderWorkerUrl" value="'+esc(s.reminderWorkerUrl||'')+'" placeholder="https://atelier-fleurs-reminders....workers.dev"></label>'+ 
+    '<div class="row-actions" style="margin-top:0;"><button class="btn primary" data-action="reminders-test">Tester le Worker</button><button class="btn gold" data-action="reminders-sync">Synchroniser maintenant</button></div>'+ 
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(reminderStatusText())+'</p>'+ 
+    '<p class="muted" style="font-size:11px;margin:8px 0 0;">Seuls les devis au statut <b>Envoyé</b>, non acceptés, non refusés et non archivés sont transmis. Dès qu’un devis change de statut, il disparaît de la liste des rappels au prochain enregistrement.</p></div>';
+}
+
 function viewAboutAppSettings(){
   var changes=(APP_CHANGELOG||[]).slice(0,6).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
   var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
@@ -5493,6 +5567,7 @@ function viewParams(){
     F("Mention TVA","pTva",s.mentionTVA)+F("Conditions de règlement","pCond",s.conditionsReglement)+
     '<label class="field"><span>Mentions de pénalités (factures)</span><textarea id="pPen">'+esc(s.penalites)+'</textarea></label>'+
     '<div class="inline"><div>'+F("Acompte par défaut (%)","pAcompte",s.acompteParDefaut,"","number")+'</div><div>'+F("Validité devis (jours)","pValid",s.validiteDevis,"","number")+'</div><div>'+F("Délai paiement (jours)","pDelai",s.delaiPaiement,"","number")+'</div></div></div>'+
+  viewQuoteReminderSettings()+
   viewMailTemplatesSettings()+
   '<div class="card"><h3 style="margin:0 0 4px;">Seuils & cotisations (indicatifs)</h3><p class="muted" style="margin-top:0;font-size:12px;">À confirmer auprès de l\'URSSAF — ils évoluent chaque année.</p>'+
     '<div class="inline"><div>'+F("Seuil biens (€)","pSeuilB",s.seuilBiens,"","number")+'</div><div>'+F("Seuil services (€)","pSeuilS",s.seuilServices,"","number")+'</div></div>'+
@@ -8084,6 +8159,8 @@ async function handleAction(action){
   if(action==="logo-remove"){ state.logo=""; saveCache(); render(); return; }
 
   // params
+  if(action==="reminders-test"){ captureParamsForm(); var ru=reminderWorkerUrl(); if(!ru){toast("Renseigne l’URL du Worker.");return;} try{var rr=await fetch(ru+"/health");var rt=await rr.text();if(!rr.ok)throw new Error(rt);toast("Worker de rappels opérationnel.");ui.reminderWorkerStatus="ok";ui.reminderWorkerMessage="Worker opérationnel";render();}catch(re){ui.reminderWorkerStatus="error";ui.reminderWorkerMessage=re.message||"Erreur";render();toast("Worker indisponible : "+(re.message||"erreur"));} return; }
+  if(action==="reminders-sync"){ captureParamsForm(); saveCache(); await publishQuoteRemindersNow(true); render(); return; }
   if(action==="params-save"){ saveParams(); return; }
 
   // export
@@ -8432,7 +8509,7 @@ function finishWizard(){
 }
 function saveParams(){
   captureParamsForm();
-  saveCache(); render(); toast("Paramètres enregistrés.");
+  saveCache(); scheduleQuoteReminderPublish(); render(); toast("Paramètres enregistrés.");
 }
 
 function onRestoreFile(file){
