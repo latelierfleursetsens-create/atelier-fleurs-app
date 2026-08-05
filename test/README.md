@@ -1,6 +1,6 @@
-# MyBusiness V7.0.2 TEST
+# MyBusiness V7.0.3 TEST
 
-## V7.0.2 TEST
+## V7.0.3 TEST
 
 - Après un envoi par e-mail confirmé par le Worker, le devis ou la facture passe automatiquement au statut **Envoyé(e)**.
 - La date et l’heure précises ainsi que le mode d’envoi sont mémorisés.
@@ -55,8 +55,14 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - Contraste renforcé des boutons de l’aperçu devis/facture.
 
 
-## V7.0.2 TEST — Étape 1
+## V7.0.3 TEST — Étape 1
 - Réorganisation visuelle de « Mes besoins » par catégories.
 - Ajout de deux guides visuels des tailles de bouquet.
 - Aucune modification des données sauvegardées ni des anciens espaces clients.
 - Mon projet, les inspirations clientes et le rendez-vous téléphonique restent inchangés.
+
+
+## V7.0.3 TEST
+- Fleurs premium détaillées : Rose, Pivoine, Hortensia, Camélia, Arum et Autre.
+- Champ de précision affiché lorsque « Autre » est sélectionné.
+- Migration non destructive de l’ancien texte libre vers la nouvelle structure.
