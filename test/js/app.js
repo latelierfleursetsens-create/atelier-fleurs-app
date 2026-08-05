@@ -1,10 +1,10 @@
-/* V6.5.1 TEST — Rappels automatiques Cloudflare testables et sécurisés. */
+/* V6.5.2 TEST — Rappels automatiques Cloudflare testables et sécurisés. */
 "use strict";
 
-var APP_VERSION="V6.5.1 TEST";
+var APP_VERSION="V6.5.2 TEST";
 var APP_VERSION_NOTE = "Rappels automatiques des devis à J-14, J-7, J-2 et le jour de l’échéance via Cloudflare.";
 var APP_CHANGELOG = [
-  "V6.5.1 TEST — Worker Cloudflare complet, e-mail test, synchronisation sécurisée et suivi du dernier passage.",
+  "V6.5.2 TEST — Worker Cloudflare complet, e-mail test, synchronisation sécurisée et suivi du dernier passage.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",

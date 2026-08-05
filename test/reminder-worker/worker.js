@@ -53,7 +53,7 @@ export default {
     if(request.method==="GET"&&url.pathname==="/health"){
       const required=["REMINDER_KV","BREVO_API_KEY","ADMIN_UID","FIREBASE_API_KEY"];
       const missing=required.filter(k=>!env[k]);
-      return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.1",configured:missing.length===0,missing});
+      return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.2",configured:missing.length===0,missing});
     }
 
     if(request.method==="POST"&&url.pathname==="/test-email"){
@@ -81,7 +81,7 @@ export default {
     if(request.method==="GET"&&url.pathname==="/status"){
       if(!(await verifyAdmin(request,env))) return json(request,{ok:false,message:"Accès administrateur refusé"},403); return json(request,{ok:true,lastRun:await env.REMINDER_KV.get("last-run","json"),config:await env.REMINDER_KV.get("reminder-config","json")});
     }
-    return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.1"});
+    return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.2"});
   },
   async scheduled(event,env,ctx){ctx.waitUntil(runReminders(env,false));}
 };

@@ -1,4 +1,4 @@
-# Installation V6.5.1 — Rappels automatiques des devis
+# Installation V6.5.2 — Rappels automatiques des devis
 
 Cette version utilise un Worker séparé afin de ne pas risquer de casser le Worker `atelier-fleurs-mail` déjà en production.
 
@@ -58,3 +58,8 @@ Créez un devis de test :
 - échéance exactement dans 14 jours, 7 jours, 2 jours ou aujourd'hui.
 
 Cliquez sur **Synchroniser maintenant**, puis **Exécuter les rappels maintenant**. Un rappel doit arriver. Le même rappel ne sera pas renvoyé une seconde fois grâce à la clé anti-doublon enregistrée dans KV.
+
+
+## Important
+
+Le Worker créé avec « Hello World » doit être remplacé par le contenu complet de `worker.js`. Sans cette étape, MyBusiness affichera « Failed to fetch » ou un service non configuré.
