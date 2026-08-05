@@ -1,9 +1,10 @@
-/* V6.6.0 TEST — Synchronisation automatique et source unique pour les rappels de devis mariage. */
+/* V6.6.1 TEST — Correctif de performance de la synchronisation des rappels. */
 "use strict";
 
-var APP_VERSION="V6.6.0 TEST";
-var APP_VERSION_NOTE = "Rappels devis mariage : synchronisation automatique après chaque modification, contrôle centralisé et bandeaux cohérents avec le Worker.";
+var APP_VERSION="V6.6.1 TEST";
+var APP_VERSION_NOTE = "Correctif important : la synchronisation des rappels ne tourne plus en boucle et ne se déclenche que si la liste des devis surveillés a réellement changé.";
 var APP_CHANGELOG = [
+  "V6.6.1 TEST — Correctif performance : anti-boucle, comparaison des devis avant envoi au Worker, temporisation de 5 secondes et aucune resynchronisation déclenchée par les mises à jour reçues d’un autre poste.",
   "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
   "V6.5.6 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
@@ -125,6 +126,9 @@ window.addEventListener("beforeunload",function(e){
 /* ===================== Rappels automatiques des devis ===================== */
 var reminderPublishTimer=null;
 var reminderDailyTimer=null;
+var reminderPublishInFlight=null;
+var reminderLastPublishedFingerprint="";
+try{ reminderLastPublishedFingerprint=localStorage.getItem("afs_reminder_payload_fingerprint")||""; }catch(_e){}
 function reminderWorkerUrl(){
   return String((state.settings&&state.settings.reminderWorkerUrl)||"").replace(/\/+$/g,"");
 }
@@ -162,24 +166,52 @@ function activeQuoteReminderPayload(){
   });
   return {enabled:!!s.rappelsDevisActifs,offsets:offsets,quotes:quotes,company:{name:s.nomEntreprise||"L'Atelier Fleurs & Sens",email:s.email||"latelierfleursetsens@gmail.com",site:s.site||"www.latelierfleursetsens.fr"}};
 }
+function quoteReminderPayloadFingerprint(payload){
+  var compact={
+    enabled:!!(payload&&payload.enabled),
+    offsets:(payload&&payload.offsets||[]).slice().sort(function(a,b){return a-b;}),
+    quotes:(payload&&payload.quotes||[]).map(function(q){
+      return {
+        id:String(q.id||""), numero:String(q.numero||""), echeance:String(q.echeance||""),
+        clientNom:String(q.clientNom||""), clientEmail:String(q.clientEmail||""),
+        montant:Number(q.montant||0), statut:String(q.statut||""), mariageId:String(q.mariageId||""),
+        espaceClient:!!q.espaceClient, portalUrl:String(q.portalUrl||"")
+      };
+    }).sort(function(a,b){ return a.id.localeCompare(b.id); })
+  };
+  return JSON.stringify(compact);
+}
 function publishQuoteRemindersNow(showToast){
   var url=reminderWorkerUrl();
   if(!url){ if(showToast) toast("Renseigne l’URL du Worker de rappels dans Paramètres."); return Promise.resolve(false); }
   if(!auth||!auth.currentUser){ if(showToast) toast("Connexion administrateur requise."); return Promise.resolve(false); }
+
+  var payload=activeQuoteReminderPayload();
+  var fingerprint=quoteReminderPayloadFingerprint(payload);
+
+  // En automatique, aucun appel réseau si la liste surveillée n'a pas changé.
+  // Le bouton manuel reste volontairement capable de forcer une synchronisation.
+  if(!showToast && fingerprint===reminderLastPublishedFingerprint) return Promise.resolve(true);
+  if(reminderPublishInFlight) return reminderPublishInFlight;
+
   ui.reminderWorkerStatus="loading"; ui.reminderWorkerMessage="Synchronisation…";
-  return auth.currentUser.getIdToken(true).then(function(token){
-    return fetch(url+"/sync",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(activeQuoteReminderPayload())});
+  reminderPublishInFlight=auth.currentUser.getIdToken(true).then(function(token){
+    return fetch(url+"/sync",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(payload)});
   }).then(function(res){ return res.text().then(function(txt){ if(!res.ok) throw new Error(txt||("HTTP "+res.status)); try{return JSON.parse(txt);}catch(_e){return {ok:true};} }); })
   .then(function(data){
-    state.settings.reminderLastSync=new Date().toISOString(); ui.reminderWorkerStatus="ok"; ui.reminderWorkerMessage=(data&&data.count!=null?data.count:activeQuoteReminderPayload().quotes.length)+" devis synchronisé(s)";
+    reminderLastPublishedFingerprint=fingerprint;
+    try{localStorage.setItem("afs_reminder_payload_fingerprint",fingerprint);}catch(_e){}
+    state.settings.reminderLastSync=new Date().toISOString(); ui.reminderWorkerStatus="ok"; ui.reminderWorkerMessage=(data&&data.count!=null?data.count:payload.quotes.length)+" devis synchronisé(s)";
     try{localStorage.setItem("afs_cache",JSON.stringify({data:serialize()}));}catch(_e){}
     if(showToast) toast("Rappels devis synchronisés."); return true;
-  }).catch(function(err){ console.error("Rappels devis",err); ui.reminderWorkerStatus="error"; ui.reminderWorkerMessage=err.message||"Erreur"; if(showToast) toast("Synchronisation des rappels impossible : "+(err.message||"erreur")); return false; });
+  }).catch(function(err){ console.error("Rappels devis",err); ui.reminderWorkerStatus="error"; ui.reminderWorkerMessage=err.message||"Erreur"; if(showToast) toast("Synchronisation des rappels impossible : "+(err.message||"erreur")); return false; })
+  .finally(function(){ reminderPublishInFlight=null; });
+  return reminderPublishInFlight;
 }
 function scheduleQuoteReminderPublish(){
   if(!(state.settings&&state.settings.rappelsDevisActifs)) return;
   clearTimeout(reminderPublishTimer);
-  reminderPublishTimer=setTimeout(function(){ publishQuoteRemindersNow(false); },1800);
+  reminderPublishTimer=setTimeout(function(){ publishQuoteRemindersNow(false); },5000);
 }
 function nextReminderDailySyncDate(){
   var now=new Date();
@@ -996,7 +1028,7 @@ function startSync(uidStr){
         cloudStatus("☁️ Enregistrement…");
         return;
       }
-      applyRemote(remoteData); render(); scheduleQuoteReminderPublish(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
+      applyRemote(remoteData); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
     }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
