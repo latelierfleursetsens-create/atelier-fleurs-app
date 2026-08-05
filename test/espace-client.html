@@ -149,7 +149,14 @@ function legacyPremiumFlowers(text){
 function renderCategorizedChoices(){
   var known={};
   NEEDS_CATEGORIES.forEach(function(category){category.items.forEach(function(item){known[item]=true;});});
-  var categories=NEEDS_CATEGORIES.map(function(category){return {title:category.title,items:category.items.filter(function(item){return choices.indexOf(item)>=0;})};});
+  var categories=NEEDS_CATEGORIES.map(function(category){
+    return {
+      title:category.title,
+      notice:category.notice||'',
+      legacy:!!category.legacy,
+      items:category.items.filter(function(item){return choices.indexOf(item)>=0;})
+    };
+  });
   var remaining=choices.filter(function(item){return !known[item];});
   if(remaining.length)categories.push({title:'🌸 Autres créations',items:remaining});
   $('choices').innerHTML=categories.map(function(category){
