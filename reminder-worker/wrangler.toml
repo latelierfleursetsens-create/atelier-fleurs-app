@@ -1,0 +1,10 @@
+name = "atelier-fleurs-reminders"
+main = "worker.js"
+compatibility_date = "2026-08-04"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[[kv_namespaces]]
+binding = "REMINDER_KV"
+id = "REMPLACER_PAR_ID_DU_KV"

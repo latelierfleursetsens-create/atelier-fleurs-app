@@ -1,9 +1,11 @@
-/* V6.4.17 PROD — Acomptes en attente regroupés dans un bandeau compact et repliable. */
+/* V6.6.0 PROD — Synchronisation automatique et source unique pour les rappels de devis mariage. */
 "use strict";
 
-var APP_VERSION="V6.4.17 PROD";
-var APP_VERSION_NOTE = "Les modifications clientes sont détaillées dans les e-mails et historisées dans MyBusiness.";
+var APP_VERSION="V6.6.0 PROD";
+var APP_VERSION_NOTE = "Rappels devis mariage : synchronisation automatique après chaque modification, contrôle centralisé et bandeaux cohérents avec le Worker.";
 var APP_CHANGELOG = [
+  "V6.6.0 PROD — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
+  "V6.5.6 PROD — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
   "V6.4.17 PROD — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 PROD — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 PROD — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -100,7 +102,7 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3,
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3, rappelsDevisActifs:false, rappelsDevisJ14:true, rappelsDevisJ7:true, rappelsDevisJ2:true, rappelsDevisJ0:true, reminderWorkerUrl:"https://atelier-fleurs-reminders.latelierfleursetsens.workers.dev", reminderLastSync:"", reminderTestEmail:"",
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
@@ -113,11 +115,165 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"", reminderWorkerStatus:"unknown", reminderWorkerMessage:"" };
 var fileHandle = null;
 window.addEventListener("beforeunload",function(e){
   if(documentEditorHasUnsavedChanges("devis")||documentEditorHasUnsavedChanges("facture")){ e.preventDefault(); e.returnValue=""; }
 });
+
+
+/* ===================== Rappels automatiques des devis ===================== */
+var reminderPublishTimer=null;
+var reminderDailyTimer=null;
+function reminderWorkerUrl(){
+  return String((state.settings&&state.settings.reminderWorkerUrl)||"").replace(/\/+$/g,"");
+}
+function activeQuoteReminderPayload(){
+  var s=state.settings||{};
+  var offsets=[];
+  if(s.rappelsDevisJ14!==false) offsets.push(14);
+  if(s.rappelsDevisJ7!==false) offsets.push(7);
+  if(s.rappelsDevisJ2!==false) offsets.push(2);
+  if(s.rappelsDevisJ0!==false) offsets.push(0);
+  var quotes=(state.devis||[]).filter(function(d){
+    if(!d || d.statut!=="envoye" || d.versionArchive || !d.echeance) return false;
+    if(!d.client || String(d.client.email||"").indexOf("@")<0) return false;
+
+    // Un devis mariage peut être relié de deux façons selon sa date de création :
+    // 1) par d.mariageId ; 2) par mariage.devisLie. On accepte les deux.
+    var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d);
+    if(!mariage) return false; // exclut automatiquement les devis ateliers
+
+    // L’espace client peut être porté par la fiche mariage ou déjà enregistré sur le devis.
+    var espaceClientActif=!!(mariage.ownerUid || d.ownerUid || d.portalPublished || d.portalPdfUrl);
+    if(!espaceClientActif) return false;
+
+    return true;
+  }).map(function(d){
+    var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d);
+    var ownerUid=String((mariage&&mariage.ownerUid)||d.ownerUid||"");
+    return {
+      id:String(d.id||""), numero:String(d.numero||""), echeance:String(d.echeance||""), date:String(d.date||""),
+      clientNom:String(d.client&&d.client.nom||""), clientEmail:String(d.client&&d.client.email||""),
+      montant:Number(documentCalc(d.lignes||[],state.settings.partService,d).total||0), statut:String(d.statut||""),
+      mariageId:String((mariage&&mariage.id)||d.mariageId||""), espaceClient:!!(ownerUid || d.portalPublished || d.portalPdfUrl),
+      portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
+    };
+  });
+  return {enabled:!!s.rappelsDevisActifs,offsets:offsets,quotes:quotes,company:{name:s.nomEntreprise||"L'Atelier Fleurs & Sens",email:s.email||"latelierfleursetsens@gmail.com",site:s.site||"www.latelierfleursetsens.fr"}};
+}
+function publishQuoteRemindersNow(showToast){
+  var url=reminderWorkerUrl();
+  if(!url){ if(showToast) toast("Renseigne l’URL du Worker de rappels dans Paramètres."); return Promise.resolve(false); }
+  if(!auth||!auth.currentUser){ if(showToast) toast("Connexion administrateur requise."); return Promise.resolve(false); }
+  ui.reminderWorkerStatus="loading"; ui.reminderWorkerMessage="Synchronisation…";
+  return auth.currentUser.getIdToken(true).then(function(token){
+    return fetch(url+"/sync",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(activeQuoteReminderPayload())});
+  }).then(function(res){ return res.text().then(function(txt){ if(!res.ok) throw new Error(txt||("HTTP "+res.status)); try{return JSON.parse(txt);}catch(_e){return {ok:true};} }); })
+  .then(function(data){
+    state.settings.reminderLastSync=new Date().toISOString(); ui.reminderWorkerStatus="ok"; ui.reminderWorkerMessage=(data&&data.count!=null?data.count:activeQuoteReminderPayload().quotes.length)+" devis synchronisé(s)";
+    try{localStorage.setItem("afs_cache",JSON.stringify({data:serialize()}));}catch(_e){}
+    if(showToast) toast("Rappels devis synchronisés."); return true;
+  }).catch(function(err){ console.error("Rappels devis",err); ui.reminderWorkerStatus="error"; ui.reminderWorkerMessage=err.message||"Erreur"; if(showToast) toast("Synchronisation des rappels impossible : "+(err.message||"erreur")); return false; });
+}
+function scheduleQuoteReminderPublish(){
+  if(!(state.settings&&state.settings.rappelsDevisActifs)) return;
+  clearTimeout(reminderPublishTimer);
+  reminderPublishTimer=setTimeout(function(){ publishQuoteRemindersNow(false); },1800);
+}
+function nextReminderDailySyncDate(){
+  var now=new Date();
+  var next=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,0,0,0);
+  if(next.getTime()<=now.getTime()) next.setDate(next.getDate()+1);
+  return next;
+}
+function startReminderAutomaticSync(){
+  clearTimeout(reminderDailyTimer);
+  if(!(state.settings&&state.settings.rappelsDevisActifs)) return;
+  // Synchronisation de sécurité au démarrage : les changements sont déjà
+  // synchronisés automatiquement après chaque enregistrement cloud.
+  setTimeout(function(){ publishQuoteRemindersNow(false); },3500);
+  var next=nextReminderDailySyncDate();
+  reminderDailyTimer=setTimeout(function(){
+    publishQuoteRemindersNow(false).finally(function(){ startReminderAutomaticSync(); });
+  },Math.max(1000,next.getTime()-Date.now()));
+}
+function reminderNextDailySyncText(){
+  if(!(state.settings&&state.settings.rappelsDevisActifs)) return "—";
+  return nextReminderDailySyncDate().toLocaleString("fr-FR");
+}
+function reminderStatusText(){
+  var s=state.settings||{};
+  if(!s.rappelsDevisActifs) return "Rappels désactivés";
+  if(ui.reminderWorkerStatus==="error") return "⚠️ "+(ui.reminderWorkerMessage||"Erreur de synchronisation");
+  if(s.reminderLastSync) return "Dernière synchronisation : "+new Date(s.reminderLastSync).toLocaleString("fr-FR")+(ui.reminderWorkerMessage?" · "+ui.reminderWorkerMessage:"");
+  return "Synchronisation automatique en attente du premier enregistrement";
+}
+
+function reminderDaysUntil(ymd){
+  var m=String(ymd||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return null;
+  var due=Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  var now=new Date();
+  var today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+  return Math.round((due-today)/86400000);
+}
+function reminderDateLabel(ymd){
+  var m=String(ymd||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3]+"/"+m[2]+"/"+m[1] : String(ymd||"");
+}
+function reminderNextStepLabel(days,offsets){
+  if(days==null) return "Date invalide";
+  if(days<0) return "Échéance dépassée de "+Math.abs(days)+" jour"+(Math.abs(days)>1?"s":"");
+  if(days===0) return offsets.indexOf(0)>=0 ? "Relance Jour J aujourd’hui" : "Échéance aujourd’hui";
+  var candidates=(offsets||[]).filter(function(x){return x<=days;}).sort(function(a,b){return b-a;});
+  if(!candidates.length) return "Aucune autre relance prévue";
+  var next=candidates[0];
+  var wait=days-next;
+  var name=next===0?"Jour J":"J-"+next;
+  if(wait===0) return "Relance "+name+" aujourd’hui";
+  if(wait===1) return "Relance "+name+" demain";
+  return "Relance "+name+" dans "+wait+" jours";
+}
+function reminderNextSendDateLabel(echeance,days,offsets){
+  if(days==null || days<0) return reminderNextStepLabel(days,offsets);
+  var candidates=(offsets||[]).filter(function(x){return x<=days;}).sort(function(a,b){return b-a;});
+  if(!candidates.length) return "Aucune relance prévue";
+  var next=candidates[0];
+  var m=String(echeance||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return reminderNextStepLabel(days,offsets);
+  var send=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),12,0,0,0);
+  send.setDate(send.getDate()-next);
+  var name=next===0?"Jour J":"J-"+next;
+  return "📧 "+send.toLocaleDateString("fr-FR")+" ("+name+")";
+}
+function viewReminderSyncTable(){
+  var payload=activeQuoteReminderPayload();
+  var quotes=payload.quotes||[];
+  var offsets=payload.offsets||[];
+  var rows=quotes.slice().sort(function(a,b){return String(a.echeance||"").localeCompare(String(b.echeance||""));}).map(function(q){
+    var days=reminderDaysUntil(q.echeance);
+    var urgency=days==null?"":(days<0?"🔴":days<=2?"🟠":days<=7?"🟡":days<=14?"🟢":"⚪");
+    return '<tr>'+
+      '<td style="font-weight:700;white-space:nowrap;">'+esc(q.numero||"—")+'</td>'+
+      '<td>'+esc(q.clientNom||"—")+'</td>'+
+      '<td style="white-space:nowrap;">'+esc(reminderDateLabel(q.echeance))+'</td>'+
+      '<td>'+urgency+' '+esc(reminderNextSendDateLabel(q.echeance,days,offsets))+'</td>'+
+      '<td style="text-align:right;white-space:nowrap;">'+euro(q.montant||0)+'</td>'+
+    '</tr>';
+  }).join('');
+  if(!rows) rows='<tr><td colspan="5" class="muted" style="padding:14px;text-align:center;">Aucun devis mariage n’est actuellement surveillé.</td></tr>';
+  return '<details open style="margin-top:12px;border:1px solid var(--line);border-radius:10px;background:#fff;">'+
+    '<summary style="cursor:pointer;padding:12px 14px;font-weight:800;color:var(--bordeaux);">📋 Devis actuellement surveillés ('+quotes.length+')</summary>'+
+    '<div style="overflow-x:auto;padding:0 12px 12px;">'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:650px;">'+
+        '<thead><tr style="text-align:left;border-bottom:1px solid var(--line);"><th style="padding:8px;">Devis</th><th style="padding:8px;">Cliente</th><th style="padding:8px;">Échéance</th><th style="padding:8px;">Prochaine relance</th><th style="padding:8px;text-align:right;">Montant</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody>'+
+      '</table>'+
+      '<p class="muted" style="font-size:11px;margin:8px 0 0;">Cette liste est la source officielle du Worker Cloudflare. Les devis à moins de 15 jours apparaissent aussi dans le bandeau de l’onglet Devis. Un e-mail part uniquement aux dates J-14, J-7, J-2 ou Jour J.</p>'+
+    '</div>'+
+  '</details>';
+}
 
 /* ===================== Calendrier Apple synchronisé ===================== */
 var CALENDAR_WORKER_URL="https://atelier-fleurs-calendar.latelierfleursetsens.workers.dev";
@@ -813,7 +969,7 @@ function saveCloud(){
   clearTimeout(cloudTimer);
   cloudTimer=setTimeout(function(){
     docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); })
+      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); })
       .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
   }, 800);
 }
@@ -823,7 +979,7 @@ function saveCloudNow(){
   cloudStatus("☁️ Enregistrement…");
   var payload=serializeCloud();
   return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); scheduleCalendarPublish(); return publishSecureClientSpaces(); })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); return publishSecureClientSpaces(); })
     .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
 }
 function startSync(uidStr){
@@ -840,7 +996,7 @@ function startSync(uidStr){
         cloudStatus("☁️ Enregistrement…");
         return;
       }
-      applyRemote(remoteData); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
+      applyRemote(remoteData); render(); scheduleQuoteReminderPublish(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
     }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
@@ -1888,6 +2044,82 @@ function versionMetaHTML(doc){
 
 /* ===================== Devis : liste ===================== */
 function facturesDuDevis(id){ return state.factures.filter(function(f){return f.devisId===id;}); }
+function devisMariageEligibleRappel(d){
+  if(!d || d.statut!=="envoye" || d.versionArchive || !d.echeance) return false;
+  if(!d.client || String(d.client.email||"").indexOf("@")<0) return false;
+  var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d);
+  if(!mariage) return false;
+  return !!(mariage.ownerUid || d.ownerUid || d.portalPublished || d.portalPdfUrl);
+}
+function joursAvantEcheanceDevis(echeance){
+  if(!echeance) return null;
+  var aujourdhui=todayISO();
+  var d1=new Date(aujourdhui+"T12:00:00");
+  var d2=new Date(String(echeance)+"T12:00:00");
+  if(isNaN(d2.getTime())) return null;
+  return Math.round((d2.getTime()-d1.getTime())/86400000);
+}
+function devisEcheancePanelsHTML(){
+  // Utilise exactement la même sélection que la synchronisation des rappels.
+  // Ainsi, le compteur des bandeaux correspond toujours au nombre de devis
+  // réellement transmis au Worker Cloudflare.
+  var idsSynchronises={};
+  try{
+    (activeQuoteReminderPayload().quotes||[]).forEach(function(q){
+      if(q&&q.id) idsSynchronises[String(q.id)]=true;
+    });
+  }catch(_e){}
+  var eligibles=(state.devis||[]).filter(function(d){
+    return !!(d&&idsSynchronises[String(d.id||"")]);
+  });
+  var proches=eligibles.filter(function(d){ var j=joursAvantEcheanceDevis(d.echeance); return j!==null && j>=0 && j<15; })
+    .sort(function(a,b){ return String(a.echeance||"").localeCompare(String(b.echeance||"")); });
+  var expires=eligibles.filter(function(d){ var j=joursAvantEcheanceDevis(d.echeance); return j!==null && j<0; })
+    .sort(function(a,b){ return String(b.echeance||"").localeCompare(String(a.echeance||"")); });
+  var html="";
+
+  function ligne(d,expire){
+    var jours=joursAvantEcheanceDevis(d.echeance);
+    var t=totals(d.lignes,state.settings.partService);
+    var mariage=getMariage(d.mariageId);
+    var libelle="";
+    var color="var(--green)";
+    if(expire){
+      var retard=Math.abs(jours||0);
+      libelle="Expiré depuis "+retard+" jour"+(retard>1?"s":"");
+      color="#8b2f2f";
+    }else if(jours===0){ libelle="Expire aujourd’hui"; color="#8b2f2f"; }
+    else if(jours<=2){ libelle="Échéance dans "+jours+" jour"+(jours>1?"s":""); color="#b35c22"; }
+    else if(jours<=7){ libelle="Échéance dans "+jours+" jours"; color="#8a6a13"; }
+    else { libelle="Échéance dans "+jours+" jours"; color="var(--green)"; }
+    return '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap;">'+
+      '<div><div style="font-weight:700;color:var(--bordeaux);">'+esc(d.client&&d.client.nom||"Client")+' · '+esc(d.numero||"")+'</div>'+
+      '<div style="font-size:12px;color:'+color+';font-weight:700;">'+libelle+' · '+frDate(d.echeance)+' · '+euro(t.total)+'</div>'+
+      (!expire?'<div class="muted" style="font-size:11px;">Prochain envoi : '+esc(reminderNextSendDateLabel(d.echeance,jours,(activeQuoteReminderPayload().offsets||[])))+'</div>':'')+
+      (mariage&&mariage.dateMariage?'<div class="muted" style="font-size:11px;">Mariage le '+frDate(mariage.dateMariage)+'</div>':'')+'</div>'+
+      '<div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="devis-preview-'+esc(d.id)+'">Aperçu</button><button class="btn small soft" data-action="devis-edit-'+esc(d.id)+'">Modifier</button></div>'+
+    '</div>';
+  }
+
+  var open=!!ui.devisEcheancesOpen;
+  html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8a6a13;margin-bottom:14px;">'+
+    '<button data-action="devis-echeances-toggle" style="width:100%;border:none;background:#f6ead2;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+    '<div class="flexb"><div style="font-weight:800;color:#7a5a12;">'+(open?'▾':'▸')+' Devis arrivant à échéance sous 15 jours <span class="muted">('+proches.length+')</span></div><div style="font-size:12px;color:#7a5a12;font-weight:700;">Concernés par les relances automatiques</div></div></button>';
+  if(open){
+    html+='<div style="padding:10px 12px 4px;">'+(proches.length?proches.map(function(d){return ligne(d,false);}).join(''):'<div class="muted" style="padding:8px 4px 12px;">Aucun devis mariage à échéance sous 15 jours.</div>')+'</div>';
+  }
+  html+='</div>';
+
+  var openExp=!!ui.devisExpiresOpen;
+  html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8b2f2f;margin-bottom:14px;">'+
+    '<button data-action="devis-expires-toggle" style="width:100%;border:none;background:#f7dddd;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+    '<div class="flexb"><div style="font-weight:800;color:#8b2f2f;">'+(openExp?'▾':'▸')+' Devis expirés non traités <span class="muted">('+expires.length+')</span></div><div style="font-size:12px;color:#8b2f2f;font-weight:700;">À vérifier</div></div></button>';
+  if(openExp){
+    html+='<div style="padding:10px 12px 4px;">'+(expires.length?expires.map(function(d){return ligne(d,true);}).join(''):'<div class="muted" style="padding:8px 4px 12px;">Aucun devis mariage expiré non traité.</div>')+'</div>';
+  }
+  html+='</div>';
+  return html;
+}
 function viewDevis(){
   var filtre = ui.devisFiltre || "actifs";
   var actifs = state.devis.filter(function(d){ return d.statut !== "accepte" && d.statut !== "refuse" && d.statut !== "archive"; });
@@ -1902,6 +2134,8 @@ function viewDevis(){
   var html = '<div class="flexb" style="margin-bottom:14px;">'+
     '<div><h2 style="margin:0;">Mes devis</h2><p class="muted" style="margin:4px 0 0;">Vue simplifiée : seuls les devis à traiter restent visibles au premier coup d’œil.</p></div>'+
     '<button class="btn primary" data-action="newdevis">+ Nouveau devis</button></div>';
+
+  html += devisEcheancePanelsHTML();
 
   html += '<div class="row-actions" style="margin-bottom:14px;">'+
     '<button class="btn small '+(filtre==="actifs"?'primary':'ghost')+'" data-action="devis-filtre-actifs">À traiter ('+actifs.length+')</button>'+
@@ -5393,6 +5627,10 @@ function captureParamsForm(){
   s.mailMessageDevis=val("pMailMessageDevis"); s.mailMessageFacture=val("pMailMessageFacture"); s.mailMessageRelance=val("pMailMessageRelance");
   s.googleDriveUrl=val("pGoogleDriveUrl");
   var gda=document.getElementById("pGoogleDriveAuto"); s.googleDriveAuto=!!(gda&&gda.checked);
+  var rda=document.getElementById("pRappelsDevisActifs"); s.rappelsDevisActifs=!!(rda&&rda.checked);
+  var r14=document.getElementById("pRappelJ14"), r7=document.getElementById("pRappelJ7"), r2=document.getElementById("pRappelJ2"), r0=document.getElementById("pRappelJ0");
+  s.rappelsDevisJ14=!!(r14&&r14.checked); s.rappelsDevisJ7=!!(r7&&r7.checked); s.rappelsDevisJ2=!!(r2&&r2.checked); s.rappelsDevisJ0=!!(r0&&r0.checked);
+  s.reminderWorkerUrl=val("pReminderWorkerUrl"); s.reminderTestEmail=val("pReminderTestEmail");
   s.prestationsBibliotheque=prestationsSettingsFromDOM();
 }
 function viewPrestationsBibliothequeSettings(){
@@ -5447,6 +5685,26 @@ function viewMailTemplatesSettings(){
     '<label class="field"><span>Modèle de relance devis</span><textarea id="pMailMessageRelance" style="min-height:100px;">'+esc(s.mailMessageRelance||DEFAULT_SETTINGS.mailMessageRelance)+'</textarea><span class="hint">Ce modèle est sauvegardé pour la future fonction de relance automatique.</span></label>'+ 
   '</div>';
 }
+
+function viewQuoteReminderSettings(){
+  var s=state.settings||{};
+  return '<div class="card"><div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0 0 4px;">Rappels automatiques des devis</h3><p class="muted" style="margin:0;font-size:12px;">Les devis mariage sont synchronisés automatiquement après chaque enregistrement. Le Worker envoie ensuite les rappels même si MyBusiness est fermé.</p></div><span class="pill" style="background:'+(s.rappelsDevisActifs?'var(--green-s)':'#eee')+';color:'+(s.rappelsDevisActifs?'var(--green)':'var(--ink-s)')+';">'+(s.rappelsDevisActifs?'Actifs':'Désactivés')+'</span></div>'+ 
+    '<label style="display:flex;gap:8px;align-items:center;margin:14px 0 10px;"><input type="checkbox" id="pRappelsDevisActifs" '+(s.rappelsDevisActifs?'checked':'')+' style="width:18px;height:18px;"> Activer les rappels automatiques</label>'+ 
+    '<div class="inline" style="gap:14px;flex-wrap:wrap;margin-bottom:10px;">'+
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ14" '+(s.rappelsDevisJ14!==false?'checked':'')+'> J-14</label>'+ 
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ7" '+(s.rappelsDevisJ7!==false?'checked':'')+'> J-7</label>'+ 
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ2" '+(s.rappelsDevisJ2!==false?'checked':'')+'> J-2</label>'+ 
+      '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ0" '+(s.rappelsDevisJ0!==false?'checked':'')+'> Jour J</label>'+ 
+    '</div>'+ 
+    '<label class="field"><span>URL du Worker Cloudflare des rappels</span><input id="pReminderWorkerUrl" value="'+esc(s.reminderWorkerUrl||'')+'" placeholder="https://atelier-fleurs-reminders....workers.dev"></label>'+ 
+    '<label class="field"><span>Adresse utilisée pour l’e-mail de test</span><input id="pReminderTestEmail" type="email" value="'+esc(s.reminderTestEmail||s.email||'')+'" placeholder="votre@email.fr"><span class="hint">Le test envoie un vrai rappel J-14 à cette adresse, sans modifier les devis.</span></label>'+ 
+    '<div class="row-actions" style="margin-top:0;"><button class="btn primary" data-action="reminders-test">Tester la connexion</button><button class="btn gold" data-action="reminders-test-email">Envoyer un e-mail test</button><button class="btn soft" data-action="reminders-sync">Synchronisation manuelle (maintenance)</button><button class="btn soft" data-action="reminders-run">Exécuter les rappels maintenant</button></div>'+ 
+    '<div class="summary" style="margin-top:10px;font-size:12px;"><b>Synchronisation automatique active</b><br>Après chaque création, envoi, modification, acceptation, refus ou archivage d’un devis. Sauvegarde de sécurité à 23 h si MyBusiness est ouvert.<br><span class="muted">Prochaine sauvegarde quotidienne : '+esc(reminderNextDailySyncText())+'</span></div>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(reminderStatusText())+'</p>'+ 
+    viewReminderSyncTable()+
+    '<p class="muted" style="font-size:11px;margin:8px 0 0;">Seuls les devis mariage au statut <b>Envoyé</b>, liés à une fiche mariage et à un espace client, non acceptés, non refusés et non archivés sont surveillés. Le bandeau « Devis arrivant à échéance sous 15 jours » utilise exactement cette même liste.</p></div>';
+}
+
 function viewAboutAppSettings(){
   var changes=(APP_CHANGELOG||[]).slice(0,6).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
   var road=(APP_ROADMAP||[]).map(function(item){ return '<li>'+esc(item)+'</li>'; }).join('');
@@ -5493,6 +5751,7 @@ function viewParams(){
     F("Mention TVA","pTva",s.mentionTVA)+F("Conditions de règlement","pCond",s.conditionsReglement)+
     '<label class="field"><span>Mentions de pénalités (factures)</span><textarea id="pPen">'+esc(s.penalites)+'</textarea></label>'+
     '<div class="inline"><div>'+F("Acompte par défaut (%)","pAcompte",s.acompteParDefaut,"","number")+'</div><div>'+F("Validité devis (jours)","pValid",s.validiteDevis,"","number")+'</div><div>'+F("Délai paiement (jours)","pDelai",s.delaiPaiement,"","number")+'</div></div></div>'+
+  viewQuoteReminderSettings()+
   viewMailTemplatesSettings()+
   '<div class="card"><h3 style="margin:0 0 4px;">Seuils & cotisations (indicatifs)</h3><p class="muted" style="margin-top:0;font-size:12px;">À confirmer auprès de l\'URSSAF — ils évoluent chaque année.</p>'+
     '<div class="inline"><div>'+F("Seuil biens (€)","pSeuilB",s.seuilBiens,"","number")+'</div><div>'+F("Seuil services (€)","pSeuilS",s.seuilServices,"","number")+'</div></div>'+
@@ -7889,6 +8148,8 @@ async function handleAction(action){
 
   // devis
   if(action.indexOf("facture-preview-")===0){ var fp=state.factures.find(function(f){return f.id===action.slice(16);}); if(fp){ ui.preview={kind:"facture",doc:fp}; renderModal(); } return; }
+  if(action==="devis-echeances-toggle"){ ui.devisEcheancesOpen=!ui.devisEcheancesOpen; render(); return; }
+  if(action==="devis-expires-toggle"){ ui.devisExpiresOpen=!ui.devisExpiresOpen; render(); return; }
   if(action.indexOf("devis-preview-")===0){ ui.preview={kind:"devis",doc:findDevis(action.slice(14))}; renderModal(); return; }
   if(action.indexOf("devis-email-")===0){ envoyerDocumentEmail("devis", findDevis(action.slice(12))); return; }
   if(action.indexOf("devis-filtre-")===0){ ui.devisFiltre=action.slice(13); ui.confirmDelete=null; render(); return; }
@@ -8084,6 +8345,10 @@ async function handleAction(action){
   if(action==="logo-remove"){ state.logo=""; saveCache(); render(); return; }
 
   // params
+  if(action==="reminders-test"){ captureParamsForm(); var ru=reminderWorkerUrl(); if(!ru){toast("Renseigne l’URL du Worker.");return;} try{var rr=await fetch(ru+"/health");var rt=await rr.text();if(!rr.ok)throw new Error(rt);var rh={};try{rh=JSON.parse(rt);}catch(_e){} if(rh.configured===false) throw new Error("Configuration incomplète : "+((rh.missing||[]).join(", ")||"variables manquantes")); toast("Worker de rappels opérationnel.");ui.reminderWorkerStatus="ok";ui.reminderWorkerMessage="Worker opérationnel";render();}catch(re){ui.reminderWorkerStatus="error";ui.reminderWorkerMessage=re.message||"Erreur";render();toast("Worker indisponible : "+(re.message||"erreur"));} return; }
+  if(action==="reminders-test-email"){ captureParamsForm(); var rtu=reminderWorkerUrl(), rte=String((state.settings&&state.settings.reminderTestEmail)||"").trim(); if(!rtu){toast("Renseigne l’URL du Worker.");return;} if(rte.indexOf("@")<1){toast("Renseigne une adresse e-mail de test valide.");return;} if(!auth||!auth.currentUser){toast("Connexion administrateur requise.");return;} try{var rtt=await auth.currentUser.getIdToken(true);var rtr=await fetch(rtu+"/test-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+rtt},body:JSON.stringify({email:rte,name:(state.settings&&state.settings.entrepreneur)||"Test MyBusiness"})});var rtx=await rtr.text();if(!rtr.ok)throw new Error(rtx);toast("E-mail de test envoyé à "+rte+".");}catch(rteErr){toast("Échec de l’e-mail test : "+(rteErr.message||"erreur"));} return; }
+  if(action==="reminders-sync"){ captureParamsForm(); saveCache(); await publishQuoteRemindersNow(true); render(); return; }
+  if(action==="reminders-run"){ captureParamsForm(); var rru=reminderWorkerUrl(); if(!rru){toast("Renseigne l’URL du Worker.");return;} if(!auth||!auth.currentUser){toast("Connexion administrateur requise.");return;} try{await publishQuoteRemindersNow(false);var rtoken=await auth.currentUser.getIdToken(true);var rrun=await fetch(rru+"/run",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+rtoken},body:JSON.stringify({})});var rrtext=await rrun.text();if(!rrun.ok)throw new Error(rrtext);var rrdata={};try{rrdata=JSON.parse(rrtext);}catch(_e){} toast((rrdata.sent||0)+" rappel(s) envoyé(s)."+(rrdata.errors&&rrdata.errors.length?" Vérifie les erreurs dans Cloudflare.":""));}catch(rrerr){toast("Exécution impossible : "+(rrerr.message||"erreur"));} return; }
   if(action==="params-save"){ saveParams(); return; }
 
   // export
@@ -8432,7 +8697,7 @@ function finishWizard(){
 }
 function saveParams(){
   captureParamsForm();
-  saveCache(); render(); toast("Paramètres enregistrés.");
+  saveCache(); scheduleQuoteReminderPublish(); startReminderAutomaticSync(); render(); toast("Paramètres enregistrés.");
 }
 
 function onRestoreFile(file){
@@ -8642,6 +8907,7 @@ auth.onAuthStateChanged(function(user){
       startSync(user.uid);  // puis synchro temps réel avec le cloud
       startSecurePortalRequests();
       startSecurePortalDocumentDecisions();
+      startReminderAutomaticSync();
       setTimeout(maybeAutoGoogleDriveBackup, 2500);
     }).catch(function(err){
       console.error(err);
