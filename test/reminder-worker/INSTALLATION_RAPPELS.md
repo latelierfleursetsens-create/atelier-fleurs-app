@@ -1,16 +1,60 @@
-# Installation des rappels automatiques de devis
+# Installation V6.5.1 — Rappels automatiques des devis
 
-1. Dans Cloudflare, créez un Worker nommé `atelier-fleurs-reminders`.
-2. Collez le contenu de `worker.js`, puis déployez.
-3. Créez un namespace KV nommé `REMINDER_KV` et ajoutez-le au Worker avec le binding exact `REMINDER_KV`.
-4. Dans Settings > Variables and Secrets du Worker, ajoutez :
-   - `BREVO_API_KEY` (secret) : la clé API Brevo déjà utilisée pour les mails.
-   - `FIREBASE_API_KEY` : la clé Web Firebase de MyBusiness.
-   - `ADMIN_UID` : l’UID Firebase du compte administrateur.
-   - `SENDER_EMAIL` : `latelierfleursetsens@gmail.com`
-   - `SENDER_NAME` : `L'Atelier Fleurs & Sens`
-5. Vérifiez que le Cron Trigger est présent : `0 * * * *`. Le Worker s’exécute toutes les heures mais n’envoie qu’à 8 h, heure de Paris.
-6. Dans MyBusiness > Paramètres > Rappels automatiques des devis, collez l’URL du Worker, cliquez sur Tester, activez les rappels puis Enregistrer.
-7. Cliquez sur Synchroniser maintenant.
+Cette version utilise un Worker séparé afin de ne pas risquer de casser le Worker `atelier-fleurs-mail` déjà en production.
 
-Les rappels sont envoyés à J-14, J-7, J-2 et le jour J uniquement pour les devis au statut Envoyé. Dès qu’un devis est accepté, refusé ou archivé, il est retiré lors de la prochaine synchronisation automatique.
+## 1. Créer le Worker
+
+Dans Cloudflare > Workers & Pages :
+1. Cliquez sur **Create application**.
+2. Choisissez **Start with Hello World**.
+3. Nom : `atelier-fleurs-reminders`.
+4. Déployez, puis ouvrez **Edit code**.
+5. Remplacez tout le code par le contenu de `worker.js`, puis cliquez sur **Deploy**.
+
+## 2. Créer le stockage KV
+
+1. Cloudflare > Storage & databases > KV.
+2. Créez un namespace nommé `REMINDER_KV`.
+3. Revenez dans le Worker > **Bindings** > **Add binding** > **KV namespace**.
+4. Variable name : `REMINDER_KV`.
+5. Sélectionnez le namespace `REMINDER_KV`, puis validez.
+
+## 3. Ajouter les variables et secrets
+
+Dans Worker > Settings > Variables and Secrets, ajoutez :
+
+- `BREVO_API_KEY` — **Secret** — recopiez la même clé que dans `atelier-fleurs-mail`.
+- `FIREBASE_API_KEY` — Variable — `AIzaSyCPuUcFt99zQsUI1lBDSEZkX-RJHtgs5BY`
+- `ADMIN_UID` — Variable — UID Firebase du compte Google administrateur MyBusiness.
+- `SENDER_EMAIL` — Variable — `latelierfleursetsens@gmail.com`
+- `SENDER_NAME` — Variable — `L'Atelier Fleurs & Sens`
+
+Ne partagez jamais la valeur de `BREVO_API_KEY` dans une capture.
+
+## 4. Ajouter le déclencheur automatique
+
+Dans Worker > Settings > Trigger events > Add > Cron Trigger :
+
+`0 * * * *`
+
+Le Worker est appelé chaque heure mais n'envoie les rappels qu'à 8 h, heure de Paris. Cette méthode reste correcte lors des changements heure d'été / heure d'hiver.
+
+## 5. Configurer MyBusiness
+
+Dans MyBusiness TEST > Paramètres > Rappels automatiques :
+1. URL : l'adresse `https://atelier-fleurs-reminders....workers.dev`.
+2. Saisissez votre adresse dans « Adresse utilisée pour l’e-mail de test ».
+3. Cliquez sur **Tester la connexion**.
+4. Cliquez sur **Envoyer un e-mail test**.
+5. Activez J-14, J-7, J-2 et Jour J.
+6. Activez les rappels automatiques, puis enregistrez.
+7. Cliquez sur **Synchroniser maintenant**.
+
+## 6. Test réel sans attendre 8 h
+
+Créez un devis de test :
+- statut `Envoyé` ;
+- votre propre adresse e-mail ;
+- échéance exactement dans 14 jours, 7 jours, 2 jours ou aujourd'hui.
+
+Cliquez sur **Synchroniser maintenant**, puis **Exécuter les rappels maintenant**. Un rappel doit arriver. Le même rappel ne sera pas renvoyé une seconde fois grâce à la clé anti-doublon enregistrée dans KV.

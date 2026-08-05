@@ -1,10 +1,10 @@
-/* V6.5.0 TEST — Rappels automatiques des devis avant échéance. */
+/* V6.5.1 TEST — Rappels automatiques Cloudflare testables et sécurisés. */
 "use strict";
 
-var APP_VERSION="V6.5.0 TEST";
+var APP_VERSION="V6.5.1 TEST";
 var APP_VERSION_NOTE = "Rappels automatiques des devis à J-14, J-7, J-2 et le jour de l’échéance via Cloudflare.";
 var APP_CHANGELOG = [
-  "V6.5.0 TEST — Rappels automatiques des devis non acceptés à J-14, J-7, J-2 et Jour J, avec arrêt immédiat après acceptation/refus.",
+  "V6.5.1 TEST — Worker Cloudflare complet, e-mail test, synchronisation sécurisée et suivi du dernier passage.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -101,7 +101,7 @@ var DEFAULT_SETTINGS = {
   penalites:"En cas de retard de paiement, application de pénalités au taux légal en vigueur. Indemnité forfaitaire pour frais de recouvrement : 40 € (clients professionnels).",
   validiteDevis:30, acompteParDefaut:30,
   seuilBiens:188700, seuilServices:77700, tauxCotisBiens:12.3, tauxCotisServices:21.2,
-  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3, rappelsDevisActifs:false, rappelsDevisJ14:true, rappelsDevisJ7:true, rappelsDevisJ2:true, rappelsDevisJ0:true, reminderWorkerUrl:"https://atelier-fleurs-reminders.latelierfleursetsens.workers.dev", reminderLastSync:"",
+  partService:60, compteurs:{}, googleDriveUrl:"", googleDriveAuto:false, googleDriveLast:"", calendarFeedToken:"", calendarFeedLastAt:"", mariagePlanningYears:3, rappelsDevisActifs:false, rappelsDevisJ14:true, rappelsDevisJ7:true, rappelsDevisJ2:true, rappelsDevisJ0:true, reminderWorkerUrl:"https://atelier-fleurs-reminders.latelierfleursetsens.workers.dev", reminderLastSync:"", reminderTestEmail:"",
   kmOfferts:20, tarifKm:0.60, deplacementAllerRetour:true,
   mailObjetDevis:"Votre devis {numero} - L'Atelier Fleurs & Sens",
   mailObjetFacture:"Votre facture {numero} - L'Atelier Fleurs & Sens",
@@ -5449,7 +5449,7 @@ function captureParamsForm(){
   var rda=document.getElementById("pRappelsDevisActifs"); s.rappelsDevisActifs=!!(rda&&rda.checked);
   var r14=document.getElementById("pRappelJ14"), r7=document.getElementById("pRappelJ7"), r2=document.getElementById("pRappelJ2"), r0=document.getElementById("pRappelJ0");
   s.rappelsDevisJ14=!!(r14&&r14.checked); s.rappelsDevisJ7=!!(r7&&r7.checked); s.rappelsDevisJ2=!!(r2&&r2.checked); s.rappelsDevisJ0=!!(r0&&r0.checked);
-  s.reminderWorkerUrl=val("pReminderWorkerUrl");
+  s.reminderWorkerUrl=val("pReminderWorkerUrl"); s.reminderTestEmail=val("pReminderTestEmail");
   s.prestationsBibliotheque=prestationsSettingsFromDOM();
 }
 function viewPrestationsBibliothequeSettings(){
@@ -5516,7 +5516,8 @@ function viewQuoteReminderSettings(){
       '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ0" '+(s.rappelsDevisJ0!==false?'checked':'')+'> Jour J</label>'+ 
     '</div>'+ 
     '<label class="field"><span>URL du Worker Cloudflare des rappels</span><input id="pReminderWorkerUrl" value="'+esc(s.reminderWorkerUrl||'')+'" placeholder="https://atelier-fleurs-reminders....workers.dev"></label>'+ 
-    '<div class="row-actions" style="margin-top:0;"><button class="btn primary" data-action="reminders-test">Tester le Worker</button><button class="btn gold" data-action="reminders-sync">Synchroniser maintenant</button></div>'+ 
+    '<label class="field"><span>Adresse utilisée pour l’e-mail de test</span><input id="pReminderTestEmail" type="email" value="'+esc(s.reminderTestEmail||s.email||'')+'" placeholder="votre@email.fr"><span class="hint">Le test envoie un vrai rappel J-14 à cette adresse, sans modifier les devis.</span></label>'+ 
+    '<div class="row-actions" style="margin-top:0;"><button class="btn primary" data-action="reminders-test">Tester la connexion</button><button class="btn gold" data-action="reminders-test-email">Envoyer un e-mail test</button><button class="btn soft" data-action="reminders-sync">Synchroniser maintenant</button><button class="btn soft" data-action="reminders-run">Exécuter les rappels maintenant</button></div>'+ 
     '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(reminderStatusText())+'</p>'+ 
     '<p class="muted" style="font-size:11px;margin:8px 0 0;">Seuls les devis au statut <b>Envoyé</b>, non acceptés, non refusés et non archivés sont transmis. Dès qu’un devis change de statut, il disparaît de la liste des rappels au prochain enregistrement.</p></div>';
 }
@@ -8159,8 +8160,10 @@ async function handleAction(action){
   if(action==="logo-remove"){ state.logo=""; saveCache(); render(); return; }
 
   // params
-  if(action==="reminders-test"){ captureParamsForm(); var ru=reminderWorkerUrl(); if(!ru){toast("Renseigne l’URL du Worker.");return;} try{var rr=await fetch(ru+"/health");var rt=await rr.text();if(!rr.ok)throw new Error(rt);toast("Worker de rappels opérationnel.");ui.reminderWorkerStatus="ok";ui.reminderWorkerMessage="Worker opérationnel";render();}catch(re){ui.reminderWorkerStatus="error";ui.reminderWorkerMessage=re.message||"Erreur";render();toast("Worker indisponible : "+(re.message||"erreur"));} return; }
+  if(action==="reminders-test"){ captureParamsForm(); var ru=reminderWorkerUrl(); if(!ru){toast("Renseigne l’URL du Worker.");return;} try{var rr=await fetch(ru+"/health");var rt=await rr.text();if(!rr.ok)throw new Error(rt);var rh={};try{rh=JSON.parse(rt);}catch(_e){} if(rh.configured===false) throw new Error("Configuration incomplète : "+((rh.missing||[]).join(", ")||"variables manquantes")); toast("Worker de rappels opérationnel.");ui.reminderWorkerStatus="ok";ui.reminderWorkerMessage="Worker opérationnel";render();}catch(re){ui.reminderWorkerStatus="error";ui.reminderWorkerMessage=re.message||"Erreur";render();toast("Worker indisponible : "+(re.message||"erreur"));} return; }
+  if(action==="reminders-test-email"){ captureParamsForm(); var rtu=reminderWorkerUrl(), rte=String((state.settings&&state.settings.reminderTestEmail)||"").trim(); if(!rtu){toast("Renseigne l’URL du Worker.");return;} if(rte.indexOf("@")<1){toast("Renseigne une adresse e-mail de test valide.");return;} if(!auth||!auth.currentUser){toast("Connexion administrateur requise.");return;} try{var rtt=await auth.currentUser.getIdToken(true);var rtr=await fetch(rtu+"/test-email",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+rtt},body:JSON.stringify({email:rte,name:(state.settings&&state.settings.entrepreneur)||"Test MyBusiness"})});var rtx=await rtr.text();if(!rtr.ok)throw new Error(rtx);toast("E-mail de test envoyé à "+rte+".");}catch(rteErr){toast("Échec de l’e-mail test : "+(rteErr.message||"erreur"));} return; }
   if(action==="reminders-sync"){ captureParamsForm(); saveCache(); await publishQuoteRemindersNow(true); render(); return; }
+  if(action==="reminders-run"){ captureParamsForm(); var rru=reminderWorkerUrl(); if(!rru){toast("Renseigne l’URL du Worker.");return;} if(!auth||!auth.currentUser){toast("Connexion administrateur requise.");return;} try{await publishQuoteRemindersNow(false);var rtoken=await auth.currentUser.getIdToken(true);var rrun=await fetch(rru+"/run",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+rtoken},body:JSON.stringify({})});var rrtext=await rrun.text();if(!rrun.ok)throw new Error(rrtext);var rrdata={};try{rrdata=JSON.parse(rrtext);}catch(_e){} toast((rrdata.sent||0)+" rappel(s) envoyé(s)."+(rrdata.errors&&rrdata.errors.length?" Vérifie les erreurs dans Cloudflare.":""));}catch(rrerr){toast("Exécution impossible : "+(rrerr.message||"erreur"));} return; }
   if(action==="params-save"){ saveParams(); return; }
 
   // export

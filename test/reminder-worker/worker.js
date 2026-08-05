@@ -50,7 +50,25 @@ async function runReminders(env,force=false){
 export default {
   async fetch(request,env){
     const url=new URL(request.url); if(request.method==="OPTIONS") return new Response(null,{headers:cors(request)});
-    if(request.method==="GET"&&url.pathname==="/health") return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.0",configured:Boolean(env.REMINDER_KV&&env.BREVO_API_KEY&&env.ADMIN_UID&&env.FIREBASE_API_KEY)});
+    if(request.method==="GET"&&url.pathname==="/health"){
+      const required=["REMINDER_KV","BREVO_API_KEY","ADMIN_UID","FIREBASE_API_KEY"];
+      const missing=required.filter(k=>!env[k]);
+      return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.1",configured:missing.length===0,missing});
+    }
+
+    if(request.method==="POST"&&url.pathname==="/test-email"){
+      if(!(await verifyAdmin(request,env))) return json(request,{ok:false,message:"Accès administrateur refusé"},403);
+      if(!env.BREVO_API_KEY) return json(request,{ok:false,message:"Secret BREVO_API_KEY manquant"},503);
+      let data; try{data=await request.json();}catch{return json(request,{ok:false,message:"JSON invalide"},400);}
+      const email=String(data.email||"").trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(request,{ok:false,message:"Adresse e-mail invalide"},400);
+      const due=new Date(); due.setDate(due.getDate()+14);
+      const ymd=due.toISOString().slice(0,10);
+      const quote={numero:"D-TEST-REMINDER",echeance:ymd,clientNom:String(data.name||"Test MyBusiness"),portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"};
+      const c=reminderCopy(quote,14,{name:env.SENDER_NAME||"L'Atelier Fleurs & Sens"});
+      await sendBrevo(env,email,quote.clientNom,c.subject,c.html);
+      return json(request,{ok:true,sentTo:email});
+    }
     if(request.method==="POST"&&url.pathname==="/sync"){
       if(!env.REMINDER_KV) return json(request,{ok:false,message:"Binding REMINDER_KV manquant"},503); if(!(await verifyAdmin(request,env))) return json(request,{ok:false,message:"Accès administrateur refusé"},403);
       let data; try{data=await request.json();}catch{return json(request,{ok:false,message:"JSON invalide"},400);}
@@ -63,7 +81,7 @@ export default {
     if(request.method==="GET"&&url.pathname==="/status"){
       if(!(await verifyAdmin(request,env))) return json(request,{ok:false,message:"Accès administrateur refusé"},403); return json(request,{ok:true,lastRun:await env.REMINDER_KV.get("last-run","json"),config:await env.REMINDER_KV.get("reminder-config","json")});
     }
-    return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.0"});
+    return json(request,{ok:true,service:"MyBusiness Quote Reminders",version:"6.5.1"});
   },
   async scheduled(event,env,ctx){ctx.waitUntil(runReminders(env,false));}
 };
