@@ -1997,23 +1997,23 @@ function devisEcheancePanelsHTML(){
     '</div>';
   }
 
-  if(proches.length){
-    var open=!!ui.devisEcheancesOpen;
-    html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8a6a13;margin-bottom:14px;">'+
-      '<button data-action="devis-echeances-toggle" style="width:100%;border:none;background:#f6ead2;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
-      '<div class="flexb"><div style="font-weight:800;color:#7a5a12;">'+(open?'▾':'▸')+' Devis arrivant à échéance sous 15 jours <span class="muted">('+proches.length+')</span></div><div style="font-size:12px;color:#7a5a12;font-weight:700;">Concernés par les relances automatiques</div></div></button>';
-    if(open){ html+='<div style="padding:10px 12px 4px;">'+proches.map(function(d){return ligne(d,false);}).join('')+'</div>'; }
-    html+='</div>';
+  var open=!!ui.devisEcheancesOpen;
+  html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8a6a13;margin-bottom:14px;">'+
+    '<button data-action="devis-echeances-toggle" style="width:100%;border:none;background:#f6ead2;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+    '<div class="flexb"><div style="font-weight:800;color:#7a5a12;">'+(open?'▾':'▸')+' Devis arrivant à échéance sous 15 jours <span class="muted">('+proches.length+')</span></div><div style="font-size:12px;color:#7a5a12;font-weight:700;">Concernés par les relances automatiques</div></div></button>';
+  if(open){
+    html+='<div style="padding:10px 12px 4px;">'+(proches.length?proches.map(function(d){return ligne(d,false);}).join(''):'<div class="muted" style="padding:8px 4px 12px;">Aucun devis mariage à échéance sous 15 jours.</div>')+'</div>';
   }
+  html+='</div>';
 
-  if(expires.length){
-    var openExp=!!ui.devisExpiresOpen;
-    html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8b2f2f;margin-bottom:14px;">'+
-      '<button data-action="devis-expires-toggle" style="width:100%;border:none;background:#f7dddd;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
-      '<div class="flexb"><div style="font-weight:800;color:#8b2f2f;">'+(openExp?'▾':'▸')+' Devis expirés non traités <span class="muted">('+expires.length+')</span></div><div style="font-size:12px;color:#8b2f2f;font-weight:700;">À vérifier</div></div></button>';
-    if(openExp){ html+='<div style="padding:10px 12px 4px;">'+expires.map(function(d){return ligne(d,true);}).join('')+'</div>'; }
-    html+='</div>';
+  var openExp=!!ui.devisExpiresOpen;
+  html+='<div class="card" style="padding:0;overflow:hidden;border-color:#8b2f2f;margin-bottom:14px;">'+
+    '<button data-action="devis-expires-toggle" style="width:100%;border:none;background:#f7dddd;padding:13px 16px;cursor:pointer;text-align:left;font-family:inherit;">'+
+    '<div class="flexb"><div style="font-weight:800;color:#8b2f2f;">'+(openExp?'▾':'▸')+' Devis expirés non traités <span class="muted">('+expires.length+')</span></div><div style="font-size:12px;color:#8b2f2f;font-weight:700;">À vérifier</div></div></button>';
+  if(openExp){
+    html+='<div style="padding:10px 12px 4px;">'+(expires.length?expires.map(function(d){return ligne(d,true);}).join(''):'<div class="muted" style="padding:8px 4px 12px;">Aucun devis mariage expiré non traité.</div>')+'</div>';
   }
+  html+='</div>';
   return html;
 }
 function viewDevis(){
