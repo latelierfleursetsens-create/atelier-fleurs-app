@@ -1,10 +1,10 @@
-/* V6.6.1 TEST — Correctif de performance de la synchronisation des rappels. */
+/* V6.6.2 TEST — Ajout du CA potentiel des devis en attente. */
 "use strict";
 
-var APP_VERSION="V6.6.1 TEST";
+var APP_VERSION="V6.6.2 TEST";
 var APP_VERSION_NOTE = "Correctif important : la synchronisation des rappels ne tourne plus en boucle et ne se déclenche que si la liste des devis surveillés a réellement changé.";
 var APP_CHANGELOG = [
-  "V6.6.1 TEST — Correctif performance : anti-boucle, comparaison des devis avant envoi au Worker, temporisation de 5 secondes et aucune resynchronisation déclenchée par les mises à jour reçues d’un autre poste.",
+  "V6.6.2 TEST — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
   "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
   "V6.5.6 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
@@ -2169,11 +2169,21 @@ function viewDevis(){
 
   html += devisEcheancePanelsHTML();
 
-  html += '<div class="row-actions" style="margin-bottom:14px;">'+
-    '<button class="btn small '+(filtre==="actifs"?'primary':'ghost')+'" data-action="devis-filtre-actifs">À traiter ('+actifs.length+')</button>'+
-    '<button class="btn small '+(filtre==="acceptes"?'primary':'ghost')+'" data-action="devis-filtre-acceptes">Acceptés ('+acceptes.length+')</button>'+
-    '<button class="btn small '+(filtre==="refuses"?'primary':'ghost')+'" data-action="devis-filtre-refuses">Refusés ('+refuses.length+')</button>'+
-    '<button class="btn small '+(filtre==="archives"?'primary':'ghost')+'" data-action="devis-filtre-archives">Archivés ('+archives.length+')</button>'+
+  var devisEnAttente = state.devis.filter(function(d){
+    return d && d.statut === "envoye" && !d.versionArchive;
+  });
+  var caPotentielDevisEnAttente = devisEnAttente.reduce(function(total,d){
+    return total + Number(totals(d.lignes,state.settings.partService).total||0);
+  },0);
+
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">'+
+    '<div class="row-actions" style="margin:0;">'+
+      '<button class="btn small '+(filtre==="actifs"?'primary':'ghost')+'" data-action="devis-filtre-actifs">À traiter ('+actifs.length+')</button>'+ 
+      '<button class="btn small '+(filtre==="acceptes"?'primary':'ghost')+'" data-action="devis-filtre-acceptes">Acceptés ('+acceptes.length+')</button>'+ 
+      '<button class="btn small '+(filtre==="refuses"?'primary':'ghost')+'" data-action="devis-filtre-refuses">Refusés ('+refuses.length+')</button>'+ 
+      '<button class="btn small '+(filtre==="archives"?'primary':'ghost')+'" data-action="devis-filtre-archives">Archivés ('+archives.length+')</button>'+ 
+    '</div>'+ 
+    '<div style="margin-left:auto;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#fffaf7;color:var(--bordeaux);font-weight:800;white-space:nowrap;">💰 CA potentiel devis en attente : '+euro(caPotentielDevisEnAttente)+'</div>'+ 
   '</div>';
 
   if(state.devis.length===0){
