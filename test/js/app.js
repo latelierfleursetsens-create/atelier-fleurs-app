@@ -1,10 +1,10 @@
-/* V6.5.4 TEST — Rappels automatiques Cloudflare testables et sécurisés. */
+/* V6.5.5 TEST — Tableau de contrôle des devis synchronisés pour les rappels. */
 "use strict";
 
-var APP_VERSION="V6.5.4 TEST";
-var APP_VERSION_NOTE = "Rappels automatiques des devis à J-14, J-7, J-2 et le jour de l’échéance via Cloudflare.";
+var APP_VERSION="V6.5.5 TEST";
+var APP_VERSION_NOTE = "Rappels automatiques des devis avec tableau de contrôle des devis synchronisés.";
 var APP_CHANGELOG = [
-  "V6.5.4 TEST — Correction : les bandeaux utilisent exactement la même sélection que les relances synchronisées.",
+  "V6.5.5 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -181,6 +181,59 @@ function reminderStatusText(){
   if(ui.reminderWorkerStatus==="error") return "⚠️ "+(ui.reminderWorkerMessage||"Erreur de synchronisation");
   if(s.reminderLastSync) return "Dernière synchronisation : "+new Date(s.reminderLastSync).toLocaleString("fr-FR")+(ui.reminderWorkerMessage?" · "+ui.reminderWorkerMessage:"");
   return "À synchroniser après configuration du Worker Cloudflare";
+}
+
+function reminderDaysUntil(ymd){
+  var m=String(ymd||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return null;
+  var due=Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  var now=new Date();
+  var today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+  return Math.round((due-today)/86400000);
+}
+function reminderDateLabel(ymd){
+  var m=String(ymd||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3]+"/"+m[2]+"/"+m[1] : String(ymd||"");
+}
+function reminderNextStepLabel(days,offsets){
+  if(days==null) return "Date invalide";
+  if(days<0) return "Échéance dépassée de "+Math.abs(days)+" jour"+(Math.abs(days)>1?"s":"");
+  if(days===0) return offsets.indexOf(0)>=0 ? "Relance Jour J aujourd’hui" : "Échéance aujourd’hui";
+  var candidates=(offsets||[]).filter(function(x){return x<=days;}).sort(function(a,b){return b-a;});
+  if(!candidates.length) return "Aucune autre relance prévue";
+  var next=candidates[0];
+  var wait=days-next;
+  var name=next===0?"Jour J":"J-"+next;
+  if(wait===0) return "Relance "+name+" aujourd’hui";
+  if(wait===1) return "Relance "+name+" demain";
+  return "Relance "+name+" dans "+wait+" jours";
+}
+function viewReminderSyncTable(){
+  var payload=activeQuoteReminderPayload();
+  var quotes=payload.quotes||[];
+  var offsets=payload.offsets||[];
+  var rows=quotes.slice().sort(function(a,b){return String(a.echeance||"").localeCompare(String(b.echeance||""));}).map(function(q){
+    var days=reminderDaysUntil(q.echeance);
+    var urgency=days==null?"":(days<0?"🔴":days<=2?"🟠":days<=7?"🟡":days<=14?"🟢":"⚪");
+    return '<tr>'+
+      '<td style="font-weight:700;white-space:nowrap;">'+esc(q.numero||"—")+'</td>'+
+      '<td>'+esc(q.clientNom||"—")+'</td>'+
+      '<td style="white-space:nowrap;">'+esc(reminderDateLabel(q.echeance))+'</td>'+
+      '<td>'+urgency+' '+esc(reminderNextStepLabel(days,offsets))+'</td>'+
+      '<td style="text-align:right;white-space:nowrap;">'+euro(q.montant||0)+'</td>'+
+    '</tr>';
+  }).join('');
+  if(!rows) rows='<tr><td colspan="5" class="muted" style="padding:14px;text-align:center;">Aucun devis mariage n’est actuellement synchronisé.</td></tr>';
+  return '<details open style="margin-top:12px;border:1px solid var(--line);border-radius:10px;background:#fff;">'+
+    '<summary style="cursor:pointer;padding:12px 14px;font-weight:800;color:var(--bordeaux);">📋 Devis actuellement synchronisés ('+quotes.length+')</summary>'+
+    '<div style="overflow-x:auto;padding:0 12px 12px;">'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:650px;">'+
+        '<thead><tr style="text-align:left;border-bottom:1px solid var(--line);"><th style="padding:8px;">Devis</th><th style="padding:8px;">Cliente</th><th style="padding:8px;">Échéance</th><th style="padding:8px;">Prochaine relance</th><th style="padding:8px;text-align:right;">Montant</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody>'+
+      '</table>'+
+      '<p class="muted" style="font-size:11px;margin:8px 0 0;">Cette liste reprend exactement les devis envoyés au Worker Cloudflare lors de la synchronisation : uniquement les devis mariage liés à un espace client, au statut Envoyé et non archivés.</p>'+
+    '</div>'+
+  '</details>';
 }
 
 /* ===================== Calendrier Apple synchronisé ===================== */
@@ -5607,6 +5660,7 @@ function viewQuoteReminderSettings(){
     '<label class="field"><span>Adresse utilisée pour l’e-mail de test</span><input id="pReminderTestEmail" type="email" value="'+esc(s.reminderTestEmail||s.email||'')+'" placeholder="votre@email.fr"><span class="hint">Le test envoie un vrai rappel J-14 à cette adresse, sans modifier les devis.</span></label>'+ 
     '<div class="row-actions" style="margin-top:0;"><button class="btn primary" data-action="reminders-test">Tester la connexion</button><button class="btn gold" data-action="reminders-test-email">Envoyer un e-mail test</button><button class="btn soft" data-action="reminders-sync">Synchroniser maintenant</button><button class="btn soft" data-action="reminders-run">Exécuter les rappels maintenant</button></div>'+ 
     '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(reminderStatusText())+'</p>'+ 
+    viewReminderSyncTable()+
     '<p class="muted" style="font-size:11px;margin:8px 0 0;">Seuls les devis au statut <b>Envoyé</b>, non acceptés, non refusés et non archivés sont transmis. Dès qu’un devis change de statut, il disparaît de la liste des rappels au prochain enregistrement.</p></div>';
 }
 
