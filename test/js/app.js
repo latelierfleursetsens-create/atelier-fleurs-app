@@ -1,10 +1,11 @@
-/* V6.5.5 TEST — Tableau de contrôle des devis synchronisés pour les rappels. */
+/* V6.6.0 TEST — Synchronisation automatique et source unique pour les rappels de devis mariage. */
 "use strict";
 
-var APP_VERSION="V6.5.5 TEST";
-var APP_VERSION_NOTE = "Rappels automatiques des devis avec tableau de contrôle des devis synchronisés.";
+var APP_VERSION="V6.6.0 TEST";
+var APP_VERSION_NOTE = "Rappels devis mariage : synchronisation automatique après chaque modification, contrôle centralisé et bandeaux cohérents avec le Worker.";
 var APP_CHANGELOG = [
-  "V6.5.5 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
+  "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
+  "V6.5.6 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -123,6 +124,7 @@ window.addEventListener("beforeunload",function(e){
 
 /* ===================== Rappels automatiques des devis ===================== */
 var reminderPublishTimer=null;
+var reminderDailyTimer=null;
 function reminderWorkerUrl(){
   return String((state.settings&&state.settings.reminderWorkerUrl)||"").replace(/\/+$/g,"");
 }
@@ -137,20 +139,24 @@ function activeQuoteReminderPayload(){
     if(!d || d.statut!=="envoye" || d.versionArchive || !d.echeance) return false;
     if(!d.client || String(d.client.email||"").indexOf("@")<0) return false;
 
-    // Relances réservées aux devis mariage réellement liés à un espace client.
-    // Les devis ateliers et autres devis sans fiche mariage sont exclus.
-    if(!d.mariageId) return false;
-    var mariage=getMariage(d.mariageId);
-    if(!mariage || !mariage.ownerUid) return false;
+    // Un devis mariage peut être relié de deux façons selon sa date de création :
+    // 1) par d.mariageId ; 2) par mariage.devisLie. On accepte les deux.
+    var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d);
+    if(!mariage) return false; // exclut automatiquement les devis ateliers
+
+    // L’espace client peut être porté par la fiche mariage ou déjà enregistré sur le devis.
+    var espaceClientActif=!!(mariage.ownerUid || d.ownerUid || d.portalPublished || d.portalPdfUrl);
+    if(!espaceClientActif) return false;
 
     return true;
   }).map(function(d){
-    var mariage=getMariage(d.mariageId);
+    var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d);
+    var ownerUid=String((mariage&&mariage.ownerUid)||d.ownerUid||"");
     return {
       id:String(d.id||""), numero:String(d.numero||""), echeance:String(d.echeance||""), date:String(d.date||""),
       clientNom:String(d.client&&d.client.nom||""), clientEmail:String(d.client&&d.client.email||""),
       montant:Number(documentCalc(d.lignes||[],state.settings.partService,d).total||0), statut:String(d.statut||""),
-      mariageId:String(d.mariageId||""), espaceClient:!!(mariage&&mariage.ownerUid),
+      mariageId:String((mariage&&mariage.id)||d.mariageId||""), espaceClient:!!(ownerUid || d.portalPublished || d.portalPdfUrl),
       portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
     };
   });
@@ -175,12 +181,33 @@ function scheduleQuoteReminderPublish(){
   clearTimeout(reminderPublishTimer);
   reminderPublishTimer=setTimeout(function(){ publishQuoteRemindersNow(false); },1800);
 }
+function nextReminderDailySyncDate(){
+  var now=new Date();
+  var next=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,0,0,0);
+  if(next.getTime()<=now.getTime()) next.setDate(next.getDate()+1);
+  return next;
+}
+function startReminderAutomaticSync(){
+  clearTimeout(reminderDailyTimer);
+  if(!(state.settings&&state.settings.rappelsDevisActifs)) return;
+  // Synchronisation de sécurité au démarrage : les changements sont déjà
+  // synchronisés automatiquement après chaque enregistrement cloud.
+  setTimeout(function(){ publishQuoteRemindersNow(false); },3500);
+  var next=nextReminderDailySyncDate();
+  reminderDailyTimer=setTimeout(function(){
+    publishQuoteRemindersNow(false).finally(function(){ startReminderAutomaticSync(); });
+  },Math.max(1000,next.getTime()-Date.now()));
+}
+function reminderNextDailySyncText(){
+  if(!(state.settings&&state.settings.rappelsDevisActifs)) return "—";
+  return nextReminderDailySyncDate().toLocaleString("fr-FR");
+}
 function reminderStatusText(){
   var s=state.settings||{};
   if(!s.rappelsDevisActifs) return "Rappels désactivés";
   if(ui.reminderWorkerStatus==="error") return "⚠️ "+(ui.reminderWorkerMessage||"Erreur de synchronisation");
   if(s.reminderLastSync) return "Dernière synchronisation : "+new Date(s.reminderLastSync).toLocaleString("fr-FR")+(ui.reminderWorkerMessage?" · "+ui.reminderWorkerMessage:"");
-  return "À synchroniser après configuration du Worker Cloudflare";
+  return "Synchronisation automatique en attente du premier enregistrement";
 }
 
 function reminderDaysUntil(ymd){
@@ -208,6 +235,18 @@ function reminderNextStepLabel(days,offsets){
   if(wait===1) return "Relance "+name+" demain";
   return "Relance "+name+" dans "+wait+" jours";
 }
+function reminderNextSendDateLabel(echeance,days,offsets){
+  if(days==null || days<0) return reminderNextStepLabel(days,offsets);
+  var candidates=(offsets||[]).filter(function(x){return x<=days;}).sort(function(a,b){return b-a;});
+  if(!candidates.length) return "Aucune relance prévue";
+  var next=candidates[0];
+  var m=String(echeance||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!m) return reminderNextStepLabel(days,offsets);
+  var send=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),12,0,0,0);
+  send.setDate(send.getDate()-next);
+  var name=next===0?"Jour J":"J-"+next;
+  return "📧 "+send.toLocaleDateString("fr-FR")+" ("+name+")";
+}
 function viewReminderSyncTable(){
   var payload=activeQuoteReminderPayload();
   var quotes=payload.quotes||[];
@@ -219,19 +258,19 @@ function viewReminderSyncTable(){
       '<td style="font-weight:700;white-space:nowrap;">'+esc(q.numero||"—")+'</td>'+
       '<td>'+esc(q.clientNom||"—")+'</td>'+
       '<td style="white-space:nowrap;">'+esc(reminderDateLabel(q.echeance))+'</td>'+
-      '<td>'+urgency+' '+esc(reminderNextStepLabel(days,offsets))+'</td>'+
+      '<td>'+urgency+' '+esc(reminderNextSendDateLabel(q.echeance,days,offsets))+'</td>'+
       '<td style="text-align:right;white-space:nowrap;">'+euro(q.montant||0)+'</td>'+
     '</tr>';
   }).join('');
-  if(!rows) rows='<tr><td colspan="5" class="muted" style="padding:14px;text-align:center;">Aucun devis mariage n’est actuellement synchronisé.</td></tr>';
+  if(!rows) rows='<tr><td colspan="5" class="muted" style="padding:14px;text-align:center;">Aucun devis mariage n’est actuellement surveillé.</td></tr>';
   return '<details open style="margin-top:12px;border:1px solid var(--line);border-radius:10px;background:#fff;">'+
-    '<summary style="cursor:pointer;padding:12px 14px;font-weight:800;color:var(--bordeaux);">📋 Devis actuellement synchronisés ('+quotes.length+')</summary>'+
+    '<summary style="cursor:pointer;padding:12px 14px;font-weight:800;color:var(--bordeaux);">📋 Devis actuellement surveillés ('+quotes.length+')</summary>'+
     '<div style="overflow-x:auto;padding:0 12px 12px;">'+
       '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:650px;">'+
         '<thead><tr style="text-align:left;border-bottom:1px solid var(--line);"><th style="padding:8px;">Devis</th><th style="padding:8px;">Cliente</th><th style="padding:8px;">Échéance</th><th style="padding:8px;">Prochaine relance</th><th style="padding:8px;text-align:right;">Montant</th></tr></thead>'+
         '<tbody>'+rows+'</tbody>'+
       '</table>'+
-      '<p class="muted" style="font-size:11px;margin:8px 0 0;">Cette liste reprend exactement les devis envoyés au Worker Cloudflare lors de la synchronisation : uniquement les devis mariage liés à un espace client, au statut Envoyé et non archivés.</p>'+
+      '<p class="muted" style="font-size:11px;margin:8px 0 0;">Cette liste est la source officielle du Worker Cloudflare. Les devis à moins de 15 jours apparaissent aussi dans le bandeau de l’onglet Devis. Un e-mail part uniquement aux dates J-14, J-7, J-2 ou Jour J.</p>'+
     '</div>'+
   '</details>';
 }
@@ -957,7 +996,7 @@ function startSync(uidStr){
         cloudStatus("☁️ Enregistrement…");
         return;
       }
-      applyRemote(remoteData); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
+      applyRemote(remoteData); render(); scheduleQuoteReminderPublish(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
     }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
@@ -2008,9 +2047,9 @@ function facturesDuDevis(id){ return state.factures.filter(function(f){return f.
 function devisMariageEligibleRappel(d){
   if(!d || d.statut!=="envoye" || d.versionArchive || !d.echeance) return false;
   if(!d.client || String(d.client.email||"").indexOf("@")<0) return false;
-  if(!d.mariageId) return false;
-  var mariage=getMariage(d.mariageId);
-  return !!(mariage && mariage.ownerUid);
+  var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d);
+  if(!mariage) return false;
+  return !!(mariage.ownerUid || d.ownerUid || d.portalPublished || d.portalPdfUrl);
 }
 function joursAvantEcheanceDevis(echeance){
   if(!echeance) return null;
@@ -2056,6 +2095,7 @@ function devisEcheancePanelsHTML(){
     return '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap;">'+
       '<div><div style="font-weight:700;color:var(--bordeaux);">'+esc(d.client&&d.client.nom||"Client")+' · '+esc(d.numero||"")+'</div>'+
       '<div style="font-size:12px;color:'+color+';font-weight:700;">'+libelle+' · '+frDate(d.echeance)+' · '+euro(t.total)+'</div>'+
+      (!expire?'<div class="muted" style="font-size:11px;">Prochain envoi : '+esc(reminderNextSendDateLabel(d.echeance,jours,(activeQuoteReminderPayload().offsets||[])))+'</div>':'')+
       (mariage&&mariage.dateMariage?'<div class="muted" style="font-size:11px;">Mariage le '+frDate(mariage.dateMariage)+'</div>':'')+'</div>'+
       '<div class="row-actions" style="margin:0;"><button class="btn small ghost" data-action="devis-preview-'+esc(d.id)+'">Aperçu</button><button class="btn small soft" data-action="devis-edit-'+esc(d.id)+'">Modifier</button></div>'+
     '</div>';
@@ -5648,7 +5688,7 @@ function viewMailTemplatesSettings(){
 
 function viewQuoteReminderSettings(){
   var s=state.settings||{};
-  return '<div class="card"><div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0 0 4px;">Rappels automatiques des devis</h3><p class="muted" style="margin:0;font-size:12px;">Les rappels partent même si MyBusiness est fermé, grâce au Worker Cloudflare planifié.</p></div><span class="pill" style="background:'+(s.rappelsDevisActifs?'var(--green-s)':'#eee')+';color:'+(s.rappelsDevisActifs?'var(--green)':'var(--ink-s)')+';">'+(s.rappelsDevisActifs?'Actifs':'Désactivés')+'</span></div>'+ 
+  return '<div class="card"><div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0 0 4px;">Rappels automatiques des devis</h3><p class="muted" style="margin:0;font-size:12px;">Les devis mariage sont synchronisés automatiquement après chaque enregistrement. Le Worker envoie ensuite les rappels même si MyBusiness est fermé.</p></div><span class="pill" style="background:'+(s.rappelsDevisActifs?'var(--green-s)':'#eee')+';color:'+(s.rappelsDevisActifs?'var(--green)':'var(--ink-s)')+';">'+(s.rappelsDevisActifs?'Actifs':'Désactivés')+'</span></div>'+ 
     '<label style="display:flex;gap:8px;align-items:center;margin:14px 0 10px;"><input type="checkbox" id="pRappelsDevisActifs" '+(s.rappelsDevisActifs?'checked':'')+' style="width:18px;height:18px;"> Activer les rappels automatiques</label>'+ 
     '<div class="inline" style="gap:14px;flex-wrap:wrap;margin-bottom:10px;">'+
       '<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="pRappelJ14" '+(s.rappelsDevisJ14!==false?'checked':'')+'> J-14</label>'+ 
@@ -5658,10 +5698,11 @@ function viewQuoteReminderSettings(){
     '</div>'+ 
     '<label class="field"><span>URL du Worker Cloudflare des rappels</span><input id="pReminderWorkerUrl" value="'+esc(s.reminderWorkerUrl||'')+'" placeholder="https://atelier-fleurs-reminders....workers.dev"></label>'+ 
     '<label class="field"><span>Adresse utilisée pour l’e-mail de test</span><input id="pReminderTestEmail" type="email" value="'+esc(s.reminderTestEmail||s.email||'')+'" placeholder="votre@email.fr"><span class="hint">Le test envoie un vrai rappel J-14 à cette adresse, sans modifier les devis.</span></label>'+ 
-    '<div class="row-actions" style="margin-top:0;"><button class="btn primary" data-action="reminders-test">Tester la connexion</button><button class="btn gold" data-action="reminders-test-email">Envoyer un e-mail test</button><button class="btn soft" data-action="reminders-sync">Synchroniser maintenant</button><button class="btn soft" data-action="reminders-run">Exécuter les rappels maintenant</button></div>'+ 
+    '<div class="row-actions" style="margin-top:0;"><button class="btn primary" data-action="reminders-test">Tester la connexion</button><button class="btn gold" data-action="reminders-test-email">Envoyer un e-mail test</button><button class="btn soft" data-action="reminders-sync">Synchronisation manuelle (maintenance)</button><button class="btn soft" data-action="reminders-run">Exécuter les rappels maintenant</button></div>'+ 
+    '<div class="summary" style="margin-top:10px;font-size:12px;"><b>Synchronisation automatique active</b><br>Après chaque création, envoi, modification, acceptation, refus ou archivage d’un devis. Sauvegarde de sécurité à 23 h si MyBusiness est ouvert.<br><span class="muted">Prochaine sauvegarde quotidienne : '+esc(reminderNextDailySyncText())+'</span></div>'+
     '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(reminderStatusText())+'</p>'+ 
     viewReminderSyncTable()+
-    '<p class="muted" style="font-size:11px;margin:8px 0 0;">Seuls les devis au statut <b>Envoyé</b>, non acceptés, non refusés et non archivés sont transmis. Dès qu’un devis change de statut, il disparaît de la liste des rappels au prochain enregistrement.</p></div>';
+    '<p class="muted" style="font-size:11px;margin:8px 0 0;">Seuls les devis mariage au statut <b>Envoyé</b>, liés à une fiche mariage et à un espace client, non acceptés, non refusés et non archivés sont surveillés. Le bandeau « Devis arrivant à échéance sous 15 jours » utilise exactement cette même liste.</p></div>';
 }
 
 function viewAboutAppSettings(){
@@ -8656,7 +8697,7 @@ function finishWizard(){
 }
 function saveParams(){
   captureParamsForm();
-  saveCache(); scheduleQuoteReminderPublish(); render(); toast("Paramètres enregistrés.");
+  saveCache(); scheduleQuoteReminderPublish(); startReminderAutomaticSync(); render(); toast("Paramètres enregistrés.");
 }
 
 function onRestoreFile(file){
@@ -8866,6 +8907,7 @@ auth.onAuthStateChanged(function(user){
       startSync(user.uid);  // puis synchro temps réel avec le cloud
       startSecurePortalRequests();
       startSecurePortalDocumentDecisions();
+      startReminderAutomaticSync();
       setTimeout(maybeAutoGoogleDriveBackup, 2500);
     }).catch(function(err){
       console.error(err);
