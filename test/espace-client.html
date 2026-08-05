@@ -25,7 +25,12 @@
 .qty-input{width:54px!important;height:38px;margin:0!important;padding:6px 4px!important;text-align:center;font-weight:800;color:var(--b);border-radius:10px}
 .qty-input::-webkit-outer-spin-button,.qty-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .qty-input[type=number]{-moz-appearance:textfield}
-@media(max-width:700px){.grid,.checks,.dashboard-grid,.onboarding-steps{grid-template-columns:1fr}.photos{grid-template-columns:1fr 1fr}.guide-images{gap:14px}.guide-image-card--dimensions,.guide-image-card--portees{max-width:100%}.guide-image-card figcaption{font-size:16px}.wrap{padding:10px}.quantity-choice{padding:10px}.qty-control{grid-template-columns:40px 52px 40px}.qty-btn{width:40px;height:40px}.qty-input{width:52px!important;height:40px}}</style></head><body><main class="wrap"><section class="hero"><img src="assets/logo.jpg"><h1>Mon espace mariage 🌸</h1><p>Un espace personnel pour compléter votre projet et retrouver vos documents.</p><p class="muted">V7.0.1 TEST</p></section>
+.ribbon-customization{grid-column:1/-1;margin-top:4px;padding:12px;border-radius:11px;background:#fffaf8;border:1px dashed #d7bfc5}
+.ribbon-customization.hidden{display:none!important}
+.ribbon-customization label{font-size:14px;color:var(--b)}
+.ribbon-customization input{margin-top:7px;background:#fff}
+.ribbon-example{display:block;margin-top:6px;color:#796c70;font-size:12px;font-weight:400;line-height:1.45}
+@media(max-width:700px){.grid,.checks,.dashboard-grid,.onboarding-steps{grid-template-columns:1fr}.photos{grid-template-columns:1fr 1fr}.guide-images{gap:14px}.guide-image-card--dimensions,.guide-image-card--portees{max-width:100%}.guide-image-card figcaption{font-size:16px}.wrap{padding:10px}.quantity-choice{padding:10px}.qty-control{grid-template-columns:40px 52px 40px}.qty-btn{width:40px;height:40px}.qty-input{width:52px!important;height:40px}}</style></head><body><main class="wrap"><section class="hero"><img src="assets/logo.jpg"><h1>Mon espace mariage 🌸</h1><p>Un espace personnel pour compléter votre projet et retrouver vos documents.</p><p class="muted">V7.0.2 TEST</p></section>
 <section id="authCard" class="card"><div class="tabs"><button class="btn tab active" id="loginTab">Connexion</button><button class="btn tab soft" id="signupTab">Créer mon espace</button></div><div class="grid"><label>E-mail<input id="email" type="email" autocomplete="email"></label><label>Mot de passe<input id="password" type="password" minlength="8" autocomplete="current-password"></label></div><div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="authAction">Me connecter</button><button class="btn soft" id="resetPwd">Mot de passe oublié</button></div><div class="auth-separator"><span>ou</span></div><button class="btn google-btn" id="googleClientAuth" type="button"><span class="google-g">G</span><span>Continuer avec Google</span></button><p class="muted" style="margin-top:10px">Utilisez toujours la même adresse e-mail pour retrouver votre dossier existant.</p><p id="authMsg" class="muted"></p></section>
 <section id="space" class="hidden"><div class="card top"><div><b id="welcome"></b><div class="muted" id="userEmail"></div></div><button class="btn soft" id="logout">Se déconnecter</button></div><div class="tabs"><button class="btn tab active" data-view="dashboard">Tableau de bord</button><button class="btn tab soft" data-view="project">Ma fiche</button><button class="btn tab soft" data-view="planning">Mon planning</button><button class="btn tab soft" data-view="docs">Devis et factures</button></div>
 <section id="dashboardView" class="card"><div id="firstProjectGuide" class="onboarding hidden"><div class="onboarding-head"><h2>Bienvenue dans votre espace mariage 🌸</h2><p>Pour démarrer votre projet, complétez votre demande de mariage. Élodie pourra ainsi découvrir vos envies, les couleurs souhaitées, les créations dont vous avez besoin et vos inspirations.</p></div><div class="onboarding-steps"><div class="onboarding-step"><div class="onboarding-number">1</div><h3>Compléter ma demande</h3><p>Renseignez les informations de votre mariage, choisissez vos créations et ajoutez vos photos d’inspiration.</p></div><div class="onboarding-step"><div class="onboarding-number">2</div><h3>Élodie étudie votre projet</h3><p>Votre demande est transmise à L’Atelier Fleurs & Sens afin d’être consultée et préparée.</p></div><div class="onboarding-step"><div class="onboarding-number">3</div><h3>Suivre mon dossier</h3><p>Vous retrouverez ensuite ici votre planning, vos devis, vos factures et l’avancement de votre projet.</p></div></div><div class="onboarding-cta"><button class="btn primary" type="button" data-go="project">Créer ma demande de mariage</button></div><p class="muted onboarding-note">Cela ne prend que quelques minutes et vous pourrez modifier votre fiche plus tard.</p></div><div id="regularDashboard"><h2>Mon tableau de bord</h2><div class="dashboard-grid"><div class="dash-card"><h3>💍 Mon mariage</h3><div id="dashCountdown" class="countdown">—</div><p id="dashWeddingDate" class="muted"></p></div><div class="dash-card"><h3>🌸 Avancement de mon dossier</h3><div id="dashStatus" class="dash-value">Demande en préparation</div><div class="progress-track"><div id="dashProgress" class="progress-fill" style="width:10%"></div></div><p id="dashNextStep" class="muted"></p></div><div class="dash-card"><h3>📅 Prochaine date</h3><div id="dashNextDate" class="dash-value">À définir</div><p id="dashNextDateDetail" class="muted"></p><div class="quick-actions"><button class="btn soft" type="button" data-go="planning">Voir le planning</button></div></div><div class="dash-card"><h3>📄 Mon devis</h3><div id="dashQuote" class="dash-value">Aucun devis disponible</div><p id="dashQuoteDetail" class="muted"></p><div class="quick-actions"><button class="btn primary" type="button" data-go="docs">Voir mes documents</button></div></div></div><div class="quick-actions"><button class="btn soft" type="button" data-go="project">Modifier ma fiche</button><button class="btn soft" type="button" data-go="planning">Consulter mes dates</button></div></div></section>
@@ -71,6 +76,30 @@ var NEEDS_CATEGORIES=[
   {title:'🏛️ Pour la décoration de salle',items:['Centre de table','Table d’honneur']},
   {title:'⛪ Pour l’église ou la cérémonie laïque',items:['Décoration cérémonie']}
 ];
+var RIBBON_CUSTOMIZATIONS={
+  'Ruban personnalisé bouquet de mariée':{
+    field:'rubanBouquetMariee',
+    label:'Texte du ruban du bouquet de mariée',
+    placeholder:'Ex. : Emma & Lucas — 12 juillet 2027',
+    example:'Vous pouvez indiquer les prénoms des mariés, la date du mariage ou une phrase courte.'
+  },
+  'Ruban personnalisé bracelet':{
+    field:'rubanBraceletsAdultes',
+    label:'Texte du ruban personnalisé pour les bracelets',
+    placeholder:'Ex. : Témoin de la mariée — 12 juillet 2027',
+    example:'Saisissez le texte exact à inscrire sur le ou les rubans.'
+  }
+};
+function ribbonCustomizationHtml(label){
+  var config=RIBBON_CUSTOMIZATIONS[label];
+  if(!config)return '';
+  return '<div class="ribbon-customization hidden" data-ribbon-box="'+esc(label)+'">'+
+    '<label>'+esc(config.label)+
+      '<input type="text" maxlength="120" data-ribbon-text="'+esc(label)+'" name="'+esc(config.field)+'" placeholder="'+esc(config.placeholder)+'">'+
+      '<span class="ribbon-example">'+esc(config.example)+'</span>'+
+    '</label>'+
+  '</div>';
+}
 function renderCategorizedChoices(){
   var known={};
   NEEDS_CATEGORIES.forEach(function(category){category.items.forEach(function(item){known[item]=true;});});
@@ -86,6 +115,7 @@ function renderCategorizedChoices(){
           '<input class="qty-input" type="number" min="0" max="99" step="1" value="0" data-qty-item="'+esc(x)+'" aria-label="Quantité de '+esc(x)+'">'+
           '<button type="button" class="qty-btn" data-qty-plus="'+esc(x)+'" aria-label="Augmenter la quantité de '+esc(x)+'">+</button>'+
         '</div>'+
+        ribbonCustomizationHtml(x)+
       '</div>';
     }).join('');
     return '<section class="needs-category"><h3>'+esc(category.title)+'</h3>'+(items?'<div class="checks">'+items+'</div>':'<p class="needs-empty">Aucune création disponible dans cette catégorie.</p>')+'</section>';
@@ -103,6 +133,8 @@ function updateQuantityRow(input){
   input.value=String(value);
   var row=input.closest('.quantity-choice');
   if(row)row.classList.toggle('is-selected',value>0);
+  var ribbonBox=row&&row.querySelector('[data-ribbon-box]');
+  if(ribbonBox)ribbonBox.classList.toggle('hidden',value<=0);
   var minus=row&&row.querySelector('[data-qty-minus]');
   if(minus)minus.disabled=value<=0;
 }
@@ -116,6 +148,16 @@ function collectPrestationQuantities(){
 }
 function prestationLabelsFromQuantities(quantities){
   return Object.keys(quantities||{}).filter(function(label){return Number(quantities[label])>0;});
+}
+function collectRibbonCustomizations(){
+  var values={};
+  document.querySelectorAll('[data-ribbon-text]').forEach(function(input){
+    var label=input.getAttribute('data-ribbon-text');
+    var qtyInput=Array.from(document.querySelectorAll('[data-qty-item]')).find(function(el){return el.getAttribute('data-qty-item')===label;});
+    var value=String(input.value||'').trim();
+    if(qtyInput&&clampQuantity(qtyInput.value)>0&&value)values[label]=value;
+  });
+  return values;
 }
 renderCategorizedChoices();
 $('choices').addEventListener('click',function(event){
@@ -152,6 +194,11 @@ async function loadProject(){
     }
     input.value=String(clampQuantity(quantity));
     updateQuantityRow(input);
+  });
+  var storedRibbonTexts=project.rubansPersonnalises||{};
+  Array.from(f.querySelectorAll('[data-ribbon-text]')).forEach(function(input){
+    var label=input.getAttribute('data-ribbon-text');
+    input.value=storedRibbonTexts[label]||'';
   });
   Array.from(f.querySelectorAll('[name=souhaiteRdvTelephonique]')).forEach(function(x){x.checked=(project.souhaiteRdvTelephonique||'')===x.value});
   if(f.elements.rdvDateSouhaitee)f.elements.rdvDateSouhaitee.value=project.rdvDateSouhaitee||'';
@@ -292,7 +339,7 @@ function projectComparable(data){
   return {
     prenom:data.prenom||'',nom:data.nom||'',tel:data.tel||'',dateMariage:data.dateMariage||'',ville:data.ville||'',
     style:data.style||'',couleurs:data.couleurs||'',
-    prestations:(data.prestations||[]).slice().sort(),prestationQuantites:Object.keys(data.prestationQuantites||{}).sort().reduce(function(acc,key){acc[key]=Number(data.prestationQuantites[key])||0;return acc;},{}),autrePrestation:data.autrePrestation||'',
+    prestations:(data.prestations||[]).slice().sort(),prestationQuantites:Object.keys(data.prestationQuantites||{}).sort().reduce(function(acc,key){acc[key]=Number(data.prestationQuantites[key])||0;return acc;},{}),rubansPersonnalises:Object.keys(data.rubansPersonnalises||{}).sort().reduce(function(acc,key){acc[key]=String(data.rubansPersonnalises[key]||'');return acc;},{}),autrePrestation:data.autrePrestation||'',
     fleursAimees:data.fleursAimees||'',
     souhaiteRdvTelephonique:data.souhaiteRdvTelephonique||'',rdvDateSouhaitee:data.rdvDateSouhaitee||'',rdvHeureSouhaitee:data.rdvHeureSouhaitee||'',
     photos:(data.photos||[]).map(function(p){return {name:p.name||'',path:p.path||'',url:p.url||''}}).sort(function(a,b){return (a.path||a.url).localeCompare(b.path||b.url)})
@@ -301,9 +348,11 @@ function projectComparable(data){
 function projectSignature(data){return JSON.stringify(projectComparable(data||{}));}
 function notificationDetails(data){
   var quantities=data.prestationQuantites||{};
+  var ribbonTexts=data.rubansPersonnalises||{};
   var prestations=(data.prestations||[]).map(function(label){
     var qty=Number(quantities[label])||1;
-    return qty>1?label+' ×'+qty:label;
+    var text=ribbonTexts[label]?(' — Texte : « '+ribbonTexts[label]+' »'):'';
+    return (qty>1?label+' ×'+qty:label)+text;
   });
   if(data.autrePrestation) prestations.push(data.autrePrestation);
   var nomComplet=[data.prenom,data.nom].filter(Boolean).join(' ').trim()||'Cliente';
@@ -501,7 +550,7 @@ async function envoyerNotificationsValidationDevis(docData,nomComplet,dateValida
   return result;
 }
 $('projectForm').onsubmit=async e=>{e.preventDefault();var rdvDateAvantEnvoi=$('rdvDateSouhaitee')&&$('rdvDateSouhaitee').value;if(document.querySelector('[name=souhaiteRdvTelephonique][value="oui"]:checked')&&rdvDateIndisponible(rdvDateAvantEnvoi)){updateRdvHours(rdvDateAvantEnvoi,'');$('rdvDateSouhaitee').reportValidity();return}if(photoUploadInProgress){$('saveMsg').textContent='Veuillez attendre la fin de l’envoi des photos avant d’enregistrer la fiche.';return}$('saveMsg').textContent='Enregistrement en cours…';try{
-  var fd=new FormData(e.target),prestationQuantites=collectPrestationQuantities(),data={ownerUid:current.uid,email:current.email,prenom:fd.get('prenom'),nom:fd.get('nom'),tel:fd.get('tel'),dateMariage:fd.get('dateMariage'),ville:fd.get('ville'),style:fd.get('style'),couleurs:fd.get('couleurs'),prestations:prestationLabelsFromQuantities(prestationQuantites),prestationQuantites:prestationQuantites,formulaireBesoinsVersion:2,autrePrestation:fd.get('autrePrestation'),fleursAimees:fd.get('fleursAimees'),souhaiteRdvTelephonique:fd.get('souhaiteRdvTelephonique'),rdvDateSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvDateSouhaitee'):'',rdvHeureSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvHeureSouhaitee'):'',photos:project.photos||[],clientStatus:'submitted',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:project.createdAt||firebase.firestore.FieldValue.serverTimestamp()};
+  var fd=new FormData(e.target),prestationQuantites=collectPrestationQuantities(),rubansPersonnalises=collectRibbonCustomizations(),data={ownerUid:current.uid,email:current.email,prenom:fd.get('prenom'),nom:fd.get('nom'),tel:fd.get('tel'),dateMariage:fd.get('dateMariage'),ville:fd.get('ville'),style:fd.get('style'),couleurs:fd.get('couleurs'),prestations:prestationLabelsFromQuantities(prestationQuantites),prestationQuantites:prestationQuantites,rubansPersonnalises:rubansPersonnalises,formulaireBesoinsVersion:3,autrePrestation:fd.get('autrePrestation'),fleursAimees:fd.get('fleursAimees'),souhaiteRdvTelephonique:fd.get('souhaiteRdvTelephonique'),rdvDateSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvDateSouhaitee'):'',rdvHeureSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvHeureSouhaitee'):'',photos:project.photos||[],clientStatus:'submitted',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:project.createdAt||firebase.firestore.FieldValue.serverTimestamp()};
   var nouvelleDemande=!project.notificationEmailSentAt;
   var signature=projectSignature(data);
   var changes=computeProjectChanges(project,data);

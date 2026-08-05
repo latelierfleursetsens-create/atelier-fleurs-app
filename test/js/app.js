@@ -1,10 +1,10 @@
-/* V7.0.1 TEST — Étape 2 : ajout des quantités dans la section Mes besoins de l’espace client. */
+/* V7.0.2 TEST — Étape 3 : rubans personnalisés avec saisie du texte dans l’espace client. */
 "use strict";
 
-var APP_VERSION="V7.0.1 TEST";
+var APP_VERSION="V7.0.2 TEST";
 var APP_VERSION_NOTE = "Correctif important : la synchronisation des rappels ne tourne plus en boucle et ne se déclenche que si la liste des devis surveillés a réellement changé.";
 var APP_CHANGELOG = [
-  "V7.0.1 TEST — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
+  "V7.0.2 TEST — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
   "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
   "V6.5.6 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
@@ -623,7 +623,7 @@ function portalDateISO(v){
 }
 function portalProjectToDemande(doc){
   var x=doc.data()||{};
-  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",souhaiteRdvTelephonique:x.souhaiteRdvTelephonique||"",rdvDateSouhaitee:x.rdvDateSouhaitee||"",rdvHeureSouhaitee:x.rdvHeureSouhaitee||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:portalDateISO(x.createdAt)||new Date().toISOString(),updatedAt:portalDateISO(x.updatedAt),clientModificationHistory:Array.isArray(x.clientModificationHistory)?x.clientModificationHistory:[],clientModificationPending:!!x.clientModificationPending,clientModificationCount:Number(x.clientModificationCount)||0,lastClientModificationAt:portalDateISO(x.lastClientModificationAt)||x.lastClientModificationAt||"",lastClientChanges:Array.isArray(x.lastClientChanges)?x.lastClientChanges:[],securePortal:true};
+  return {id:doc.id,ownerUid:x.ownerUid||doc.id,prenom:x.prenom||"",nom:x.nom||"",email:x.email||"",tel:x.tel||"",dateMariage:x.dateMariage||"",ville:x.ville||"",lieu:x.lieu||"",invites:x.invites||"",style:x.style||"",budget:x.budget||"",prestations:Array.isArray(x.prestations)?x.prestations:[],prestationQuantites:(x.prestationQuantites&&typeof x.prestationQuantites==="object")?x.prestationQuantites:{},rubansPersonnalises:(x.rubansPersonnalises&&typeof x.rubansPersonnalises==="object")?x.rubansPersonnalises:{},autrePrestation:x.autrePrestation||"",couleurs:x.couleurs||"",fleursAimees:x.fleursAimees||"",fleursRefusees:x.fleursRefusees||"",canal:x.canal||"Portail sécurisé",description:x.description||"",souhaiteRdvTelephonique:x.souhaiteRdvTelephonique||"",rdvDateSouhaitee:x.rdvDateSouhaitee||"",rdvHeureSouhaitee:x.rdvHeureSouhaitee||"",photos:Array.isArray(x.photos)?x.photos:[],statut:x.statutAdmin||"nouvelle",createdAt:portalDateISO(x.createdAt)||new Date().toISOString(),updatedAt:portalDateISO(x.updatedAt),clientModificationHistory:Array.isArray(x.clientModificationHistory)?x.clientModificationHistory:[],clientModificationPending:!!x.clientModificationPending,clientModificationCount:Number(x.clientModificationCount)||0,lastClientModificationAt:portalDateISO(x.lastClientModificationAt)||x.lastClientModificationAt||"",lastClientChanges:Array.isArray(x.lastClientChanges)?x.lastClientChanges:[],securePortal:true};
 }
 function startSecurePortalRequests(){
   if(portalProjectsUnsub) portalProjectsUnsub();
@@ -5944,7 +5944,15 @@ function importPortalRequests(){
   }catch(e){ return 0; }
 }
 function demandeById(id){ return (state.demandesMariage||[]).find(function(x){return x.id===id;}); }
-function demandePrestationsText(d){ return portailPrestationsUniques(d).join(", ")||"Non renseigné"; }
+function demandePrestationsText(d){
+  var quantities=d&&d.prestationQuantites||{}, ribbons=d&&d.rubansPersonnalises||{};
+  var items=portailPrestationsUniques(d).map(function(label){
+    var qty=Number(quantities[label])||1;
+    var text=ribbons[label]?(' — Texte ruban : « '+ribbons[label]+' »'):'';
+    return (qty>1?label+' ×'+qty:label)+text;
+  });
+  return items.join(", ")||"Non renseigné";
+}
 var PORTAIL_CREATIONS_STANDARD=(Array.isArray(window.MARIAGE_CREATIONS_STANDARD)?window.MARIAGE_CREATIONS_STANDARD:[]).slice();
 function portailCreationCanonique(label){
   var key=normName(label||"");
@@ -6004,7 +6012,8 @@ function applyPortalSelectionsToMariage(m,d){
       if(usedExtras[i]) continue;
       if(normName(oldExtras[i].designation||"")===key){ extra=oldExtras[i]; usedExtras[i]=true; break; }
     }
-    var out={id:(art&&art.id)||uid(),label:label,fait:!!(art&&art.fait)};
+    var out={id:(art&&art.id)||uid(),label:label,fait:!!(art&&art.fait),quantite:Math.max(1,Number(d.prestationQuantites&&d.prestationQuantites[label])||1)};
+    if(d.rubansPersonnalises&&d.rubansPersonnalises[label]) out.textePersonnalisation=String(d.rubansPersonnalises[label]);
     if(art&&art.devisLineId) out.devisLineId=art.devisLineId;
     else if(extra&&extra.devisLineId) out.devisLineId=extra.devisLineId;
     if(art&&num(art.prix)>0) out.prix=num(art.prix);
@@ -6019,6 +6028,8 @@ function applyPortalSelectionsToMariage(m,d){
   m.articles=nextArticles;
   m.prestationsComplementaires=nextExtras;
   m.besoins=demandePrestationsText(d);
+  m.prestationQuantitesPortail=Object.assign({},d.prestationQuantites||{});
+  m.rubansPersonnalises=Object.assign({},d.rubansPersonnalises||{});
   m.portalSelectionsSyncedV4=true;
   if(changed){
     m.historique=m.historique||[];
