@@ -4,7 +4,7 @@
 var APP_VERSION="V6.5.4 TEST";
 var APP_VERSION_NOTE = "Rappels automatiques des devis à J-14, J-7, J-2 et le jour de l’échéance via Cloudflare.";
 var APP_CHANGELOG = [
-  "V6.5.4 TEST — Bandeaux repliables des devis mariage arrivant à échéance sous 15 jours et des devis expirés non traités.",
+  "V6.5.4 TEST — Correction : les bandeaux utilisent exactement la même sélection que les relances synchronisées.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -1968,7 +1968,18 @@ function joursAvantEcheanceDevis(echeance){
   return Math.round((d2.getTime()-d1.getTime())/86400000);
 }
 function devisEcheancePanelsHTML(){
-  var eligibles=(state.devis||[]).filter(devisMariageEligibleRappel);
+  // Utilise exactement la même sélection que la synchronisation des rappels.
+  // Ainsi, le compteur des bandeaux correspond toujours au nombre de devis
+  // réellement transmis au Worker Cloudflare.
+  var idsSynchronises={};
+  try{
+    (activeQuoteReminderPayload().quotes||[]).forEach(function(q){
+      if(q&&q.id) idsSynchronises[String(q.id)]=true;
+    });
+  }catch(_e){}
+  var eligibles=(state.devis||[]).filter(function(d){
+    return !!(d&&idsSynchronises[String(d.id||"")]);
+  });
   var proches=eligibles.filter(function(d){ var j=joursAvantEcheanceDevis(d.echeance); return j!==null && j>=0 && j<15; })
     .sort(function(a,b){ return String(a.echeance||"").localeCompare(String(b.echeance||"")); });
   var expires=eligibles.filter(function(d){ var j=joursAvantEcheanceDevis(d.echeance); return j!==null && j<0; })
