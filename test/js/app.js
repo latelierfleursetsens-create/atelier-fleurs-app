@@ -1,10 +1,10 @@
-/* V6.5.2 TEST — Rappels automatiques Cloudflare testables et sécurisés. */
+/* V6.5.3 TEST — Rappels automatiques Cloudflare testables et sécurisés. */
 "use strict";
 
-var APP_VERSION="V6.5.2 TEST";
+var APP_VERSION="V6.5.3 TEST";
 var APP_VERSION_NOTE = "Rappels automatiques des devis à J-14, J-7, J-2 et le jour de l’échéance via Cloudflare.";
 var APP_CHANGELOG = [
-  "V6.5.2 TEST — Worker Cloudflare complet, e-mail test, synchronisation sécurisée et suivi du dernier passage.",
+  "V6.5.3 TEST — Worker Cloudflare complet, e-mail test, synchronisation sécurisée et suivi du dernier passage.",
   "V6.4.17 TEST — Les acomptes non payés sont regroupés dans un bandeau compact avec indication des échéances urgentes.",
   "V6.4.12 TEST — Recherche globale centrée dans l’en-tête et boutons de l’aperçu documentaire rendus plus visibles.",
   "V6.4.10 TEST — Vue annuelle compacte : 12 mois visibles, nombre de mariages par week-end et navigation rapide entre les années.",
@@ -134,12 +134,23 @@ function activeQuoteReminderPayload(){
   if(s.rappelsDevisJ2!==false) offsets.push(2);
   if(s.rappelsDevisJ0!==false) offsets.push(0);
   var quotes=(state.devis||[]).filter(function(d){
-    return d && d.statut==="envoye" && !d.versionArchive && d.echeance && d.client && String(d.client.email||"").indexOf("@")>0;
+    if(!d || d.statut!=="envoye" || d.versionArchive || !d.echeance) return false;
+    if(!d.client || String(d.client.email||"").indexOf("@")<0) return false;
+
+    // Relances réservées aux devis mariage réellement liés à un espace client.
+    // Les devis ateliers et autres devis sans fiche mariage sont exclus.
+    if(!d.mariageId) return false;
+    var mariage=getMariage(d.mariageId);
+    if(!mariage || !mariage.ownerUid) return false;
+
+    return true;
   }).map(function(d){
+    var mariage=getMariage(d.mariageId);
     return {
       id:String(d.id||""), numero:String(d.numero||""), echeance:String(d.echeance||""), date:String(d.date||""),
       clientNom:String(d.client&&d.client.nom||""), clientEmail:String(d.client&&d.client.email||""),
       montant:Number(documentCalc(d.lignes||[],state.settings.partService,d).total||0), statut:String(d.statut||""),
+      mariageId:String(d.mariageId||""), espaceClient:!!(mariage&&mariage.ownerUid),
       portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
     };
   });

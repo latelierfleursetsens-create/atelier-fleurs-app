@@ -1,6 +1,6 @@
-# MyBusiness V6.5.2 TEST
+# MyBusiness V6.5.3 TEST
 
-## V6.5.2 TEST
+## V6.5.3 TEST
 
 - Après un envoi par e-mail confirmé par le Worker, le devis ou la facture passe automatiquement au statut **Envoyé(e)**.
 - La date et l’heure précises ainsi que le mode d’envoi sont mémorisés.
