@@ -1,9 +1,10 @@
-/* V7.0.7 PROD — Suivi modifications amélioré — Messages de retrait à l’atelier pour les compositions volumineuses. */
+/* V7.0.8 PROD — HOTFIX sécurité : aucun devis existant ne peut être réécrit automatiquement depuis une fiche mariage ou une demande portail. */
 "use strict";
 
-var APP_VERSION="V7.0.7 PROD — Suivi modifications amélioré";
-var APP_VERSION_NOTE = "Correctif important : la synchronisation des rappels ne tourne plus en boucle et ne se déclenche que si la liste des devis surveillés a réellement changé.";
+var APP_VERSION="V7.0.8 PROD — Sécurisation des devis";
+var APP_VERSION_NOTE = "HOTFIX sécurité : les lignes des devis existants ne sont plus modifiées automatiquement depuis les demandes clientes ou les fiches mariage.";
 var APP_CHANGELOG = [
+  "V7.0.8 PROD — HOTFIX sécurité : blocage de toute réécriture automatique des lignes des devis existants.",
   "V7.0.7 PROD — Suivi modifications amélioré — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
   "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
   "V6.5.6 TEST — Ajout du tableau détaillé des devis synchronisés dans Paramètres.",
@@ -6045,17 +6046,12 @@ function applyPortalSelectionsToMariage(m,d){
   return changed;
 }
 function normalizePortalMarriageSelections(){
-  var changed=false;
-  (state.mariages||[]).forEach(function(m){
-    if(!m||!m.sourceDemandeId||m.portalQuantitiesSyncedV7) return;
-    var d=(state.demandesMariage||[]).find(function(x){return x.id===m.sourceDemandeId;});
-    if(!d) return;
-    var didChange=applyPortalSelectionsToMariage(m,d);
-    m.portalQuantitiesSyncedV7=true;
-    if(m.devisLie) syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:true});
-    changed=changed||didChange||m.portalQuantitiesSyncedV7;
-  });
-  return changed;
+  // V7.0.8 HOTFIX SECURITE
+  // Aucune demande portail ne doit modifier automatiquement une fiche mariage existante,
+  // ni déclencher une réécriture des lignes d'un devis déjà créé.
+  // Les modifications clientes restent visibles dans "Demandes mariage" et seront
+  // intégrées uniquement par une action manuelle contrôlée dans la V7.1.
+  return false;
 }
 function demandeMariageCategorie(d){
   var st=(d&&d.statut)||"nouvelle";
@@ -8686,16 +8682,13 @@ function syncMariageLinkedDevis(m, opts){
   if(opts.updateClient!==false) syncMariageContactToClient(m);
   d.client=Object.assign({}, d.client||{}, devisClientFromMariage(m));
 
-  // Par défaut, une modification de la fiche ne touche qu'aux coordonnées.
-  // Les lignes ne sont resynchronisées que lors d'une action explicite sur les créations/prestations.
-  if(opts.syncLines===true && ["accepte","refuse","archive"].indexOf(d.statut)<0){
-    var oldLines=(d.lignes||[]).map(function(l){return Object.assign({},l);});
-    var oldTotal=totals(oldLines,state.settings.partService).total;
-    var merged=mergeMariageLinesWithDevis(m,d);
-    var newTotal=totals(merged,state.settings.partService).total;
-    // Garde-fou absolu : une synchronisation ne peut plus transformer un devis payant en devis à 0 €.
-    if(!(oldTotal>0 && newTotal===0)) d.lignes=merged;
-    else console.warn("Synchronisation lignes mariage ignorée : elle aurait ramené le devis à 0 €.",d.numero);
+  // V7.0.8 HOTFIX SECURITE
+  // Un devis existant est un document figé : ses lignes, quantités, prix et montants
+  // ne sont jamais réécrits automatiquement depuis la fiche mariage ou le portail client.
+  // Les coordonnées cliente peuvent continuer à être actualisées.
+  // Toute évolution de contenu devra passer par une nouvelle version contrôlée du devis.
+  if(opts.syncLines===true){
+    console.info("Synchronisation automatique des lignes bloquée pour protéger le devis",d.numero);
   }
   d.updatedAt=new Date().toISOString();
   (state.factures||[]).forEach(function(f){ if(f.devisId===d.id || f.devisLie===d.id){ f.client=Object.assign({},f.client||{},d.client||{}); f.updatedAt=new Date().toISOString(); } });

@@ -1,3 +1,7 @@
+# MyBusiness V7.0.8 PROD — HOTFIX SÉCURITÉ
+
+Cette version bloque toute modification automatique des lignes, quantités, prix et montants des devis existants depuis l’espace client ou la fiche mariage. Les modifications clientes restent consultables dans les demandes mariage et devront être intégrées manuellement dans une future nouvelle version du devis.
+
 # MyBusiness V7.0.7 PROD
 
 ## Étape 4 — Nouveaux articles
