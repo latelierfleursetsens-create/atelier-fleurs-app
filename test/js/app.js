@@ -673,7 +673,12 @@ function startSecurePortalDocumentDecisions(){
     }
   },function(err){console.error("Lecture validations portail impossible",err);});
 }
-function clientSafeLines(lines){return (Array.isArray(lines)?lines:[]).map(function(l){return {description:l.description||l.label||"",quantite:Number(l.quantite||l.qte||1),prix:Number(l.prix||l.prixUnitaire||0),total:Number(l.total||0)};});}
+function clientSafeLines(lines){return (Array.isArray(lines)?lines:[]).map(function(l){
+  var quantite=Math.max(1,Number(l.quantite||l.qte||1)||1);
+  var prix=Number(l.prix||l.prixUnitaire||0)||0;
+  var total=(l.total!=null&&l.total!=="")?Number(l.total)||0:quantite*prix;
+  return {description:l.description||l.designation||l.label||l.nom||"Prestation",quantite:quantite,prix:prix,total:total};
+});}
 
 function portalDocSafeName(value){
   return String(value||"document").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9._-]+/gi,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").toLowerCase();
@@ -2211,6 +2216,7 @@ function viewDevis(){
       (d.changesSummary&&d.changesSummary.length?'<div class="muted" style="font-size:11px;">Modifications : '+esc(d.changesSummary.join(' · '))+'</div>':'')+
       '<div class="muted">'+frDate(d.date)+' · échéance '+frDate(d.echeance||d.validite)+' · '+euro(t.total)+' ('+euro(t.biens)+' biens · '+euro(t.services)+' services)</div></div>'+
       '<span class="badge" style="color:'+sd.c+';background:'+sd.b+';">'+sd.l+'</span></div>'+
+      (d.demandeModificationPortail?'<div class="card" style="margin:12px 0 0;padding:12px 14px;background:#fff3bf;border-color:#e0b84b;"><b>✏️ Modification demandée par la cliente</b><div style="margin-top:5px;white-space:pre-wrap;">'+esc(String(d.demandeModificationPortail).replace(/^Modification demandée depuis l’espace client\s*:?\s*/,""))+'</div></div>':'')+
       '<div class="row-actions">'+
         '<button class="btn small ghost" data-action="devis-preview-'+d.id+'">Aperçu / PDF</button>'+
         '<button class="btn small soft" data-action="devis-edit-'+d.id+'">Modifier</button>'+
