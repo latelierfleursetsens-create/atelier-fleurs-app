@@ -6024,7 +6024,7 @@ function applyPortalSelectionsToMariage(m,d){
   // Seules les vraies prestations complémentaires (déplacement, livraison, personnalisation...) restent en bas.
   var selectedKeys={}; selections.forEach(function(x){selectedKeys[normName(x)]=true;});
   var nextExtras=oldExtras.filter(function(x){return !selectedKeys[normName(x.designation||"")];});
-  var changed=JSON.stringify(oldArticles.map(function(a){return a.label;}))!==JSON.stringify(nextArticles.map(function(a){return a.label;})) || nextExtras.length!==oldExtras.length;
+  var changed=JSON.stringify(oldArticles.map(function(a){return {label:a.label,quantite:Math.max(1,Number(a.quantite)||1),textePersonnalisation:a.textePersonnalisation||""};}))!==JSON.stringify(nextArticles.map(function(a){return {label:a.label,quantite:Math.max(1,Number(a.quantite)||1),textePersonnalisation:a.textePersonnalisation||""};})) || nextExtras.length!==oldExtras.length;
   m.articles=nextArticles;
   m.prestationsComplementaires=nextExtras;
   m.besoins=demandePrestationsText(d);
@@ -6041,12 +6041,13 @@ function applyPortalSelectionsToMariage(m,d){
 function normalizePortalMarriageSelections(){
   var changed=false;
   (state.mariages||[]).forEach(function(m){
-    if(!m||!m.sourceDemandeId||m.portalSelectionsSyncedV4||m.portalSelectionsSyncedV3) return;
+    if(!m||!m.sourceDemandeId||m.portalQuantitiesSyncedV7) return;
     var d=(state.demandesMariage||[]).find(function(x){return x.id===m.sourceDemandeId;});
     if(!d) return;
     var didChange=applyPortalSelectionsToMariage(m,d);
-    if(didChange && m.devisLie) syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:true});
-    changed=changed||didChange||m.portalSelectionsSyncedV4;
+    m.portalQuantitiesSyncedV7=true;
+    if(m.devisLie) syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:true});
+    changed=changed||didChange||m.portalQuantitiesSyncedV7;
   });
   return changed;
 }
@@ -6100,7 +6101,7 @@ function transformDemandeToMariage(d){
   var full=((d.prenom||"")+" "+(d.nom||"")).trim();
   var c=(state.clients||[]).find(function(x){return (d.email&&x.email===d.email)||(d.tel&&x.tel===d.tel);});
   if(!c){ c={id:uid(),nom:full,email:d.email||"",tel:d.tel||"",canal:d.canal||"Portail mariage",notes:"Demande créée depuis le portail mariage",createdAt:new Date().toISOString()}; state.clients.unshift(c); }
-  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){return {id:uid(),label:label,fait:false};}),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||"",souhaiteRdvTelephonique:d.souhaiteRdvTelephonique||"",rdvDateSouhaitee:d.rdvDateSouhaitee||"",rdvHeureSouhaitee:d.rdvHeureSouhaitee||""};
+  var m={id:uid(),clientId:c.id,nom:full,email:d.email||"",tel:d.tel||"",canalCommunication:d.canal||"Portail mariage",dateMariage:d.dateMariage||"",dateLivraison:"",modeLivraison:"",lieu:d.lieu||d.ville||"",theme:[d.style,d.couleurs].filter(Boolean).join(" · "),budget:d.budget||"",besoins:demandePrestationsText(d),synthese:d.description||d.commentaire||"",statut:"contact",livre:false,dateLivree:"",relance:"",devisEnvoye:false,devisDate:"",factureEnvoyee:false,factureDate:"",devisLie:"",articles:portailPrestationsUniques(d).map(function(label){ var qty=Math.max(1,Number(d.prestationQuantites&&d.prestationQuantites[label])||1); var article={id:uid(),label:label,fait:false,quantite:qty}; if(d.rubansPersonnalises&&d.rubansPersonnalises[label]) article.textePersonnalisation=String(d.rubansPersonnalises[label]); return article; }),prestationsComplementaires:[],portalSelectionsSyncedV4:true,coutMatieres:"",todoMariage:[],medias:portalPhotosToMariageMedias(d.photos),historique:[{date:new Date().toISOString(),texte:"Fiche créée depuis la demande portail"}],createdAt:todayISO(),sourceDemandeId:d.id,ownerUid:d.ownerUid||"",souhaiteRdvTelephonique:d.souhaiteRdvTelephonique||"",rdvDateSouhaitee:d.rdvDateSouhaitee||"",rdvHeureSouhaitee:d.rdvHeureSouhaitee||""};
   if(!Array.isArray(state.mariages)) state.mariages=[];
   state.mariages=[m].concat(state.mariages.filter(function(x){return x&&x.id!==m.id;}));
   d.statut="transformee"; d.mariageId=m.id; d.updatedAt=new Date().toISOString();
@@ -7028,7 +7029,7 @@ function viewMariageDetail(m){
     '<button class="btn soft" data-action="mar-createdevis">Créer un devis pour cette cliente</button></div>';
   // articles à réaliser
   var arts=(m.articles||[]).map(function(a){
-    return '<div class="checkrow"><input type="checkbox" data-action="mar-art-toggle-'+a.id+'"'+(a.fait?" checked":"")+'><div style="flex:1;'+(a.fait?"text-decoration:line-through;color:var(--ink-s);":"")+'">'+esc(a.label)+'</div><button class="btn small danger" data-action="mar-art-del-'+a.id+'">×</button></div>';
+    return '<div class="checkrow"><input type="checkbox" data-action="mar-art-toggle-'+a.id+'"'+(a.fait?" checked":"")+'><div style="flex:1;'+(a.fait?"text-decoration:line-through;color:var(--ink-s);":"")+'">'+esc(a.label)+(Number(a.quantite)>1?' <b>×'+esc(a.quantite)+'</b>':'')+(a.textePersonnalisation?' <span class="muted">— « '+esc(a.textePersonnalisation)+' »</span>':'')+'</div><button class="btn small danger" data-action="mar-art-del-'+a.id+'">×</button></div>';
   }).join("");
   var artsCard='<div class="card"><div class="flexb"><h3 style="margin:0;">Créations désirées</h3><span class="muted">'+faits+'/'+totA+' faites</span></div>'+ 
     '<p class="muted" style="margin:6px 0 8px;">Liste les créations souhaitées par la cliente. Elles apparaîtront dans “À préparer” uniquement quand le devis sera accepté.</p>'+ 
@@ -8496,7 +8497,7 @@ async function handleAction(action){
   if(action==="mar-media-pick"){ var mi=document.getElementById("marMedia"); if(mi) mi.click(); return; }
   if(action.indexOf("mar-media-open-")===0){ openMedia(action.slice(15)); return; }
   if(action.indexOf("mar-media-del-")===0){ var m1=getMariage(ui.mariageOpen); if(m1){ captureMariageInputs(); var rid=action.slice(14); m1.medias=(m1.medias||[]).filter(function(x){return x.id!==rid;}); saveCache(); render(); } return; }
-  if(action==="mar-art-add"){ var m2=getMariage(ui.mariageOpen); if(m2){ captureMariageInputs(); var lbl=val("marArtInput"); if(lbl.trim()){ m2.articles=m2.articles||[]; m2.articles.push({id:uid(),label:lbl,fait:false}); syncMariageLinkedDevis(m2,{silent:true,syncLines:true}); saveCache(); render(); } } return; }
+  if(action==="mar-art-add"){ var m2=getMariage(ui.mariageOpen); if(m2){ captureMariageInputs(); var lbl=val("marArtInput"); if(lbl.trim()){ m2.articles=m2.articles||[]; m2.articles.push({id:uid(),label:lbl,fait:false,quantite:1}); syncMariageLinkedDevis(m2,{silent:true,syncLines:true}); saveCache(); render(); } } return; }
   if(action.indexOf("mar-art-del-")===0){ var m3=getMariage(ui.mariageOpen); if(m3){ captureMariageInputs(); var aid=action.slice(12); m3.articles=(m3.articles||[]).filter(function(x){return x.id!==aid;}); syncMariageLinkedDevis(m3,{silent:true,syncLines:true}); saveCache(); render(); } return; }
   if(action==="mar-hist-add"){ var m4=getMariage(ui.mariageOpen); if(m4){ captureMariageInputs(); var tx=val("marHistInput"); if(tx.trim()){ m4.historique=m4.historique||[]; m4.historique.unshift({date:todayISO(),texte:tx}); saveCache(); render(); } } return; }
   if(action==="mar-todo-add"){ var mtd=getMariage(ui.mariageOpen); if(mtd){ captureMariageInputs(); var tl=val("marTodoInput"); if(tl.trim()){ mtd.todoMariage=mtd.todoMariage||[]; mtd.todoMariage.push({id:uid(),label:tl.trim(),done:false,createdAt:todayISO()}); mtd.historique=mtd.historique||[]; mtd.historique.unshift({date:todayISO(),texte:"Tâche ajoutée : "+tl.trim()}); saveCache(); render(); } } return; }
@@ -8634,7 +8635,7 @@ function mariageLinesForDevis(m){
   var lignes=[];
   (m.articles||[]).forEach(function(a){
     if(!a.devisLineId) a.devisLineId=uid();
-    lignes.push({id:a.devisLineId, designation:a.label||"Article mariage", type:"bien", qte:1, prix:num(a.prix||0), mariageSource:"article"});
+    lignes.push({id:a.devisLineId, designation:a.label||"Article mariage", type:"bien", qte:Math.max(1,Number(a.quantite)||1), prix:num(a.prix||0), mariageSource:"article"});
   });
   mariagePrestations(m).forEach(function(l){
     if(!l.devisLineId) l.devisLineId=l.id||uid();
@@ -8654,7 +8655,7 @@ function mergeMariageLinesWithDevis(m, d){
     var out=Object.assign({},match||{},next);
     // Les tarifs saisis dans le devis restent prioritaires lorsque la fiche mariage ne contient aucun prix.
     if(match && num(next.prix)===0 && num(match.prix)!==0) out.prix=match.prix;
-    if(next.mariageSource==="article" && match && num(match.qte)>0) out.qte=match.qte;
+    if(next.mariageSource==="article" && (!next.qte || Number(next.qte)<1) && match && num(match.qte)>0) out.qte=match.qte;
     delete out.mariageSource;
     return out;
   });
