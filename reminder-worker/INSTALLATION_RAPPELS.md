@@ -41,7 +41,7 @@ Le Worker est appelé chaque heure mais n'envoie les rappels qu'à 8 h, heure de
 
 ## 5. Configurer MyBusiness
 
-Dans MyBusiness PROD > Paramètres > Rappels automatiques :
+Dans MyBusiness TEST > Paramètres > Rappels automatiques :
 1. URL : l'adresse `https://atelier-fleurs-reminders....workers.dev`.
 2. Saisissez votre adresse dans « Adresse utilisée pour l’e-mail de test ».
 3. Cliquez sur **Tester la connexion**.

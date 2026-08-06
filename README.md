@@ -1,13 +1,17 @@
-# MyBusiness V6.6.2 PROD
+# MyBusiness V7.0.7 PROD
 
-## V6.6.2 PROD
+## Étape 4 — Nouveaux articles
+
+Ajout des créations détaillées demandées dans les catégories Mariée, Marié, Enfants, Témoins, Voiture, Décoration de salle et Cérémonie, dont le **mini bouquet de table**. Les quantités et les anciennes données restent compatibles.
+
+## V7.0.7 PROD
 
 - Après un envoi par e-mail confirmé par le Worker, le devis ou la facture passe automatiquement au statut **Envoyé(e)**.
 - La date et l’heure précises ainsi que le mode d’envoi sont mémorisés.
 - En cas d’échec de l’e-mail, le statut reste inchangé.
 - Les boutons manuels **Marquer envoyé / Marquer envoyée** restent disponibles et sont distingués dans l’historique.
 
-## V6.4.12 PROD
+## V6.4.12 TEST
 - Nouveau planning graphique des week-ends fondé sur le classement métier des fiches : Préparation commande, Livraison et Archives.
 - Les dossiers encore dans Études mariage ne sont pas comptés.
 - Rendez-vous téléphoniques indisponibles du 24 août au 6 septembre 2026 inclus dans l’espace client.
@@ -34,7 +38,7 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - Historique permanent avec date et heure.
 - Bouton « Marquer comme consulté ».
 
-## V6.4.3 PROD — Planning mariages compact
+## V6.4.3 TEST — Planning mariages compact
 
 - Affichage automatique de l'année en cours et des deux années suivantes.
 - Bouton « Ajouter une année » pour étendre le planning sans limite prédéfinie.
@@ -43,13 +47,40 @@ Aucune modification des règles Firebase ou du Worker Cloudflare n’est nécess
 - Clic sur une case occupée pour ouvrir le dossier correspondant ; choix proposé si plusieurs mariages sont présents.
 
 
-## V6.4.4 PROD — Correctif facture d’acompte
+## V6.4.4 TEST — Correctif facture d’acompte
 
 - L’acompte est calculé sur le montant net du devis après remises, avoirs et ajustements.
 - Exemple vérifié : 156,00 € - 10 % = 140,40 €, puis acompte 30 % = 42,12 €.
 - La facture de solde est calculée sur le même montant net et déduit l’acompte exact.
 
-## V6.4.12 PROD
+## V6.4.12 TEST
 
 - Barre de recherche globale centrée dans l’en-tête.
 - Contraste renforcé des boutons de l’aperçu devis/facture.
+
+
+## V7.0.7 PROD — Étape 1
+- Réorganisation visuelle de « Mes besoins » par catégories.
+- Ajout de deux guides visuels des tailles de bouquet.
+- Aucune modification des données sauvegardées ni des anciens espaces clients.
+- Mon projet, les inspirations clientes et le rendez-vous téléphonique restent inchangés.
+
+
+## V7.0.7 PROD
+- Fleurs premium détaillées : Rose, Pivoine, Hortensia, Camélia, Arum et Autre.
+- Champ de précision affiché lorsque « Autre » est sélectionné.
+- Migration non destructive de l’ancien texte libre vers la nouvelle structure.
+
+## V7.0.7 PROD — Retrait à l’atelier
+
+- Ajout de messages visibles dans l’espace client pour les compositions volumineuses.
+- Composition de capot de voiture : retrait à l’atelier, livraison impossible.
+- Centres de table, table d’honneur et décorations volumineuses : retrait à l’atelier.
+- Décoration d’arche et grosses compositions de cérémonie : retrait à l’atelier.
+- Aucun changement sur les données existantes, les inspirations ou les créneaux téléphoniques.
+
+
+## V7.0.7 PROD
+- Ajout d’une section « Autres demandes » avec un grand champ texte libre.
+- Conservation du champ technique `autrePrestation` pour assurer la compatibilité avec les dossiers existants.
+- Aucune modification des inspirations ni des créneaux téléphoniques.
