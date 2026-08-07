@@ -1,9 +1,10 @@
-/* V7.0.8 PROD — HOTFIX sécurité : aucun devis existant ne peut être réécrit automatiquement depuis une fiche mariage ou une demande portail. */
+/* V7.1.0 TEST — Module Campagnes e-mail + HOTFIX sécurité devis conservé. */
 "use strict";
 
-var APP_VERSION="V7.0.8 PROD — Sécurisation des devis";
-var APP_VERSION_NOTE = "HOTFIX sécurité : les lignes des devis existants ne sont plus modifiées automatiquement depuis les demandes clientes ou les fiches mariage.";
+var APP_VERSION="V7.1.0 TEST — Campagnes e-mail";
+var APP_VERSION_NOTE = "Nouveau module Communication : campagnes e-mail personnalisées par filtre, aperçu des destinataires et historique. Le hotfix sécurité des devis reste actif.";
 var APP_CHANGELOG = [
+  "V7.1.0 TEST — Nouveau module Campagnes e-mail : filtre des devis envoyés avant une date, sélection manuelle, personnalisation et historique.",
   "V7.0.8 PROD — HOTFIX sécurité : blocage de toute réécriture automatique des lignes des devis existants.",
   "V7.0.7 PROD — Suivi modifications amélioré — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
   "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
@@ -1272,7 +1273,7 @@ function toast(msg){
 }
 
 /* ===================== Rendu : barres communes ===================== */
-var TABS=[["accueil","Tableau de bord"],["stock","Matériel"],["clientsModule","Clients"],["documentsModule","Documents"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
+var TABS=[["accueil","Tableau de bord"],["stock","Matériel"],["clientsModule","Clients"],["documentsModule","Documents"],["communication","Communication"],["financesModule","Finances"],["calendrier","Calendrier"],["catalogue","Catalogue"],["params","Paramètres"]];
 function renderTabs(){
   document.getElementById("tabs").innerHTML=TABS.map(function(t){
     return '<button data-action="nav-'+t[0]+'" class="'+(ui.tab===t[0]?"active":"")+'">'+esc(t[1])+'</button>';
@@ -1435,6 +1436,7 @@ function render(){
   else if(ui.tab==="clientsModule") v.innerHTML=viewClientsModule();
   else if(ui.tab==="documentsModule") v.innerHTML=viewDocumentsModule();
   else if(ui.tab==="financesModule") v.innerHTML=viewFinancesModule();
+  else if(ui.tab==="communication") v.innerHTML=viewCommunication();
   else if(ui.tab==="stock") v.innerHTML=viewStock();
   else if(ui.tab==="calendrier") v.innerHTML=viewCalendrier();
   else if(ui.tab==="catalogue") v.innerHTML=viewCatalogue();
@@ -7775,9 +7777,111 @@ async function envoyerDocumentEmail(kind, doc){
   } catch(e){ console.error(e); toast("Envoi impossible : "+(e&&e.message?e.message:"vérifie le Worker Cloudflare / Brevo.")); }
 }
 
+
+/* ===================== Campagnes e-mail ===================== */
+function campaignDateSent(d){
+  return String(d.emailEnvoyeAt||d.emailEnvoyeLe||d.dernierEnvoiAt||d.date||"").slice(0,10);
+}
+function campaignEligibleDevis(cutoff){
+  cutoff=String(cutoff||"");
+  return (state.devis||[]).filter(function(d){
+    if(!d||d.statut!=="envoye"||d.versionArchive||!d.client||!emailValide(d.client.email)) return false;
+    var sent=campaignDateSent(d);
+    if(cutoff && sent && sent>cutoff) return false;
+    if(cutoff && !sent) return false;
+    return true;
+  }).sort(function(a,b){ return campaignDateSent(a).localeCompare(campaignDateSent(b)); });
+}
+function campaignPersonName(full){
+  full=String(full||"").trim();
+  var parts=full.split(/\s+/);
+  return {prenom:parts.shift()||"",nom:parts.join(" ")};
+}
+function campaignVars(d){
+  var pn=campaignPersonName(d.client&&d.client.nom);
+  var mariage=findLinkedMariageForDoc("devis",d);
+  var total=documentCalc(d.lignes||[],state.settings.partService,d).total||0;
+  return {
+    prenom:pn.prenom, nom:pn.nom, client:String(d.client&&d.client.nom||""),
+    numeroDevis:String(d.numero||""), dateMariage:mariage&&mariage.dateMariage?frDate(mariage.dateMariage):"",
+    montantDevis:euro(total), dateExpiration:d.echeance?frDate(d.echeance):"",
+    lienEspaceClient:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
+  };
+}
+function applyCampaignVars(text,d){
+  var v=campaignVars(d);
+  return String(text||"").replace(/\{\{(prenom|nom|client|numeroDevis|dateMariage|montantDevis|dateExpiration|lienEspaceClient)\}\}/g,function(_,k){return v[k]||"";});
+}
+function campaignEmailHtml(body,d){
+  var personalized=applyCampaignVars(body,d).replace(/\n/g,"<br>");
+  return '<div style="margin:0;padding:0;background:#fbf7f4;font-family:Arial,Helvetica,sans-serif;color:#3b3033;">'+
+  '<div style="max-width:640px;margin:0 auto;padding:22px 12px;"><div style="background:#fff;border:1px solid #eadbd4;border-radius:16px;overflow:hidden;">'+
+  '<div style="text-align:center;padding:20px 16px 12px;"><img src="https://latelierfleursetsens-create.github.io/atelier-fleurs-app/logo-mail.jpg" alt="L\'Atelier Fleurs & Sens" width="220" style="width:220px;max-width:70%;height:auto;"></div>'+
+  '<div style="height:5px;background:#8a2846;"></div><div style="padding:26px;font-size:15px;line-height:1.65;">'+personalized+
+  '<div style="margin-top:24px;padding:15px 16px;background:#f8ede7;border-left:4px solid #8a2846;border-radius:10px;">'+
+  '<strong style="color:#5b1f33;">Élodie Rouzé</strong><br><strong>L\'Atelier Fleurs &amp; Sens</strong><br>'+
+  '<span style="color:#6b555c;">🌿 Des fleurs, des émotions, un instant pour soi</span><br>📞 06 50 91 63 59<br>📧 latelierfleursetsens@gmail.com<br>🌐 www.latelierfleursetsens.fr</div>'+
+  '</div></div></div></div>';
+}
+function viewCommunication(){
+  var today=todayISO();
+  var cutoff=(ui.campaignCutoff||today);
+  var list=campaignEligibleDevis(cutoff);
+  var selected=ui.campaignSelected||{};
+  list.forEach(function(d){ if(selected[d.id]===undefined) selected[d.id]=true; });
+  ui.campaignSelected=selected;
+  var rows=list.length?list.map(function(d){var v=campaignVars(d);return '<tr><td><input type="checkbox" data-campaign-id="'+esc(d.id)+'" '+(selected[d.id]!==false?'checked':'')+'></td><td><b>'+esc(d.client.nom||'')+'</b><br><span class="muted">'+esc(d.client.email||'')+'</span></td><td>'+esc(d.numero||'')+'</td><td>'+esc(campaignDateSent(d)?frDate(campaignDateSent(d)):'—')+'</td><td>'+esc(v.dateMariage||'—')+'</td></tr>';}).join(''):'<tr><td colspan="5" class="muted">Aucun devis correspondant.</td></tr>';
+  var history=(state.emails||[]).filter(function(e){return e&&e.type==="campagne";}).slice(0,15).map(function(e){return '<div class="card" style="margin-top:8px;"><b>'+esc(e.objet||'Campagne')+'</b><div class="muted">'+esc(e.date?new Date(e.date).toLocaleString('fr-FR'):'')+' · '+Number(e.envoyes||0)+' envoyé(s) · '+Number(e.erreurs||0)+' erreur(s)</div></div>';}).join('')||'<div class="muted">Aucune campagne envoyée.</div>';
+  return '<div class="section-head"><div><h2>Communication</h2><p class="muted">Campagnes e-mail personnalisées</p></div></div>'+
+  '<div class="card"><h3>1. Destinataires</h3><div class="inline"><label class="field"><span>Devis envoyés avant ou le</span><input type="date" id="campaignCutoff" value="'+esc(cutoff)+'"></label><div style="display:flex;align-items:flex-end;"><button class="btn soft" data-action="campaign-refresh">Actualiser la sélection</button></div></div>'+
+  '<div style="margin:10px 0;font-weight:700;color:var(--bordeaux);">'+list.length+' cliente(s) trouvée(s)</div><div style="overflow:auto;max-height:320px;"><table class="table"><thead><tr><th></th><th>Cliente</th><th>Devis</th><th>Envoyé le</th><th>Mariage</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
+  '<div class="card"><h3>2. Message</h3><label class="field"><span>Objet</span><input id="campaignSubject" value="'+esc(ui.campaignSubject||'Concernant votre devis mariage {{numeroDevis}}')+'"></label>'+
+  '<label class="field"><span>Message</span><textarea id="campaignBody" rows="12">'+esc(ui.campaignBody||'Bonjour {{prenom}},\n\nDans le cadre de l’évolution de notre espace client, je souhaite faire un point avec vous concernant votre devis {{numeroDevis}}.\n\nAfin de vérifier que votre projet floral correspond toujours parfaitement à vos attentes, n’hésitez pas à me répondre si vous souhaitez réaffiner certains éléments ou certaines quantités.\n\nNotre planning se charge progressivement et la validation du devis permet de réserver définitivement votre créneau de fabrication.\n\nJe reste à votre disposition pour en échanger ensemble.\n\nBien chaleureusement,')+'</textarea></label>'+
+  '<div class="hint">Variables : {{prenom}}, {{nom}}, {{numeroDevis}}, {{dateMariage}}, {{montantDevis}}, {{dateExpiration}}, {{lienEspaceClient}}</div>'+
+  '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"><button class="btn soft" data-action="campaign-preview">Aperçu du premier e-mail</button><button class="btn primary" data-action="campaign-send">Envoyer la campagne</button></div></div>'+
+  '<div class="card"><h3>Historique des campagnes</h3>'+history+'</div>';
+}
+async function sendCampaign(){
+  var cutoff=document.getElementById("campaignCutoff");
+  var subjectEl=document.getElementById("campaignSubject");
+  var bodyEl=document.getElementById("campaignBody");
+  ui.campaignCutoff=cutoff?cutoff.value:todayISO(); ui.campaignSubject=subjectEl?subjectEl.value:""; ui.campaignBody=bodyEl?bodyEl.value:"";
+  document.querySelectorAll('[data-campaign-id]').forEach(function(cb){ui.campaignSelected[cb.getAttribute('data-campaign-id')]=cb.checked;});
+  var docs=campaignEligibleDevis(ui.campaignCutoff).filter(function(d){return ui.campaignSelected[d.id]!==false;});
+  if(!docs.length){toast("Aucune cliente sélectionnée.");return;}
+  if(!confirm("Envoyer cette campagne à "+docs.length+" cliente(s) ?")) return;
+  var ok=0,errors=[];
+  for(var i=0;i<docs.length;i++){
+    var d=docs[i];
+    try{
+      var payload={email:d.client.email,nom:d.client.nom||"",sujet:applyCampaignVars(ui.campaignSubject,d),message:campaignEmailHtml(ui.campaignBody,d)};
+      var res=await fetch(MAIL_WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      var txt=await res.text(); if(!res.ok) throw new Error(txt||("HTTP "+res.status));
+      ok++;
+      state.emails.unshift({id:uid(),type:"campagne-detail",date:new Date().toISOString(),objet:payload.sujet,email:d.client.email,client:d.client.nom||"",devisId:d.id,numero:d.numero||""});
+    }catch(e){errors.push((d.numero||d.client.email)+" : "+(e.message||e));}
+  }
+  state.emails.unshift({id:uid(),type:"campagne",date:new Date().toISOString(),objet:ui.campaignSubject,envoyes:ok,erreurs:errors.length,destinataires:docs.map(function(d){return d.client.email;})});
+  saveCache(); try{await saveCloudNow();}catch(e){console.error(e);}
+  render(); toast(ok+" e-mail(s) envoyé(s)"+(errors.length?" · "+errors.length+" erreur(s)":""));
+}
+
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
+  if(action==="campaign-refresh"){
+    var c=document.getElementById("campaignCutoff"),su=document.getElementById("campaignSubject"),bo=document.getElementById("campaignBody");
+    ui.campaignCutoff=c?c.value:todayISO(); ui.campaignSubject=su?su.value:""; ui.campaignBody=bo?bo.value:""; ui.campaignSelected={}; render(); return;
+  }
+  if(action==="campaign-preview"){
+    var c2=document.getElementById("campaignCutoff"),su2=document.getElementById("campaignSubject"),bo2=document.getElementById("campaignBody");
+    ui.campaignCutoff=c2?c2.value:todayISO(); ui.campaignSubject=su2?su2.value:""; ui.campaignBody=bo2?bo2.value:"";
+    document.querySelectorAll('[data-campaign-id]').forEach(function(cb){ui.campaignSelected[cb.getAttribute('data-campaign-id')]=cb.checked;});
+    var first=campaignEligibleDevis(ui.campaignCutoff).find(function(d){return ui.campaignSelected[d.id]!==false;});
+    if(!first){toast("Aucune cliente sélectionnée.");return;}
+    var w=window.open("","_blank"); if(w){w.document.write('<title>Aperçu campagne</title>'+campaignEmailHtml(ui.campaignBody,first));w.document.close();} return;
+  }
+  if(action==="campaign-send"){ await sendCampaign(); return; }
   if(action==="dem-import"){ var n=importPortalRequests(); render(); toast(n?n+" nouvelle(s) demande(s) importée(s).":"Aucune nouvelle demande."); return; }
   if(action.indexOf("dem-filter-")===0){ ui.demandeMariageFilter=action.slice(11)||"nouvelles"; ui.demandeMariageOpen=null; render(); window.scrollTo(0,0); return; }
   if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
