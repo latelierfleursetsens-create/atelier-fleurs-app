@@ -1,7 +1,7 @@
 /* V7.1.0 TEST — Module Campagnes e-mail + HOTFIX sécurité devis conservé. */
 "use strict";
 
-var APP_VERSION="V7.1.0 TEST — Campagnes e-mail";
+var APP_VERSION="V7.1.0 TEST — Campagnes e-mail (correctif sélection & inspirations)";
 var APP_VERSION_NOTE = "Nouveau module Communication : campagnes e-mail personnalisées par filtre, aperçu des destinataires et historique. Le hotfix sécurité des devis reste actif.";
 var APP_CHANGELOG = [
   "V7.1.0 TEST — Nouveau module Campagnes e-mail : filtre des devis envoyés avant une date, sélection manuelle, personnalisation et historique.",
@@ -946,9 +946,16 @@ function applyData(d){
   reconcileSiteSaleParticipants();
 }
 function applyRemote(d){
-  var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=m.medias||[]; });
+  var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=(m.medias||[]).slice(); });
   applyData(d);
-  state.mariages.forEach(function(m){ if(localMedias[m.id] && (!m.medias||!m.medias.length)) m.medias=localMedias[m.id]; });
+  state.mariages.forEach(function(m){
+    var local=localMedias[m.id]||[];
+    m.medias=Array.isArray(m.medias)?m.medias:[];
+    if(!local.length) return;
+    var known={};
+    m.medias.forEach(function(md){ var k=(md&& (md.storagePath||md.url||md.dataUrl||md.data||md.id))||""; if(k) known[k]=true; });
+    local.forEach(function(md){ var k=(md&& (md.storagePath||md.url||md.dataUrl||md.data||md.id))||""; if(k&&!known[k]){m.medias.push(md);known[k]=true;} });
+  });
   try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
 function loadCache(){ try{ var raw=localStorage.getItem("afs_cache"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
@@ -7117,9 +7124,54 @@ function addMediaFiles(files,target,done){
     });
   });
 }
-function onMarMediaFiles(files){
-  var m=getMariage(ui.mariageOpen); if(!m) return; captureMariageInputs(); m.medias=m.medias||[];
-  addMediaFiles(files,m.medias,function(added){ if(added){ m.suiviMariage=m.suiviMariage||{}; m.suiviMariage.inspirations=true; saveCache(); render(); toast(added+" fichier(s) d’inspiration ajouté(s)."); } });
+function dataUrlToBlob(dataUrl){
+  var parts=String(dataUrl||"").split(",");
+  var mime=((parts[0]||"").match(/data:([^;]+)/)||[])[1]||"application/octet-stream";
+  var raw=atob(parts[1]||"");
+  var bytes=new Uint8Array(raw.length);
+  for(var i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
+  return new Blob([bytes],{type:mime});
+}
+function safeStorageFileName(name){
+  return String(name||"photo.jpg").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9._-]+/gi,"-").replace(/-+/g,"-").replace(/^-|-$/g,"")||"photo.jpg";
+}
+async function uploadMariageInspiration(m,file){
+  if(!m||!file||!auth.currentUser) throw new Error("Connexion requise pour enregistrer la photo.");
+  if(!/^image\//.test(file.type||"")) throw new Error("Seules les images peuvent être enregistrées dans les inspirations de la fiche mariage.");
+  var compressed=await new Promise(function(resolve,reject){
+    compressImage2(file,function(durl){ try{ resolve(durl); }catch(e){ reject(e); } });
+  });
+  var blob=dataUrlToBlob(compressed);
+  if(blob.size>=5*1024*1024) throw new Error("La photo reste trop lourde après compression.");
+  var storagePath="clientUploads/"+auth.currentUser.uid+"/mybusiness/mariages/"+String(m.id||"sans-id")+"/"+Date.now()+"-"+safeStorageFileName(file.name||"photo.jpg");
+  var ref=storage.ref().child(storagePath);
+  await ref.put(blob,{contentType:blob.type||"image/jpeg",customMetadata:{source:"mybusiness",mariageId:String(m.id||"")}});
+  var url=await ref.getDownloadURL();
+  return {id:uid(),type:"image",name:file.name||"Inspiration",dataUrl:url,url:url,storagePath:storagePath,mime:blob.type||"image/jpeg",source:"mybusiness"};
+}
+async function onMarMediaFiles(files){
+  var m=getMariage(ui.mariageOpen); if(!m) return;
+  captureMariageInputs(); m.medias=m.medias||[];
+  var arr=Array.prototype.slice.call(files||[]);
+  if(!arr.length) return;
+  var added=0, errors=[];
+  toast("Enregistrement de "+arr.length+" photo(s)…");
+  for(var i=0;i<arr.length;i++){
+    try{
+      var item=await uploadMariageInspiration(m,arr[i]);
+      m.medias.push(item); added++;
+    }catch(e){ errors.push((arr[i]&&arr[i].name?arr[i].name+" : ":"")+(e.message||e)); }
+  }
+  if(added){
+    m.suiviMariage=m.suiviMariage||{}; m.suiviMariage.inspirations=true;
+    m.historique=m.historique||[];
+    m.historique.unshift({date:new Date().toISOString(),texte:added+" photo(s) d’inspiration ajoutée(s) depuis la fiche mariage."});
+    saveCache();
+    try{ await saveCloudNow(); }catch(syncErr){ console.error(syncErr); }
+  }
+  render();
+  if(errors.length) toast(added+" photo(s) ajoutée(s), "+errors.length+" erreur(s). Consulte la console.");
+  else if(added) toast(added+" photo(s) d’inspiration enregistrée(s).");
 }
 function onRdvMediaFiles(files){
   var d=captureMariageRdvDraft(); d.medias=d.medias||[];
@@ -7834,7 +7886,7 @@ function viewCommunication(){
   var history=(state.emails||[]).filter(function(e){return e&&e.type==="campagne";}).slice(0,15).map(function(e){return '<div class="card" style="margin-top:8px;"><b>'+esc(e.objet||'Campagne')+'</b><div class="muted">'+esc(e.date?new Date(e.date).toLocaleString('fr-FR'):'')+' · '+Number(e.envoyes||0)+' envoyé(s) · '+Number(e.erreurs||0)+' erreur(s)</div></div>';}).join('')||'<div class="muted">Aucune campagne envoyée.</div>';
   return '<div class="section-head"><div><h2>Communication</h2><p class="muted">Campagnes e-mail personnalisées</p></div></div>'+
   '<div class="card"><h3>1. Destinataires</h3><div class="inline"><label class="field"><span>Devis envoyés avant ou le</span><input type="date" id="campaignCutoff" value="'+esc(cutoff)+'"></label><div style="display:flex;align-items:flex-end;"><button class="btn soft" data-action="campaign-refresh">Actualiser la sélection</button></div></div>'+
-  '<div style="margin:10px 0;font-weight:700;color:var(--bordeaux);">'+list.length+' cliente(s) trouvée(s)</div><div style="overflow:auto;max-height:320px;"><table class="table"><thead><tr><th></th><th>Cliente</th><th>Devis</th><th>Envoyé le</th><th>Mariage</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
+  '<div style="margin:10px 0;font-weight:700;color:var(--bordeaux);">'+list.length+' cliente(s) trouvée(s)</div>'+  '<div class="row-actions" style="margin:8px 0 10px;"><button class="btn small soft" data-action="campaign-select-all">✓ Tout cocher</button><button class="btn small ghost" data-action="campaign-select-none">☐ Tout décocher</button></div>'+  '<div style="overflow:auto;max-height:320px;"><table class="table"><thead><tr><th></th><th>Cliente</th><th>Devis</th><th>Envoyé le</th><th>Mariage</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
   '<div class="card"><h3>2. Message</h3><label class="field"><span>Objet</span><input id="campaignSubject" value="'+esc(ui.campaignSubject||'Concernant votre devis mariage {{numeroDevis}}')+'"></label>'+
   '<label class="field"><span>Message</span><textarea id="campaignBody" rows="12">'+esc(ui.campaignBody||'Bonjour {{prenom}},\n\nDans le cadre de l’évolution de notre espace client, je souhaite faire un point avec vous concernant votre devis {{numeroDevis}}.\n\nAfin de vérifier que votre projet floral correspond toujours parfaitement à vos attentes, n’hésitez pas à me répondre si vous souhaitez réaffiner certains éléments ou certaines quantités.\n\nNotre planning se charge progressivement et la validation du devis permet de réserver définitivement votre créneau de fabrication.\n\nJe reste à votre disposition pour en échanger ensemble.\n\nBien chaleureusement,')+'</textarea></label>'+
   '<div class="hint">Variables : {{prenom}}, {{nom}}, {{numeroDevis}}, {{dateMariage}}, {{montantDevis}}, {{dateExpiration}}, {{lienEspaceClient}}</div>'+
@@ -7872,6 +7924,13 @@ async function handleAction(action){
   if(action==="campaign-refresh"){
     var c=document.getElementById("campaignCutoff"),su=document.getElementById("campaignSubject"),bo=document.getElementById("campaignBody");
     ui.campaignCutoff=c?c.value:todayISO(); ui.campaignSubject=su?su.value:""; ui.campaignBody=bo?bo.value:""; ui.campaignSelected={}; render(); return;
+  }
+  if(action==="campaign-select-all" || action==="campaign-select-none"){
+    var cc=document.getElementById("campaignCutoff"),cs=document.getElementById("campaignSubject"),cb=document.getElementById("campaignBody");
+    ui.campaignCutoff=cc?cc.value:todayISO(); ui.campaignSubject=cs?cs.value:""; ui.campaignBody=cb?cb.value:"";
+    var checked=(action==="campaign-select-all");
+    campaignEligibleDevis(ui.campaignCutoff).forEach(function(d){ui.campaignSelected[d.id]=checked;});
+    render(); return;
   }
   if(action==="campaign-preview"){
     var c2=document.getElementById("campaignCutoff"),su2=document.getElementById("campaignSubject"),bo2=document.getElementById("campaignBody");
