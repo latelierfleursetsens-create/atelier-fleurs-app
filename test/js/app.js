@@ -1,10 +1,11 @@
-/* V7.1.0 TEST — Module Campagnes e-mail + HOTFIX sécurité devis conservé. */
+/* V7.2.0 TEST — Nouveau Mode Atelier plein écran, sans modification du moteur métier. */
 "use strict";
 
-var APP_VERSION="V7.1.0 TEST — Campagnes e-mail (correctif sélection & inspirations)";
-var APP_VERSION_NOTE = "Nouveau module Communication : campagnes e-mail personnalisées par filtre, aperçu des destinataires et historique. Le hotfix sécurité des devis reste actif.";
+var APP_VERSION="V7.2.0 TEST — Mode Atelier";
+var APP_VERSION_NOTE = "Nouveau Mode Atelier plein écran : créations, inspirations, besoins/mémo, synthèse et documents réunis sur une seule vue. Aucun changement du fonctionnement métier existant.";
 var APP_CHANGELOG = [
-  "V7.1.0 TEST — Nouveau module Campagnes e-mail : filtre des devis envoyés avant une date, sélection manuelle, personnalisation et historique.",
+  "V7.2.0 TEST — Nouveau Mode Atelier plein écran : fiche de fabrication consolidée sans modifier le fonctionnement existant.",
+  "V7.1.0 PROD — Nouveau module Campagnes e-mail : filtre des devis envoyés avant une date, sélection manuelle, personnalisation et historique.",
   "V7.0.8 PROD — HOTFIX sécurité : blocage de toute réécriture automatique des lignes des devis existants.",
   "V7.0.7 PROD — Suivi modifications amélioré — Ajout du CA potentiel des devis en attente, hors devis acceptés, refusés et archivés.",
   "V6.6.0 TEST — Synchronisation automatique des devis mariage après chaque changement, sauvegarde quotidienne à 23 h si MyBusiness est ouvert, et source unique entre bandeaux et Worker.",
@@ -118,7 +119,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"", reminderWorkerStatus:"unknown", reminderWorkerMessage:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", mariageAtelierMode:false, stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"", reminderWorkerStatus:"unknown", reminderWorkerMessage:"" };
 var fileHandle = null;
 window.addEventListener("beforeunload",function(e){
   if(documentEditorHasUnsavedChanges("devis")||documentEditorHasUnsavedChanges("facture")){ e.preventDefault(); e.returnValue=""; }
@@ -6984,6 +6985,100 @@ function viewPreparer(){
   return html;
 }
 
+function mariageAtelierReferenceDocument(m){
+  if(!m) return null;
+  var d=mariageDevisLie(m);
+  if(d) return {kind:"devis",doc:d,label:(d.numero||"Devis")};
+  var facs=mariageFacturesLiees(m).slice().sort(function(a,b){return String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""));});
+  if(facs.length) return {kind:"facture",doc:facs[0],label:(facs[0].numero||"Facture")};
+  return null;
+}
+function mariageAtelierProductionRows(m){
+  var rows=[];
+  (m&&m.articles||[]).forEach(function(a){
+    if(!a||!String(a.label||"").trim()) return;
+    rows.push({id:a.id||"",label:String(a.label||"Création"),qty:Math.max(1,Number(a.quantite)||1),done:!!a.fait,custom:String(a.textePersonnalisation||"")});
+  });
+  // Si une ancienne fiche ne contient pas encore d'articles structurés, on utilise le devis lié en lecture seule.
+  if(!rows.length){
+    var d=mariageDevisLie(m);
+    (d&&d.lignes||[]).forEach(function(l,i){
+      if(!l||!String(l.designation||"").trim()) return;
+      rows.push({id:"",label:String(l.designation),qty:Math.max(1,Number(l.qte)||1),done:false,custom:"",readonly:true});
+    });
+  }
+  return rows;
+}
+function mariageAtelierMediasHTML(m){
+  var imgs=(m&&m.medias||[]).filter(function(md){return md&&md.type==="image"&&(md.dataUrl||md.data||md.url);});
+  if(!imgs.length) return '<div class="atelier-empty">Aucune photo d’inspiration enregistrée.</div>';
+  return '<div class="atelier-photo-grid">'+imgs.map(function(md){
+    var src=md.dataUrl||md.data||md.url||"";
+    return '<button class="atelier-photo" data-action="mar-media-open-'+esc(md.id)+'" title="Ouvrir la photo"><img src="'+esc(src)+'" alt="Inspiration"></button>';
+  }).join('')+'</div>';
+}
+function mariageAtelierCustomTexts(m){
+  return (m&&m.articles||[]).filter(function(a){return a&&String(a.textePersonnalisation||"").trim();});
+}
+function mariageAtelierPremiumText(m){
+  var vals=[];
+  if(m&&m.fleursPremium&&Array.isArray(m.fleursPremium)) vals=vals.concat(m.fleursPremium);
+  if(m&&m.premiumFlowers&&Array.isArray(m.premiumFlowers)) vals=vals.concat(m.premiumFlowers);
+  if(m&&m.fleursAimees) vals.push(m.fleursAimees);
+  vals=vals.map(function(x){return String(x||"").trim();}).filter(Boolean);
+  return vals.filter(function(v,i,a){return a.indexOf(v)===i;}).join(" · ");
+}
+function viewMariageAtelier(m){
+  var rows=mariageAtelierProductionRows(m);
+  var ref=mariageAtelierReferenceDocument(m);
+  var custom=mariageAtelierCustomTexts(m);
+  var premium=mariageAtelierPremiumText(m);
+  var facs=mariageFacturesLiees(m);
+  var d=mariageDevisLie(m);
+  var done=rows.filter(function(r){return r.done;}).length;
+  var pct=rows.length?Math.round((done/rows.length)*100):0;
+  var prod=rows.length?rows.map(function(r){
+    var checkbox=r.readonly?'<span class="atelier-readonly-dot">•</span>':'<input class="atelier-check" type="checkbox" data-action="mar-art-toggle-'+esc(r.id)+'"'+(r.done?' checked':'')+'>';
+    return '<div class="atelier-production-row '+(r.done?'is-done':'')+'">'+checkbox+'<div class="atelier-production-label"><b>'+esc(r.label)+'</b>'+(r.custom?'<div class="atelier-custom-inline">« '+esc(r.custom)+' »</div>':'')+'</div><span class="atelier-qty">× '+esc(String(r.qty))+'</span></div>';
+  }).join(''):'<div class="atelier-empty">Aucune création renseignée dans cette fiche.</div>';
+  var docs='';
+  if(d) docs+='<button class="btn soft" data-action="notif-open-devis-'+esc(d.id)+'">📄 '+esc(d.numero||"Ouvrir le devis")+'</button>';
+  facs.forEach(function(f){ docs+='<button class="btn soft" data-action="notif-open-facture-'+esc(f.id)+'">💰 '+esc(f.numero||"Ouvrir la facture")+'</button>'; });
+  if(!docs) docs='<span class="atelier-empty">Aucun devis ou facture lié.</span>';
+  var contact=[m.tel||"",m.email||""].filter(Boolean).map(esc).join(' · ');
+  return '<style>'+ 
+    '.atelier-overlay{position:fixed;inset:0;z-index:2000;background:#fffaf7;overflow:auto;color:var(--ink);padding:18px 22px 42px;}'+
+    '.atelier-shell{max-width:1500px;margin:0 auto;}'+
+    '.atelier-toolbar{position:sticky;top:0;z-index:5;background:rgba(255,250,247,.96);backdrop-filter:blur(8px);padding:8px 0 12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:center;}'+
+    '.atelier-title{font-size:28px;color:var(--bordeaux);font-weight:800}.atelier-sub{color:var(--ink-s);font-size:13px;margin-top:2px;}'+
+    '.atelier-head{display:grid;grid-template-columns:1.35fr .65fr;gap:14px;margin:16px 0;}'+
+    '.atelier-card{background:white;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 3px 12px rgba(80,50,50,.04);}'+
+    '.atelier-card h2,.atelier-card h3{margin:0 0 10px;color:var(--bordeaux);}'+
+    '.atelier-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;font-size:14px}.atelier-meta b{display:block;font-size:12px;color:var(--ink-s);margin-bottom:2px;}'+
+    '.atelier-progress{height:9px;border-radius:999px;background:#eee5df;overflow:hidden;margin-top:12px}.atelier-progress>span{display:block;height:100%;background:var(--blush);width:var(--pct);}'+
+    '.atelier-main{display:grid;grid-template-columns:minmax(420px,1.15fr) minmax(360px,.85fr);gap:14px;align-items:start;}'+
+    '.atelier-production-row{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:10px 2px}.atelier-production-row:last-child{border-bottom:0}.atelier-production-row.is-done{opacity:.55;text-decoration:line-through}.atelier-check{width:22px;height:22px;accent-color:var(--bordeaux)}.atelier-readonly-dot{font-size:24px;text-align:center;color:var(--bordeaux)}.atelier-production-label{font-size:15px}.atelier-qty{font-size:16px;font-weight:800;color:var(--bordeaux);white-space:nowrap}.atelier-custom-inline{font-size:12px;color:var(--ink-s);margin-top:3px;font-style:italic}'+
+    '.atelier-photo-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.atelier-photo{border:0;background:transparent;padding:0;cursor:pointer}.atelier-photo img{width:100%;height:180px;object-fit:cover;border-radius:12px;border:1px solid var(--line);display:block}'+
+    '.atelier-text{white-space:pre-wrap;line-height:1.5;background:#fffdfb;border:1px solid var(--line);border-radius:12px;padding:12px;min-height:72px}.atelier-empty{color:var(--ink-s);font-style:italic}.atelier-docs{display:flex;flex-wrap:wrap;gap:8px}.atelier-section-gap{margin-top:14px}.atelier-reference{font-size:12px;color:var(--ink-s);margin-bottom:8px}'+
+    '@media(max-width:900px){.atelier-overlay{padding:10px}.atelier-head,.atelier-main{grid-template-columns:1fr}.atelier-title{font-size:22px}.atelier-meta{grid-template-columns:1fr 1fr}.atelier-photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.atelier-photo img{height:150px}}'+
+    '@media(max-width:560px){.atelier-meta{grid-template-columns:1fr}.atelier-toolbar{align-items:flex-start}.atelier-photo-grid{grid-template-columns:1fr 1fr}.atelier-photo img{height:130px}.atelier-production-row{grid-template-columns:30px 1fr auto}}'+
+  '</style><div class="atelier-overlay"><div class="atelier-shell">'+
+    '<div class="atelier-toolbar"><div><div class="atelier-title">🌸 MODE ATELIER — '+esc(m.nom||"Mariage")+'</div><div class="atelier-sub">Tout le nécessaire de fabrication sur une seule vue'+(ref?' · Référence : '+esc(ref.label):'')+'</div></div><button class="btn primary" data-action="mar-atelier-close">✕ Quitter le mode Atelier</button></div>'+ 
+    '<div class="atelier-head"><section class="atelier-card"><h2>'+esc(m.nom||"Fiche mariage")+'</h2><div class="atelier-meta"><div><b>Mariage</b>'+(m.dateMariage?frDate(m.dateMariage):'Non renseigné')+'</div><div><b>Livraison / retrait</b>'+(m.dateLivraison?frDate(m.dateLivraison):'Non renseigné')+(m.modeLivraison?' · '+esc(m.modeLivraison):'')+'</div><div><b>Lieu</b>'+esc(m.lieu||'Non renseigné')+'</div><div><b>Contact</b>'+(contact||'Non renseigné')+'</div><div><b>Thème & couleurs</b>'+esc(m.theme||'Non renseigné')+'</div><div><b>Statut</b>'+esc(((STATUT_MAR[m.statut]||{}).l)||m.statut||'Non renseigné')+'</div></div></section>'+ 
+    '<section class="atelier-card"><h3>Avancement fabrication</h3><div style="font-size:30px;font-weight:800;color:var(--bordeaux);">'+done+' / '+rows.length+'</div><div class="muted">créations cochées · '+pct+' %</div><div class="atelier-progress" style="--pct:'+pct+'%;"><span></span></div></section></div>'+ 
+    '<div class="atelier-main"><div>'+ 
+      '<section class="atelier-card"><h2>✅ Créations à réaliser</h2>'+(ref?'<div class="atelier-reference">Source de référence : '+esc(ref.label)+' · La checklist utilise les créations enregistrées dans la fiche mariage.</div>':'')+prod+'</section>'+ 
+      '<section class="atelier-card atelier-section-gap"><h2>🖼️ Photos & inspirations</h2>'+mariageAtelierMediasHTML(m)+'<div style="margin-top:10px;"><button class="btn soft" data-action="mar-media-pick">+ Ajouter une inspiration</button></div></section>'+ 
+    '</div><div>'+ 
+      '<section class="atelier-card"><h2>📝 Ses besoins / mémo</h2><div class="atelier-text">'+esc(m.besoins||'Aucun mémo renseigné.')+'</div></section>'+ 
+      (String(m.synthese||'').trim()?'<section class="atelier-card atelier-section-gap"><h2>💐 Synthèse du projet</h2><div class="atelier-text">'+esc(m.synthese)+'</div></section>':'')+
+      (custom.length?'<section class="atelier-card atelier-section-gap"><h2>🎀 Personnalisations</h2>'+custom.map(function(a){return '<div style="padding:7px 0;border-bottom:1px solid var(--line);"><b>'+esc(a.label||'Création')+'</b><div>« '+esc(a.textePersonnalisation)+' »</div></div>';}).join('')+'</section>':'')+
+      (premium?'<section class="atelier-card atelier-section-gap"><h2>🌸 Fleurs / éléments premium</h2><div class="atelier-text">'+esc(premium)+'</div></section>':'')+
+      '<section class="atelier-card atelier-section-gap"><h2>📁 Documents</h2><div class="atelier-docs">'+docs+'</div></section>'+ 
+    '</div></div>'+ 
+  '</div></div>';
+}
+
 function mariageDetailTabs(active){
   active=active||"resume";
   var tabs=[
@@ -7013,7 +7108,8 @@ function mariageCrmMiniCards(m){
 }
 
 function viewMariageDetail(m){
-  if(!m){ ui.mariageOpen=null; return viewMariages(); }
+  if(!m){ ui.mariageOpen=null; ui.mariageAtelierMode=false; return viewMariages(); }
+  if(ui.mariageAtelierMode) return viewMariageAtelier(m);
   var cd=mariageCountdown(m), st=STATUT_MAR[m.statut]||STATUT_MAR.contact;
   var faits=(m.articles||[]).filter(function(a){return a.fait;}).length, totA=(m.articles||[]).length;
   var stOpts=Object.keys(STATUT_MAR).map(function(k){ return '<option value="'+k+'"'+(m.statut===k?" selected":"")+'>'+STATUT_MAR[k].l+'</option>'; }).join("");
@@ -7076,7 +7172,7 @@ function viewMariageDetail(m){
   var del='<div class="row-actions" style="margin-top:6px;"><button class="btn danger" data-action="mar-del-'+m.id+'">'+(delPending?'Confirmer suppression':'Supprimer cette fiche')+'</button></div>';
   var topBack='<div class="card" style="padding:10px 14px;margin-bottom:10px;position:sticky;top:0;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.06);">'+
     '<div class="flexb"><div><b style="color:var(--bordeaux);">'+esc(m.nom||"Fiche mariage")+'</b><div class="muted" style="font-size:12px;margin-top:2px;">'+(m.dateLivraison?'Livraison : '+frDate(m.dateLivraison):'Date de livraison non renseignée')+'</div></div>'+ 
-    '<button class="btn small ghost" data-action="mar-back">← Retour à la liste des mariages</button></div></div>';
+    '<div class="row-actions" style="margin:0;"><button class="btn small primary" data-action="mar-atelier-open">🌸 Mode Atelier</button><button class="btn small ghost" data-action="mar-back">← Retour à la liste des mariages</button></div></div></div>';
   var content='';
   if(activeTab==="resume") content=mariageCrmMiniCards(m)+summary+viewMariageWorkflow(m);
   else if(activeTab==="fiche") content=infos;
@@ -8645,11 +8741,13 @@ async function handleAction(action){
     else { toast("Cette photo d’inspiration est indisponible."); }
     return;
   }
-  if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
+  if(action==="mar-atelier-open"){ persistMariageForm(); ui.mariageAtelierMode=true; render(); window.scrollTo(0,0); return; }
+  if(action==="mar-atelier-close"){ ui.mariageAtelierMode=false; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-tab-")===0){ persistMariageForm(); ui.mariageDetailTab=action.slice(8)||"resume"; render(); window.scrollTo(0,0); return; }
-  if(action==="mar-back"){ persistMariageForm(); ui.mariageOpen=null; ui.mariageDetailTab="resume"; render(); return; }
+  if(action==="mar-back"){ persistMariageForm(); ui.mariageOpen=null; ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; render(); return; }
   if(action==="mar-save"){ persistMariageForm(); render(); toast("Fiche, contact et coordonnées du devis enregistrés. Les montants du devis sont conservés."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
