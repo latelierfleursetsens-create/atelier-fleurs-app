@@ -1,3 +1,14 @@
+# MyBusiness V7.3.3 TEST — NAVIGATION PLUS FLUIDE
+
+## Correctif V7.3.3
+
+- Les clics, changements d’onglets et ouvertures de devis/factures sont désormais prioritaires.
+- Les sauvegardes locales lourdes (notamment quand des photos sont présentes) sont regroupées et repoussées après une courte période sans interaction.
+- La sauvegarde cloud automatique est également regroupée afin d’éviter les micro-blocages pendant une série de clics.
+- Les sauvegardes explicites importantes avec `saveCloudNow()` restent immédiates.
+- Aucun changement dans les règles métier devis/factures : un devis déjà créé n’est toujours jamais modifié automatiquement par une modification ultérieure de l’espace client.
+- Le choix et la quantité de fleurs premium restent visibles lors de la création du devis mariage.
+
 # MyBusiness V7.3.2 TEST — FLEURS PREMIUM VISIBLES À LA CRÉATION DU DEVIS
 
 Lors de la création d’un devis depuis une fiche mariage, l’étape « Créations » affiche désormais un encart clair avec le choix des fleurs premium stabilisées et les quantités demandées par la cliente. Roses et pivoines : rappel +6 € par fleur (6 cm). Les autres fleurs restent indiquées « tarif sur devis ». Cet encart est informatif : il ne modifie jamais automatiquement un devis existant.

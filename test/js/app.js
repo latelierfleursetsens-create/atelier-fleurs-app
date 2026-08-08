@@ -1,9 +1,10 @@
-/* V7.3.2 TEST — Affichage des fleurs premium et quantités pendant la création du devis mariage. */
+/* V7.3.3 TEST — Fluidité navigation : sauvegardes lourdes différées pendant les interactions. */
 "use strict";
 
-var APP_VERSION="V7.3.2 TEST — Fleurs premium visibles dans le devis";
-var APP_VERSION_NOTE = "Lors de la création d’un devis depuis une fiche mariage, le choix et la quantité de fleurs premium sont désormais affichés directement à l’étape Créations. Ce rappel est informatif et ne modifie jamais automatiquement un devis déjà créé.";
+var APP_VERSION="V7.3.3 TEST — Navigation plus fluide";
+var APP_VERSION_NOTE = "Les clics, changements d’onglets et ouvertures de devis/factures restent prioritaires : les sauvegardes locales et cloud lourdes sont regroupées et exécutées après une courte période sans interaction. Les fleurs premium restent visibles à la création du devis et aucun devis existant n’est modifié automatiquement.";
 var APP_CHANGELOG = [
+  "V7.3.3 TEST — Fluidité générale : priorité aux clics/navigation, sauvegardes lourdes locales et cloud différées et regroupées après une courte période sans interaction.",
   "V7.3.2 TEST — Création devis mariage : affichage visible du choix et des quantités de fleurs premium stabilisées à l’étape Créations, sans modification automatique des devis existants.",
   "V7.3.1 TEST — Correction transformation demande → fiche mariage : conservation et affichage des fleurs premium stabilisées avec leurs quantités, sans modification automatique des devis existants.",
   "V7.3.0 TEST — Espace client : plaquette tarifaire bouquets intégrée au guide, fleurs premium placées sous les choix de la mariée avec quantité par fleur, et maintien du verrou empêchant toute modification automatique d’un devis existant.",
@@ -1010,28 +1011,59 @@ function saveTodoCloudDelayed(){
   }, 1200);
 }
 
-function saveCache(){
-  lastLocalMutationAt=Date.now();
+// V7.3.3 — Les gros JSON (notamment les photos locales) pouvaient bloquer le navigateur
+// pendant 1 à 3 secondes. On regroupe maintenant les sauvegardes et on ne lance le travail
+// lourd qu'après une courte période sans clic/toucher. Les données métier restent modifiées
+// immédiatement en mémoire ; seule l'écriture persistante est différée.
+var localSaveTimer=null;
+var lastUserInteractionAt=0;
+var SAVE_QUIET_MS=1400;
+function noteUserInteraction(){ lastUserInteractionAt=Date.now(); }
+function runLocalCacheSave(){
+  localSaveTimer=null;
+  var since=Date.now()-(lastUserInteractionAt||0);
+  if(since<SAVE_QUIET_MS){
+    localSaveTimer=setTimeout(runLocalCacheSave, SAVE_QUIET_MS-since+80);
+    return;
+  }
   try{
     localStorage.setItem("afs_cache", JSON.stringify({data:serialize()}));
   }catch(e){
-    // Repli allégé si les images dépassent le quota du navigateur.
     try{ localStorage.setItem("afs_cache", JSON.stringify({data:serializeCloud()})); }
     catch(e2){ console.error("Cache local saturé",e2); }
   }
+}
+function scheduleLocalCacheSave(){
+  clearTimeout(localSaveTimer);
+  localSaveTimer=setTimeout(runLocalCacheSave,SAVE_QUIET_MS);
+}
+function saveCache(){
+  lastLocalMutationAt=Date.now();
+  scheduleLocalCacheSave();
   if(ui && ui.todoEditing) return;
   saveCloud();
+}
+function runCloudSave(){
+  cloudTimer=null;
+  if(!docRef || (ui&&ui.todoEditing)) return;
+  var since=Date.now()-(lastUserInteractionAt||0);
+  if(since<SAVE_QUIET_MS){
+    cloudTimer=setTimeout(runCloudSave, SAVE_QUIET_MS-since+80);
+    return;
+  }
+  var cloudJson;
+  try{ cloudJson=JSON.stringify(serializeCloud()); }
+  catch(e){ cloudStatus("⚠️ Erreur de sauvegarde"); console.error(e); return; }
+  docRef.set({ data:cloudJson, updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
+    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); })
+    .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
 }
 function saveCloud(){
   if(!docRef) return;
   if(ui && ui.todoEditing) return;
   cloudStatus("☁️ Enregistrement…");
   clearTimeout(cloudTimer);
-  cloudTimer=setTimeout(function(){
-    docRef.set({ data:JSON.stringify(serializeCloud()), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-      .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); })
-      .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
-  }, 800);
+  cloudTimer=setTimeout(runCloudSave,SAVE_QUIET_MS);
 }
 function saveCloudNow(){
   if(!docRef) return Promise.resolve();
@@ -9366,6 +9398,11 @@ function onRestoreFile(file){
 }
 
 /* ===================== Écouteurs ===================== */
+// Priorité absolue à l'interface : chaque interaction repousse les écritures lourdes.
+document.addEventListener("pointerdown", noteUserInteraction, {capture:true,passive:true});
+document.addEventListener("touchstart", noteUserInteraction, {capture:true,passive:true});
+document.addEventListener("keydown", noteUserInteraction, {capture:true,passive:true});
+
 // Correctif V3.7.2 : listener direct et prioritaire pour le bouton "Ajouter au carnet".
 // Utile notamment sur Safari/iPhone lorsque le listener générique ne reçoit pas correctement le clic.
 document.addEventListener("click", function(e){
