@@ -1,9 +1,10 @@
-/* V7.3.1 TEST — Conservation des fleurs premium et quantités lors de la création de la fiche mariage. */
+/* V7.3.2 TEST — Affichage des fleurs premium et quantités pendant la création du devis mariage. */
 "use strict";
 
-var APP_VERSION="V7.3.1 TEST — Fleurs premium dans la fiche mariage";
-var APP_VERSION_NOTE = "Les fleurs premium stabilisées et leurs quantités sont désormais conservées lors de la transformation d’une demande en fiche mariage. Une modification cliente ne modifie toujours jamais automatiquement un devis MyBusiness déjà créé.";
+var APP_VERSION="V7.3.2 TEST — Fleurs premium visibles dans le devis";
+var APP_VERSION_NOTE = "Lors de la création d’un devis depuis une fiche mariage, le choix et la quantité de fleurs premium sont désormais affichés directement à l’étape Créations. Ce rappel est informatif et ne modifie jamais automatiquement un devis déjà créé.";
 var APP_CHANGELOG = [
+  "V7.3.2 TEST — Création devis mariage : affichage visible du choix et des quantités de fleurs premium stabilisées à l’étape Créations, sans modification automatique des devis existants.",
   "V7.3.1 TEST — Correction transformation demande → fiche mariage : conservation et affichage des fleurs premium stabilisées avec leurs quantités, sans modification automatique des devis existants.",
   "V7.3.0 TEST — Espace client : plaquette tarifaire bouquets intégrée au guide, fleurs premium placées sous les choix de la mariée avec quantité par fleur, et maintien du verrou empêchant toute modification automatique d’un devis existant.",
   "V7.2.8 TEST — Le résumé mariage et la prochaine action sont calculés à partir des vrais devis/factures liés, sans modifier les mécanismes de création, mise à jour ou envoi et sans toucher aux inspirations.",
@@ -2270,6 +2271,27 @@ function newWizard(editDoc,forceVersion){
   }
 }
 function wzTotals(){ return documentCalc(ui.wizard.lignes,state.settings.partService,ui.wizard); }
+function wizardPremiumInfoHTML(){
+  var m=ui.wizardLinkMariage?getMariage(ui.wizardLinkMariage):null;
+  if(!m) return "";
+  var flowers=Array.isArray(m.fleursPremium)?m.fleursPremium.slice():[];
+  var quantities=(m.fleursPremiumQuantites&&typeof m.fleursPremiumQuantites==="object")?m.fleursPremiumQuantites:{};
+  var other=String(m.fleursPremiumAutre||"").trim();
+  if(!flowers.length && m.fleursAimees){
+    return '<div class="summary" style="margin:0 0 14px;background:#fff6f8;border-color:#d9a9b8;"><div style="font-weight:700;color:var(--bordeaux);margin-bottom:5px;">🌸 Fleurs premium demandées par la cliente</div><div style="font-size:14px;white-space:pre-wrap;">'+esc(m.fleursAimees)+'</div><div class="muted" style="font-size:11px;margin-top:6px;">Information reprise de la demande mariage. Pense à ajouter le tarif correspondant dans les lignes du devis.</div></div>';
+  }
+  if(!flowers.length && !other) return "";
+  var rows=[];
+  flowers.forEach(function(name){
+    if(name==="Autre") return;
+    var q=Math.max(1,Math.round(Number(quantities[name])||1));
+    var low=String(name).toLowerCase();
+    var known=(low.indexOf("rose")>=0||low.indexOf("pivoine")>=0);
+    rows.push('<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.06);"><span><b>'+esc(name)+'</b> × '+q+'</span><span style="white-space:nowrap;">'+(known?'<b>+6 € / fleur</b>':'Tarif sur devis')+'</span></div>');
+  });
+  if(other) rows.push('<div style="padding:4px 0;"><b>Autre :</b> '+esc(other)+' <span class="muted">— tarif sur devis</span></div>');
+  return '<div class="summary" style="margin:0 0 14px;background:#fff6f8;border-color:#d9a9b8;"><div style="font-weight:700;color:var(--bordeaux);margin-bottom:5px;">🌸 Fleurs premium demandées par la cliente</div>'+rows.join("")+'<div class="muted" style="font-size:11px;margin-top:7px;">Rappel visible pendant la création du devis. Les roses et pivoines font 6 cm et sont à +6 € par fleur. Ce bloc n’ajoute ni ne modifie automatiquement une ligne commerciale.</div></div>';
+}
 function viewWizard(){
   var w=ui.wizard, dot=function(n,l){ return '<div style="display:flex;align-items:center;gap:7px;"><div style="width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:'+(w.step>=n?"var(--bordeaux)":"#fff")+';color:'+(w.step>=n?"#fff":"var(--ink-s)")+';border:1px solid '+(w.step>=n?"var(--bordeaux)":"var(--line)")+';">'+n+'</div><span style="font-size:12px;font-weight:600;color:'+(w.step>=n?"var(--ink)":"var(--ink-s)")+';">'+l+'</span></div>'; };
   var head='<div class="card">'+(w.editId?'<div class="summary" style="margin-bottom:12px;"><b>✏️ Modification de '+esc((w.originalSnapshot&&w.originalSnapshot.numero)||"devis")+'</b>'+(w.forceNewVersion?' · nouvelle version':'')+'</div>':'')+'<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px;">'+dot(1,"Client")+'<span style="color:var(--line);">—</span>'+dot(2,"Créations")+'<span style="color:var(--line);">—</span>'+dot(3,"Validation")+'</div>';
@@ -2307,6 +2329,7 @@ function viewWizard(){
     var table=w.lignes.length? '<div class="scroll" style="margin-bottom:12px;"><table style="min-width:520px;"><thead><tr class="muted" style="text-align:left;"><th style="padding:6px;">Désignation</th><th style="padding:6px;">Type</th><th style="padding:6px;">Qté</th><th style="padding:6px;">Prix unit.</th><th style="padding:6px;">Total</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '';
     var t=wzTotals();
     body='<h3 style="margin:0 0 12px;">Que commande le client ?</h3>'+
+      wizardPremiumInfoHTML()+
       '<div class="muted" style="font-weight:600;margin-bottom:8px;">Depuis votre catalogue :</div>'+
       '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">'+cat+'</div>'+
       table+'<button class="btn small soft" data-action="wz-addfree">+ Ligne libre</button>'+

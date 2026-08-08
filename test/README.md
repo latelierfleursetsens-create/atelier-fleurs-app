@@ -1,4 +1,6 @@
-# MyBusiness V7.3.0 TEST — ESPACE CLIENT TARIFS & FLEURS PREMIUM
+# MyBusiness V7.3.2 TEST — FLEURS PREMIUM VISIBLES À LA CRÉATION DU DEVIS
+
+Lors de la création d’un devis depuis une fiche mariage, l’étape « Créations » affiche désormais un encart clair avec le choix des fleurs premium stabilisées et les quantités demandées par la cliente. Roses et pivoines : rappel +6 € par fleur (6 cm). Les autres fleurs restent indiquées « tarif sur devis ». Cet encart est informatif : il ne modifie jamais automatiquement un devis existant.
 
 Ajout de la plaquette tarifaire bouquets et d’un choix de quantité pour chaque fleur premium stabilisée. Les modifications clientes restent enregistrées dans le portail et ne modifient jamais automatiquement un devis déjà créé dans MyBusiness.
 
