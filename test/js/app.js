@@ -1,9 +1,10 @@
-/* V7.2.8 TEST — Tableau de bord mariage basé sur les états réels des documents. */
+/* V7.3.0 TEST — Espace client : plaquette tarifs bouquets + quantités fleurs premium, sans synchronisation automatique des devis. */
 "use strict";
 
-var APP_VERSION="V7.2.8 TEST — Statuts réels devis & factures";
-var APP_VERSION_NOTE = "Le tableau de bord des fiches mariage lit désormais directement les vrais devis et factures liés : devis envoyé/validé, facture d’acompte créée/envoyée/payée, solde et prochaine action. Aucun flux de création, modification ou envoi de document n’est changé, et les inspirations restent intactes.";
+var APP_VERSION="V7.3.0 TEST — Tarifs bouquets & quantités fleurs premium";
+var APP_VERSION_NOTE = "L’espace client affiche désormais la plaquette tarifaire des bouquets et permet de choisir une quantité pour chaque fleur premium stabilisée. Une modification cliente met à jour sa demande uniquement : aucun devis MyBusiness déjà créé n’est modifié automatiquement.";
 var APP_CHANGELOG = [
+  "V7.3.0 TEST — Espace client : plaquette tarifaire bouquets intégrée au guide, fleurs premium placées sous les choix de la mariée avec quantité par fleur, et maintien du verrou empêchant toute modification automatique d’un devis existant.",
   "V7.2.8 TEST — Le résumé mariage et la prochaine action sont calculés à partir des vrais devis/factures liés, sans modifier les mécanismes de création, mise à jour ou envoi et sans toucher aux inspirations.",
   "V7.2.7 TEST — Depuis le Mode Atelier, ouverture des inspirations, devis et factures dans une fenêtre séparée ; ajout du retour direct à la fiche mariage et conservation de la position de travail lors des actualisations.",
   "V7.2.6 TEST — Ajout de l’encart État du dossier, de la source Atelier (demande ou devis actif), d’un contrôle de cohérence devis ↔ Atelier et d’une traçabilité renforcée lors des créations/modifications/versions de devis et de l’avancement Atelier.",

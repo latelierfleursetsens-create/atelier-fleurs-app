@@ -1,3 +1,7 @@
+# MyBusiness V7.3.0 TEST — ESPACE CLIENT TARIFS & FLEURS PREMIUM
+
+Ajout de la plaquette tarifaire bouquets et d’un choix de quantité pour chaque fleur premium stabilisée. Les modifications clientes restent enregistrées dans le portail et ne modifient jamais automatiquement un devis déjà créé dans MyBusiness.
+
 # MyBusiness V7.0.8 PROD — HOTFIX SÉCURITÉ
 
 Cette version bloque toute modification automatique des lignes, quantités, prix et montants des devis existants depuis l’espace client ou la fiche mariage. Les modifications clientes restent consultables dans les demandes mariage et devront être intégrées manuellement dans une future nouvelle version du devis.
