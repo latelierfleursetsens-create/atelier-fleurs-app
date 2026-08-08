@@ -9,6 +9,7 @@
 .guide-image-card{margin:0 auto;border:1px solid #eadfd8;border-radius:14px;overflow:hidden;background:#fff;width:100%;box-shadow:0 4px 14px rgba(80,49,57,.06)}
 .guide-image-card--dimensions{max-width:720px}
 .guide-image-card--portees{max-width:980px}
+.guide-image-card--tarifs{max-width:820px}
 .guide-image-card img{display:block;width:100%;height:auto;max-height:none;object-fit:contain;background:#fff}
 .guide-image-card figcaption{padding:10px 12px;color:var(--b);font-weight:700;text-align:center}
 .needs-category{margin:16px 0;padding:16px;border:1px solid #eadfd8;border-radius:16px;background:#fff}
@@ -34,10 +35,11 @@
 .premium-flower-section{margin:16px 0;padding:16px;border:1px solid #eadfd8;border-radius:16px;background:#fffaf8}
 .premium-flower-section h3{margin:0 0 8px;color:var(--b);font-family:Georgia,serif;font-size:21px}
 .premium-flower-section>p{margin:0 0 13px;line-height:1.5}
-.premium-flower-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.premium-flower-choice{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #eadfd8;border-radius:12px;background:#fff;font-weight:600;cursor:pointer}
+.premium-flower-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.premium-flower-choice{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:9px;padding:11px 12px;border:1px solid #eadfd8;border-radius:12px;background:#fff;font-weight:600;cursor:pointer}
 .premium-flower-choice:has(input:checked){border-color:var(--b);background:#fff5f3;box-shadow:0 0 0 1px rgba(111,38,56,.08)}
-.premium-flower-choice input{width:19px;height:19px;margin:0;accent-color:var(--b);flex:none}
+.premium-flower-choice>input[type="checkbox"]{width:19px;height:19px;margin:0;accent-color:var(--b);flex:none}
+.premium-flower-name{line-height:1.3}.premium-flower-note{display:block;color:#796c70;font-size:11px;font-weight:500;margin-top:3px}.premium-qty{display:grid;grid-template-columns:34px 48px 34px;align-items:center;gap:4px}.premium-qty .qty-btn{width:34px;height:34px}.premium-qty-input{width:48px!important;height:34px!important;margin:0!important;padding:5px!important;text-align:center;border-radius:8px!important}.premium-flower-choice.is-selected{border-color:var(--b);background:#fff5f3;box-shadow:0 0 0 1px rgba(111,38,56,.08)}.quote-protection-notice{margin:16px 0;padding:13px 14px;border:1px solid #e3c47b;border-radius:12px;background:#fff8df;color:#5d4716;line-height:1.5}.quote-protection-notice strong{color:#6f2638}
 .premium-other{margin-top:12px;padding:12px;border:1px dashed #d7bfc5;border-radius:11px;background:#fff}
 .premium-other.hidden{display:none!important}
 
@@ -50,14 +52,14 @@
 .pickup-notice{margin:12px 0 0;padding:12px 14px;border:1px solid #e7c89f;border-left:5px solid #b48a55;border-radius:12px;background:#fff8ee;color:#684719;line-height:1.5;font-size:14px}
 .pickup-notice strong{color:#6f2638}
 .pickup-notice .pickup-icon{font-size:18px;margin-right:5px}
-@media(max-width:700px){.grid,.checks,.dashboard-grid,.onboarding-steps{grid-template-columns:1fr}.photos{grid-template-columns:1fr 1fr}.guide-images{gap:14px}.guide-image-card--dimensions,.guide-image-card--portees{max-width:100%}.guide-image-card figcaption{font-size:16px}.wrap{padding:10px}.quantity-choice{padding:10px}.qty-control{grid-template-columns:40px 52px 40px}.qty-btn{width:40px;height:40px}.qty-input{width:52px!important;height:40px}.premium-flower-grid{grid-template-columns:1fr 1fr}}</style></head><body><main class="wrap"><section class="hero"><img src="assets/logo.jpg"><h1>Mon espace mariage 🌸</h1><p>Un espace personnel pour compléter votre projet et retrouver vos documents.</p><p class="muted">V7.0.8 PROD</p></section>
+@media(max-width:700px){.grid,.checks,.dashboard-grid,.onboarding-steps{grid-template-columns:1fr}.photos{grid-template-columns:1fr 1fr}.guide-images{gap:14px}.guide-image-card--dimensions,.guide-image-card--portees,.guide-image-card--tarifs{max-width:100%}.guide-image-card figcaption{font-size:16px}.wrap{padding:10px}.quantity-choice{padding:10px}.qty-control{grid-template-columns:40px 52px 40px}.qty-btn{width:40px;height:40px}.qty-input{width:52px!important;height:40px}.premium-flower-grid{grid-template-columns:1fr}}</style></head><body><main class="wrap"><section class="hero"><img src="assets/logo.jpg"><h1>Mon espace mariage 🌸</h1><p>Un espace personnel pour compléter votre projet et retrouver vos documents.</p><p class="muted">V7.3.3 PROD</p></section>
 <section id="authCard" class="card"><div class="tabs"><button class="btn tab active" id="loginTab">Connexion</button><button class="btn tab soft" id="signupTab">Créer mon espace</button></div><div class="grid"><label>E-mail<input id="email" type="email" autocomplete="email"></label><label>Mot de passe<input id="password" type="password" minlength="8" autocomplete="current-password"></label></div><div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" id="authAction">Me connecter</button><button class="btn soft" id="resetPwd">Mot de passe oublié</button></div><div class="auth-separator"><span>ou</span></div><button class="btn google-btn" id="googleClientAuth" type="button"><span class="google-g">G</span><span>Continuer avec Google</span></button><p class="muted" style="margin-top:10px">Utilisez toujours la même adresse e-mail pour retrouver votre dossier existant.</p><p id="authMsg" class="muted"></p></section>
 <section id="space" class="hidden"><div class="card top"><div><b id="welcome"></b><div class="muted" id="userEmail"></div></div><button class="btn soft" id="logout">Se déconnecter</button></div><div class="tabs"><button class="btn tab active" data-view="dashboard">Tableau de bord</button><button class="btn tab soft" data-view="project">Ma fiche</button><button class="btn tab soft" data-view="planning">Mon planning</button><button class="btn tab soft" data-view="docs">Devis et factures</button></div>
 <section id="dashboardView" class="card"><div id="firstProjectGuide" class="onboarding hidden"><div class="onboarding-head"><h2>Bienvenue dans votre espace mariage 🌸</h2><p>Pour démarrer votre projet, complétez votre demande de mariage. Élodie pourra ainsi découvrir vos envies, les couleurs souhaitées, les créations dont vous avez besoin et vos inspirations.</p></div><div class="onboarding-steps"><div class="onboarding-step"><div class="onboarding-number">1</div><h3>Compléter ma demande</h3><p>Renseignez les informations de votre mariage, choisissez vos créations et ajoutez vos photos d’inspiration.</p></div><div class="onboarding-step"><div class="onboarding-number">2</div><h3>Élodie étudie votre projet</h3><p>Votre demande est transmise à L’Atelier Fleurs & Sens afin d’être consultée et préparée.</p></div><div class="onboarding-step"><div class="onboarding-number">3</div><h3>Suivre mon dossier</h3><p>Vous retrouverez ensuite ici votre planning, vos devis, vos factures et l’avancement de votre projet.</p></div></div><div class="onboarding-cta"><button class="btn primary" type="button" data-go="project">Créer ma demande de mariage</button></div><p class="muted onboarding-note">Cela ne prend que quelques minutes et vous pourrez modifier votre fiche plus tard.</p></div><div id="regularDashboard"><h2>Mon tableau de bord</h2><div class="dashboard-grid"><div class="dash-card"><h3>💍 Mon mariage</h3><div id="dashCountdown" class="countdown">—</div><p id="dashWeddingDate" class="muted"></p></div><div class="dash-card"><h3>🌸 Avancement de mon dossier</h3><div id="dashStatus" class="dash-value">Demande en préparation</div><div class="progress-track"><div id="dashProgress" class="progress-fill" style="width:10%"></div></div><p id="dashNextStep" class="muted"></p></div><div class="dash-card"><h3>📅 Prochaine date</h3><div id="dashNextDate" class="dash-value">À définir</div><p id="dashNextDateDetail" class="muted"></p><div class="quick-actions"><button class="btn soft" type="button" data-go="planning">Voir le planning</button></div></div><div class="dash-card"><h3>📄 Mon devis</h3><div id="dashQuote" class="dash-value">Aucun devis disponible</div><p id="dashQuoteDetail" class="muted"></p><div class="quick-actions"><button class="btn primary" type="button" data-go="docs">Voir mes documents</button></div></div></div><div class="quick-actions"><button class="btn soft" type="button" data-go="project">Modifier ma fiche</button><button class="btn soft" type="button" data-go="planning">Consulter mes dates</button></div></div></section>
-<section id="projectView" class="card hidden"><h2>Mon projet</h2><form id="projectForm"><div class="grid"><label>Prénom *<input name="prenom" required></label><label>Nom *<input name="nom" required></label><label>Adresse e-mail de connexion<input name="emailClient" type="email" readonly aria-readonly="true" style="background:#f7f3f1;color:#6f6267"></label><label>Téléphone *<input name="tel" required></label><label>Date du mariage *<input name="dateMariage" type="date" required></label><label>Ville<input name="ville"></label><label>Style<input name="style"></label><label>Couleurs<input name="couleurs"></label></div><h2>Mes besoins</h2><div class="needs-guide"><h3>👰 Choisir la taille de mon bouquet de mariée</h3><p>Ces deux visuels vous permettent de comparer les dimensions et le rendu du bouquet une fois porté.</p><div class="guide-images"><figure class="guide-image-card guide-image-card--dimensions"><img src="assets/guide-tailles-bouquets.jpg" alt="Comparatif des tailles de bouquets de mariée S, M, L et XL"><figcaption>Dimensions des bouquets</figcaption></figure><figure class="guide-image-card guide-image-card--portees"><img src="assets/guide-tailles-portees.jpg" alt="Comparatif porté des tailles de bouquets de mariée S, M, L et XL"><figcaption>Rendu des bouquets portés</figcaption></figure></div><p class="muted" style="margin-top:12px">Les dimensions sont données à titre indicatif. Chaque bouquet est réalisé à la main et peut légèrement varier selon les fleurs sélectionnées.</p></div><div id="choices"></div><section class="other-request-section"><h3>📝 Autres demandes</h3><p>Votre besoin ne figure pas dans la liste ou vous souhaitez ajouter une précision ? Décrivez-le librement ci-dessous.</p><label>Votre demande complémentaire<textarea name="autrePrestation" maxlength="1500" placeholder="Ex. : création particulière, couleur spécifique, adaptation d’un accessoire, précision utile pour votre projet..."></textarea></label></section><section class="premium-flower-section"><h3>🌸 Fleurs premium stabilisées</h3><p>Souhaitez-vous des fleurs premium stabilisées comme des roses, pivoines, hortensias, camélias, arums, etc. ?</p><div class="premium-flower-grid"><label class="premium-flower-choice"><input type="checkbox" name="premiumFleurs" value="Rose"> Rose</label><label class="premium-flower-choice"><input type="checkbox" name="premiumFleurs" value="Pivoine"> Pivoine</label><label class="premium-flower-choice"><input type="checkbox" name="premiumFleurs" value="Hortensia"> Hortensia</label><label class="premium-flower-choice"><input type="checkbox" name="premiumFleurs" value="Camélia"> Camélia</label><label class="premium-flower-choice"><input type="checkbox" name="premiumFleurs" value="Arum"> Arum</label><label class="premium-flower-choice"><input type="checkbox" name="premiumFleurs" value="Autre"> Autre</label></div><div id="premiumOtherBox" class="premium-other hidden"><label>Autre fleur premium : précisez<input type="text" name="premiumFleursAutre" maxlength="160" placeholder="Indiquez la ou les fleurs souhaitées"></label></div></section><h2>Inspirations</h2><input id="photos" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple><p class="muted">Vous pouvez sélectionner plusieurs photos à la fois ou en ajouter d’autres ensuite (6 maximum).</p><p id="photoMsg" class="muted"></p><div id="photosList" class="photos" style="margin-top:12px"></div><div class="rdv-box"><div class="rdv-title">Souhaitez-vous un rendez-vous téléphonique avec Élodie pour affiner votre projet ?</div><div class="rdv-options"><label><input type="radio" name="souhaiteRdvTelephonique" value="oui" required> Oui</label><label><input type="radio" name="souhaiteRdvTelephonique" value="non" required> Non</label></div><div class="availability"><b>Créneaux disponibles :</b><br>• Du samedi au lundi : de 9 h à 20 h<br>• Du mardi au vendredi : de 18 h à 20 h<br>• Aucun rendez-vous possible du 24 août au 6 septembre 2026 inclus.</div><div id="rdvDetails" class="rdv-details hidden"><div class="grid"><label>Date souhaitée *<input type="date" name="rdvDateSouhaitee" id="rdvDateSouhaitee"></label><label>Heure souhaitée *<select name="rdvHeureSouhaitee" id="rdvHeureSouhaitee"><option value="">Choisissez d’abord une date</option></select></label></div><p id="rdvHelp" class="muted rdv-help">Les horaires proposés s’adaptent automatiquement au jour choisi.</p></div></div><button class="btn primary" style="margin-top:16px">Vérifier ma demande</button><p id="saveMsg" class="muted"></p></form></section>
+<section id="projectView" class="card hidden"><h2>Mon projet</h2><form id="projectForm"><div class="grid"><label>Prénom *<input name="prenom" required></label><label>Nom *<input name="nom" required></label><label>Adresse e-mail de connexion<input name="emailClient" type="email" readonly aria-readonly="true" style="background:#f7f3f1;color:#6f6267"></label><label>Téléphone *<input name="tel" required></label><label>Date du mariage *<input name="dateMariage" type="date" required></label><label>Ville<input name="ville"></label><label>Style<input name="style"></label><label>Couleurs<input name="couleurs"></label></div><h2>Mes besoins</h2><div class="needs-guide"><h3>👰 Choisir la taille de mon bouquet de mariée</h3><p>Ces visuels vous permettent de comparer les dimensions, le rendu porté et les tarifs de votre bouquet.</p><div class="guide-images"><figure class="guide-image-card guide-image-card--dimensions"><img src="assets/guide-tailles-bouquets.jpg" alt="Comparatif des tailles de bouquets de mariée S, M, L et XL"><figcaption>Dimensions des bouquets</figcaption></figure><figure class="guide-image-card guide-image-card--portees"><img src="assets/guide-tailles-portees.jpg" alt="Comparatif porté des tailles de bouquets de mariée S, M, L et XL"><figcaption>Rendu des bouquets portés</figcaption></figure><figure class="guide-image-card guide-image-card--tarifs"><img src="assets/guide-tarifs-bouquets.png" alt="Plaquette tarifaire des bouquets de mariée et fleurs premium stabilisées"><figcaption>Tarifs des bouquets et fleurs premium stabilisées</figcaption></figure></div><p class="muted" style="margin-top:12px">Les dimensions sont données à titre indicatif. Chaque bouquet est réalisé à la main et peut légèrement varier selon les fleurs sélectionnées.</p></div><div id="choices"></div><section class="other-request-section"><h3>📝 Autres demandes</h3><p>Votre besoin ne figure pas dans la liste ou vous souhaitez ajouter une précision ? Décrivez-le librement ci-dessous.</p><label>Votre demande complémentaire<textarea name="autrePrestation" maxlength="1500" placeholder="Ex. : création particulière, couleur spécifique, adaptation d’un accessoire, précision utile pour votre projet..."></textarea></label></section><h2>Inspirations</h2><input id="photos" type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.heic,.heif" multiple><p class="muted">Vous pouvez sélectionner plusieurs photos à la fois ou en ajouter d’autres ensuite (6 maximum).</p><p id="photoMsg" class="muted"></p><div id="photosList" class="photos" style="margin-top:12px"></div><div class="rdv-box"><div class="rdv-title">Souhaitez-vous un rendez-vous téléphonique avec Élodie pour affiner votre projet ?</div><div class="rdv-options"><label><input type="radio" name="souhaiteRdvTelephonique" value="oui" required> Oui</label><label><input type="radio" name="souhaiteRdvTelephonique" value="non" required> Non</label></div><div class="availability"><b>Créneaux disponibles :</b><br>• Du samedi au lundi : de 9 h à 20 h<br>• Du mardi au vendredi : de 18 h à 20 h<br>• Aucun rendez-vous possible du 24 août au 6 septembre 2026 inclus.</div><div id="rdvDetails" class="rdv-details hidden"><div class="grid"><label>Date souhaitée *<input type="date" name="rdvDateSouhaitee" id="rdvDateSouhaitee"></label><label>Heure souhaitée *<select name="rdvHeureSouhaitee" id="rdvHeureSouhaitee"><option value="">Choisissez d’abord une date</option></select></label></div><p id="rdvHelp" class="muted rdv-help">Les horaires proposés s’adaptent automatiquement au jour choisi.</p></div></div><div id="quoteProtectionNotice" class="quote-protection-notice hidden"><strong>Votre devis reste inchangé.</strong> Les modifications enregistrées dans votre fiche mettent à jour votre demande, mais ne modifient jamais automatiquement un devis déjà créé dans MyBusiness. Si votre devis doit évoluer, Élodie le mettra à jour manuellement.</div><button class="btn primary" style="margin-top:16px">Vérifier ma demande</button><p id="saveMsg" class="muted"></p></form></section>
 <section id="planningView" class="card hidden"><h2>Mon planning</h2><p class="muted">Retrouvez les principales dates de votre projet. La date de livraison est mise à jour par Élodie depuis MyBusiness.</p><div class="planning-list"><div class="milestone"><div class="milestone-icon">☎️</div><div><h3>Rendez-vous téléphonique</h3><div id="planPhoneDate" class="milestone-date">Aucun rendez-vous demandé</div><div id="planPhoneDetail" class="muted"></div></div></div><div class="milestone"><div class="milestone-icon">📦</div><div><h3>Livraison ou retrait</h3><div id="planDeliveryDate" class="milestone-date">À confirmer avec Élodie</div><div id="planDeliveryDetail" class="muted"></div></div></div><div class="milestone"><div class="milestone-icon">💍</div><div><h3>Date du mariage</h3><div id="planWeddingDate" class="milestone-date">À renseigner</div><div id="planWeddingDetail" class="muted"></div></div></div></div></section>
 <section id="docsView" class="card hidden"><h2>Mes devis et factures</h2><p class="muted">Vous pouvez consulter le détail de vos documents et valider votre devis directement en ligne.</p><div id="docs"></div></section></section></main><div id="successModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div class="modal-box"><h2 id="successTitle">Merci 🌸</h2><p>Merci pour toutes ces informations, Élodie revient vers vous dans les plus brefs délais.</p><button type="button" class="btn primary" id="closeSuccessModal">Fermer</button></div></div><div id="requestReviewModal" class="modal-overlay request-review-modal hidden" role="dialog" aria-modal="true" aria-labelledby="requestReviewTitle"><div class="modal-box"><h2 id="requestReviewTitle">Vérifiez votre demande</h2><p class="request-review-intro">Relisez les informations ci-dessous avant de les transmettre à L’Atelier Fleurs & Sens.</p><div id="requestReviewContent"></div><p id="requestReviewMsg" class="muted" style="text-align:center"></p><div class="request-review-actions"><button type="button" class="btn soft" id="editRequestReview">← Modifier ma demande</button><button type="button" class="btn primary" id="confirmRequestReview">Confirmer et envoyer</button></div></div></div><div id="quoteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="quoteModalTitle"><div class="modal-box"><h2 id="quoteModalTitle">Valider mon devis</h2><p>Vérifiez les informations puis confirmez votre accord.</p><div id="quoteModalSummary" class="quote-summary"></div><label style="text-align:left">Votre prénom et nom *<input id="quoteAcceptedName" autocomplete="name"></label><label class="accept-check"><input type="checkbox" id="quoteAcceptCheck"><span>J’ai pris connaissance du devis, de ses prestations et de son montant, et je confirme mon accord.</span></label><p id="quoteModalMsg" class="muted"></p><div class="doc-actions" style="justify-content:center"><button type="button" class="btn primary" id="confirmQuoteAcceptance">Confirmer la validation</button><button type="button" class="btn soft" id="cancelQuoteAcceptance">Annuler</button></div></div></div>
-<script src="js/mariage-creations.js?v=7.0.8-prod"></script><script>
+<script src="js/mariage-creations.js?v=7.3.3-prod"></script><script>
 var config={apiKey:"AIzaSyCPuUcFt99zQsUI1lBDSEZkX-RJHtgs5BY",authDomain:"l-atelier-fleurs-et-sens.firebaseapp.com",projectId:"l-atelier-fleurs-et-sens",storageBucket:"l-atelier-fleurs-et-sens.firebasestorage.app",messagingSenderId:"520271601373",appId:"1:520271601373:web:150541ed9bf7091b804534"};// Application Firebase nommée pour isoler totalement la session cliente de MyBusiness.
 // Sans cela, la connexion d'une cliente dans un onglet remplaçait la session administratrice
 // dans les autres onglets du même navigateur, puis MyBusiness déconnectait la cliente.
@@ -138,11 +140,38 @@ function updatePremiumOtherVisibility(){
 function collectPremiumFlowers(){
   return Array.from(document.querySelectorAll('[name="premiumFleurs"]:checked')).map(function(input){return input.value;});
 }
-function premiumFlowersText(flowers,other){
-  var list=(flowers||[]).filter(function(x){return x&&x!=='Autre';});
+function collectPremiumFlowerQuantities(){
+  var out={};
+  Array.from(document.querySelectorAll('[data-premium-qty]')).forEach(function(input){
+    var name=input.getAttribute('data-premium-qty'),n=Math.max(0,Math.min(30,Math.round(Number(input.value)||0)));
+    if(n>0)out[name]=n;
+  });
+  return out;
+}
+function premiumFlowersText(flowers,other,quantities){
+  quantities=quantities||{};
+  var list=(flowers||[]).filter(function(x){return x&&x!=='Autre';}).map(function(name){var qty=Math.max(1,Number(quantities[name])||1);return name+' × '+qty;});
   var detail=String(other||'').trim();
-  if((flowers||[]).indexOf('Autre')>=0&&detail)list.push('Autre : '+detail);
+  if((flowers||[]).indexOf('Autre')>=0){var q=Math.max(1,Number(quantities.Autre)||1);list.push((detail?'Autre : '+detail:'Autre')+' × '+q);}
   return list.join(', ');
+}
+function premiumSelector(kind,name){return kind==='qty'?'[data-premium-qty="'+String(name).replace(/"/g,'\\"')+'"]':'[name="premiumFleurs"][value="'+String(name).replace(/"/g,'\\"')+'"]';}
+function setPremiumQuantity(name,value){
+  var input=document.querySelector(premiumSelector('qty',name));
+  var check=document.querySelector(premiumSelector('check',name));
+  if(!input||!check)return;
+  var qty=Math.max(0,Math.min(30,Math.round(Number(value)||0)));
+  input.value=String(qty);check.checked=qty>0;
+  var row=input.closest('.premium-flower-choice');if(row)row.classList.toggle('is-selected',qty>0);
+  updatePremiumOtherVisibility();
+}
+function syncPremiumSelection(input){
+  var name=input.value,qty=document.querySelector(premiumSelector('qty',name));
+  if(!qty)return;
+  if(input.checked && Number(qty.value)<=0)qty.value='1';
+  if(!input.checked)qty.value='0';
+  var row=input.closest('.premium-flower-choice');if(row)row.classList.toggle('is-selected',input.checked);
+  updatePremiumOtherVisibility();
 }
 function legacyPremiumFlowers(text){
   var source=String(text||'').trim();
@@ -151,6 +180,28 @@ function legacyPremiumFlowers(text){
   var selected=[];
   map.forEach(function(item){if(low.indexOf(item[1])>=0)selected.push(item[0]);});
   return {selected:selected,other:selected.length?'' : source};
+}
+var PREMIUM_FLOWERS=[
+  {name:'Rose',note:'+6 € / fleur — taille 6 cm'},
+  {name:'Pivoine',note:'+6 € / fleur — taille 6 cm'},
+  {name:'Hortensia',note:'Tarif sur devis'},
+  {name:'Camélia',note:'Tarif sur devis'},
+  {name:'Arum',note:'Tarif sur devis'},
+  {name:'Autre',note:'Tarif selon variété, taille et disponibilité'}
+];
+function premiumFlowerBlockHtml(){
+  var rows=PREMIUM_FLOWERS.map(function(item){
+    return '<div class="premium-flower-choice" data-premium-row="'+esc(item.name)+'">'+
+      '<input type="checkbox" name="premiumFleurs" value="'+esc(item.name)+'">'+
+      '<span class="premium-flower-name">'+esc(item.name)+'<span class="premium-flower-note">'+esc(item.note)+'</span></span>'+ 
+      '<span class="premium-qty" aria-label="Quantité de '+esc(item.name)+'">'+
+        '<button type="button" class="qty-btn" data-premium-minus="'+esc(item.name)+'" aria-label="Diminuer la quantité de '+esc(item.name)+'">−</button>'+ 
+        '<input class="premium-qty-input" type="number" min="0" max="30" step="1" value="0" data-premium-qty="'+esc(item.name)+'" aria-label="Quantité de '+esc(item.name)+'">'+
+        '<button type="button" class="qty-btn" data-premium-plus="'+esc(item.name)+'" aria-label="Augmenter la quantité de '+esc(item.name)+'">+</button>'+ 
+      '</span>'+ 
+    '</div>';
+  }).join('');
+  return '<section class="premium-flower-section" id="premiumFlowerSection"><h3>🌸 Ajouter des fleurs premium stabilisées au bouquet de mariée</h3><p>Choisissez la ou les fleurs souhaitées et indiquez directement la quantité. Roses et pivoines stabilisées : <strong>+6 € par fleur, taille 6 cm</strong>. Au-delà de 5, chaque rose ou pivoine supplémentaire reste à +6 €. Pour les autres fleurs premium, le tarif est établi sur devis.</p><div class="premium-flower-grid">'+rows+'</div><div id="premiumOtherBox" class="premium-other hidden"><label>Autre fleur premium : précisez<input type="text" name="premiumFleursAutre" maxlength="160" placeholder="Indiquez la ou les fleurs souhaitées"></label></div></section>';
 }
 function renderCategorizedChoices(){
   var known={};
@@ -177,7 +228,9 @@ function renderCategorizedChoices(){
         ribbonCustomizationHtml(x)+
       '</div>';
     }).join('');
-    return '<section class="needs-category'+(category.legacy?' legacy-needs-category hidden':'')+'"'+(category.legacy?' data-legacy-needs="true"':'')+'><h3>'+esc(category.title)+'</h3>'+(items?'<div class="checks">'+items+'</div>':'<p class="needs-empty">Aucune création disponible dans cette catégorie.</p>')+(category.notice?'<div class="pickup-notice"><span class="pickup-icon">ℹ️</span><strong>Retrait à l’atelier :</strong> '+esc(category.notice)+'</div>':'')+'</section>';
+    var section='<section class="needs-category'+(category.legacy?' legacy-needs-category hidden':'')+'"'+(category.legacy?' data-legacy-needs="true"':'')+'><h3>'+esc(category.title)+'</h3>'+(items?'<div class="checks">'+items+'</div>':'<p class="needs-empty">Aucune création disponible dans cette catégorie.</p>')+(category.notice?'<div class="pickup-notice"><span class="pickup-icon">ℹ️</span><strong>Retrait à l’atelier :</strong> '+esc(category.notice)+'</div>':'')+'</section>';
+    if(category.title==='👰 Pour la mariée')section+=premiumFlowerBlockHtml();
+    return section;
   }).join('');
 }
 function clampQuantity(value){
@@ -232,7 +285,15 @@ $('choices').addEventListener('click',function(event){
 $('choices').addEventListener('input',function(event){
   if(event.target.matches('[data-qty-item]'))updateQuantityRow(event.target);
 });
-$('projectForm').addEventListener('change',function(event){if(event.target.matches('[name="premiumFleurs"]'))updatePremiumOtherVisibility();});
+$('projectForm').addEventListener('change',function(event){
+  if(event.target.matches('[name="premiumFleurs"]'))syncPremiumSelection(event.target);
+  if(event.target.matches('[data-premium-qty]')){var n=event.target.getAttribute('data-premium-qty');setPremiumQuantity(n,event.target.value);}
+});
+$('projectForm').addEventListener('click',function(event){
+  var plus=event.target.getAttribute('data-premium-plus'),minus=event.target.getAttribute('data-premium-minus');
+  if(plus){var pi=document.querySelector(premiumSelector('qty',plus));setPremiumQuantity(plus,(Number(pi&&pi.value)||0)+1);return;}
+  if(minus){var mi=document.querySelector(premiumSelector('qty',minus));setPremiumQuantity(minus,(Number(mi&&mi.value)||0)-1);return;}
+});
 function setMode(m){mode=m;$('loginTab').className='btn tab '+(m==='login'?'active':'soft');$('signupTab').className='btn tab '+(m==='signup'?'active':'soft');$('authAction').textContent=m==='login'?'Me connecter':'Créer mon espace'}$('loginTab').onclick=()=>setMode('login');$('signupTab').onclick=()=>setMode('signup');
 $('authAction').onclick=async()=>{try{msg(mode==='signup'?'Création de votre espace…':'Connexion…');await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);var e=$('email').value.trim(),p=$('password').value;if(mode==='signup'){var c=await auth.createUserWithEmailAndPassword(e,p);await ensureClientProfile(c.user)}else await auth.signInWithEmailAndPassword(e,p);msg('')}catch(e){msg(friendlyAuthError(e))}};
 async function ensureClientProfile(user){if(!user)return;await db.collection('clientProfiles').doc(user.uid).set({email:user.email||'',displayName:user.displayName||'',photoURL:user.photoURL||'',authProviders:(user.providerData||[]).map(function(p){return p.providerId}),updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})}
@@ -267,7 +328,8 @@ async function loadProject(){
   var structuredFlowers=Array.isArray(project.fleursPremium)?project.fleursPremium:(Array.isArray(project.premiumFleurs)?project.premiumFleurs:[]);
   var structuredOther=String(project.fleursPremiumAutre||project.premiumFleursAutre||'');
   if(!structuredFlowers.length&&!structuredOther&&project.fleursAimees){var legacy=legacyPremiumFlowers(project.fleursAimees);structuredFlowers=legacy.selected;structuredOther=legacy.other;if(structuredOther)structuredFlowers.push('Autre');}
-  Array.from(f.querySelectorAll('[name="premiumFleurs"]')).forEach(function(input){input.checked=structuredFlowers.indexOf(input.value)>=0;});
+  var premiumQuantities=(project.fleursPremiumQuantites&&typeof project.fleursPremiumQuantites==='object')?project.fleursPremiumQuantites:{};
+  Array.from(f.querySelectorAll('[name="premiumFleurs"]')).forEach(function(input){var selected=structuredFlowers.indexOf(input.value)>=0;var qty=Number(premiumQuantities[input.value]);if(!Number.isFinite(qty)||qty<0)qty=selected?1:0;setPremiumQuantity(input.value,qty);});
   if(f.elements.premiumFleursAutre)f.elements.premiumFleursAutre.value=structuredOther;
   updatePremiumOtherVisibility();
   Array.from(f.querySelectorAll('[name=souhaiteRdvTelephonique]')).forEach(function(x){x.checked=(project.souhaiteRdvTelephonique||'')===x.value});
@@ -410,7 +472,7 @@ function projectComparable(data){
     prenom:data.prenom||'',nom:data.nom||'',tel:data.tel||'',dateMariage:data.dateMariage||'',ville:data.ville||'',
     style:data.style||'',couleurs:data.couleurs||'',
     prestations:(data.prestations||[]).slice().sort(),prestationQuantites:Object.keys(data.prestationQuantites||{}).sort().reduce(function(acc,key){acc[key]=Number(data.prestationQuantites[key])||0;return acc;},{}),rubansPersonnalises:Object.keys(data.rubansPersonnalises||{}).sort().reduce(function(acc,key){acc[key]=String(data.rubansPersonnalises[key]||'');return acc;},{}),autrePrestation:data.autrePrestation||'',
-    fleursAimees:data.fleursAimees||'',fleursPremium:(data.fleursPremium||[]).slice().sort(),fleursPremiumAutre:data.fleursPremiumAutre||'',
+    fleursAimees:data.fleursAimees||'',fleursPremium:(data.fleursPremium||[]).slice().sort(),fleursPremiumAutre:data.fleursPremiumAutre||'',fleursPremiumQuantites:Object.keys(data.fleursPremiumQuantites||{}).sort().reduce(function(acc,key){var n=Math.max(0,Number(data.fleursPremiumQuantites[key])||0);if(n>0)acc[key]=n;return acc;},{}),
     souhaiteRdvTelephonique:data.souhaiteRdvTelephonique||'',rdvDateSouhaitee:data.rdvDateSouhaitee||'',rdvHeureSouhaitee:data.rdvHeureSouhaitee||'',
     photos:(data.photos||[]).map(function(p){return {name:p.name||'',path:p.path||'',url:p.url||''}}).sort(function(a,b){return (a.path||a.url).localeCompare(b.path||b.url)})
   };
@@ -680,8 +742,8 @@ async function envoyerNotificationsValidationDevis(docData,nomComplet,dateValida
 }
 var pendingProjectData=null;
 function buildProjectDataFromForm(form){
-  var fd=new FormData(form),prestationQuantites=collectPrestationQuantities(),rubansPersonnalises=collectRibbonCustomizations(),fleursPremium=collectPremiumFlowers(),fleursPremiumAutre=String(fd.get('premiumFleursAutre')||'').trim(),fleursAimees=premiumFlowersText(fleursPremium,fleursPremiumAutre);
-  return {ownerUid:current.uid,email:current.email,prenom:fd.get('prenom'),nom:fd.get('nom'),tel:fd.get('tel'),dateMariage:fd.get('dateMariage'),ville:fd.get('ville'),style:fd.get('style'),couleurs:fd.get('couleurs'),prestations:prestationLabelsFromQuantities(prestationQuantites),prestationQuantites:prestationQuantites,rubansPersonnalises:rubansPersonnalises,formulaireBesoinsVersion:7,autrePrestation:String(fd.get('autrePrestation')||'').trim(),fleursPremium:fleursPremium,fleursPremiumAutre:fleursPremiumAutre,fleursAimees:fleursAimees,souhaiteRdvTelephonique:fd.get('souhaiteRdvTelephonique'),rdvDateSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvDateSouhaitee'):'',rdvHeureSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvHeureSouhaitee'):'',photos:project.photos||[],clientStatus:'submitted',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:project.createdAt||firebase.firestore.FieldValue.serverTimestamp()};
+  var fd=new FormData(form),prestationQuantites=collectPrestationQuantities(),rubansPersonnalises=collectRibbonCustomizations(),fleursPremium=collectPremiumFlowers(),fleursPremiumQuantites=collectPremiumFlowerQuantities(),fleursPremiumAutre=String(fd.get('premiumFleursAutre')||'').trim(),fleursAimees=premiumFlowersText(fleursPremium,fleursPremiumAutre,fleursPremiumQuantites);
+  return {ownerUid:current.uid,email:current.email,prenom:fd.get('prenom'),nom:fd.get('nom'),tel:fd.get('tel'),dateMariage:fd.get('dateMariage'),ville:fd.get('ville'),style:fd.get('style'),couleurs:fd.get('couleurs'),prestations:prestationLabelsFromQuantities(prestationQuantites),prestationQuantites:prestationQuantites,rubansPersonnalises:rubansPersonnalises,formulaireBesoinsVersion:8,autrePrestation:String(fd.get('autrePrestation')||'').trim(),fleursPremium:fleursPremium,fleursPremiumQuantites:fleursPremiumQuantites,fleursPremiumAutre:fleursPremiumAutre,fleursAimees:fleursAimees,souhaiteRdvTelephonique:fd.get('souhaiteRdvTelephonique'),rdvDateSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvDateSouhaitee'):'',rdvHeureSouhaitee:fd.get('souhaiteRdvTelephonique')==='oui'?fd.get('rdvHeureSouhaitee'):'',photos:project.photos||[],clientStatus:'submitted',updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:project.createdAt||firebase.firestore.FieldValue.serverTimestamp()};
 }
 function reviewCategoryForLabel(label){
   for(var i=0;i<NEEDS_CATEGORIES.length;i++)if(NEEDS_CATEGORIES[i].items.indexOf(label)>=0)return NEEDS_CATEGORIES[i].title;
@@ -697,9 +759,9 @@ function renderRequestReview(data){
   var needs='';
   NEEDS_CATEGORIES.concat([{title:'🌸 Autres créations'}]).forEach(function(category){var items=grouped[category.title]||[];if(!items.length)return;needs+='<section class="request-review-section"><h3>'+esc(category.title)+'</h3><ul class="request-review-list">'+items.map(function(item){return '<li>'+esc(item.label)+' <strong>×'+item.qty+'</strong>'+(item.text?' — Texte : « '+esc(item.text)+' »':'')+'</li>';}).join('')+'</ul></section>';});
   if(!needs)needs='<section class="request-review-section"><h3>🌸 Mes besoins</h3><p class="request-review-empty">Aucune création n’a été sélectionnée.</p></section>';
-  var premium=(data.fleursPremium||[]).filter(function(x){return x!=='Autre';});if((data.fleursPremium||[]).indexOf('Autre')>=0&&data.fleursPremiumAutre)premium.push('Autre : '+data.fleursPremiumAutre);
+  var premiumText=data.fleursAimees||premiumFlowersText(data.fleursPremium||[],data.fleursPremiumAutre||'',data.fleursPremiumQuantites||{});
   var complements='<section class="request-review-section"><h3>📝 Informations complémentaires</h3>'+
-    '<p><strong>Fleurs premium :</strong> '+esc(premium.length?premium.join(', '):'Aucune sélection')+'</p>'+
+    '<p><strong>Fleurs premium :</strong> '+esc(premiumText||'Aucune sélection')+'</p>'+
     '<p><strong>Autres demandes :</strong> '+esc(data.autrePrestation||'Aucune')+'</p>'+
     '<p><strong>Rendez-vous téléphonique :</strong> '+esc(data.souhaiteRdvTelephonique==='oui'?('Oui'+(data.rdvDateSouhaitee?' — '+dateFR(data.rdvDateSouhaitee):'')+(data.rdvHeureSouhaitee?' à '+data.rdvHeureSouhaitee.replace(':',' h '):'')):'Non')+'</p></section>';
   var photos='<section class="request-review-section"><h3>📷 Inspirations</h3>';
@@ -753,9 +815,10 @@ function portalDocStatusLabel(d){
   var labels={envoye:"Envoyé",accepte:"Accepté",refuse:"Refusé",envoyee:"Envoyée",payee:"Payée",a_envoyer:"À envoyer"};
   return labels[s]||d.statut||"Disponible";
 }
+function updateQuoteProtectionNotice(){var el=$('quoteProtectionNotice');if(!el)return;var hasQuote=portalDocs.some(function(d){return d.kind==='devis';});el.classList.toggle('hidden',!hasQuote);}
 function renderPortalDocs(list){
   var a=Array.isArray(list)?list:[];
-  portalDocs=a;
+  portalDocs=a;updateQuoteProtectionNotice();
   $('docs').innerHTML=a.length?a.map(function(d){
     var decision=d.clientDecision||'',actions='';
     var pdfActions=d.pdfUrl
