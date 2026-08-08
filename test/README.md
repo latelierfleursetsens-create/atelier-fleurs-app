@@ -1,6 +1,6 @@
-# MyBusiness V7.3.3 TEST — NAVIGATION PLUS FLUIDE
+# MyBusiness V7.4.0 TEST — NAVIGATION PLUS FLUIDE
 
-## Correctif V7.3.3
+## Correctif V7.4.0
 
 - Les clics, changements d’onglets et ouvertures de devis/factures sont désormais prioritaires.
 - Les sauvegardes locales lourdes (notamment quand des photos sont présentes) sont regroupées et repoussées après une courte période sans interaction.

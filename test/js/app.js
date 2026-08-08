@@ -1,10 +1,11 @@
-/* V7.3.3 TEST — Fluidité navigation : sauvegardes lourdes différées pendant les interactions. */
+/* V7.4.0 TEST — Tableau de bord actions, relance devis 1 clic, analyse commerciale mariage. */
 "use strict";
 
-var APP_VERSION="V7.3.3 TEST — Navigation plus fluide";
-var APP_VERSION_NOTE = "Les clics, changements d’onglets et ouvertures de devis/factures restent prioritaires : les sauvegardes locales et cloud lourdes sont regroupées et exécutées après une courte période sans interaction. Les fleurs premium restent visibles à la création du devis et aucun devis existant n’est modifié automatiquement.";
+var APP_VERSION="V7.4.0 TEST — Pilotage commercial mariage";
+var APP_VERSION_NOTE = "Test de 3 évolutions : tableau de bord À faire aujourd’hui, relance des devis en 1 clic avec traçabilité, et analyse commerciale des demandes mariage. Le fonctionnement des devis/factures et la fluidité V7.3.3 restent inchangés.";
 var APP_CHANGELOG = [
-  "V7.3.3 TEST — Fluidité générale : priorité aux clics/navigation, sauvegardes lourdes locales et cloud différées et regroupées après une courte période sans interaction.",
+  "V7.4.0 TEST — Ajout À faire aujourd’hui, relance devis en 1 clic avec historique, et analyse commerciale mariage.",
+  "V7.3.3 PROD — Fluidité générale : priorité aux clics/navigation, sauvegardes lourdes locales et cloud différées et regroupées après une courte période sans interaction.",
   "V7.3.2 TEST — Création devis mariage : affichage visible du choix et des quantités de fleurs premium stabilisées à l’étape Créations, sans modification automatique des devis existants.",
   "V7.3.1 TEST — Correction transformation demande → fiche mariage : conservation et affichage des fleurs premium stabilisées avec leurs quantités, sans modification automatique des devis existants.",
   "V7.3.0 TEST — Espace client : plaquette tarifaire bouquets intégrée au guide, fleurs premium placées sous les choix de la mariée avec quantité par fleur, et maintien du verrou empêchant toute modification automatique d’un devis existant.",
@@ -408,6 +409,12 @@ function calendarBuildIcs(){
     var desc=[d.numero?"Devis : "+d.numero:"",d.montant!=null?"Montant : "+euro(d.montant):"",(d.client&&d.client.tel)?"Téléphone : "+d.client.tel:"",(d.client&&d.client.email)?"E-mail : "+d.client.email:""].filter(Boolean).join("\n");
     addEvent("echeance-devis-"+d.id,"📄 Échéance devis - "+client,d.echeance,"","","",desc,true,d.updatedAt||d.date);
   });
+  (state.demandesMariage||[]).forEach(function(d){
+    if(["nouvelle","a_etudier","a_contacter"].indexOf(d.statut||"nouvelle")<0) return;
+    var who=((d.prenom||"")+" "+(d.nom||"")).trim()||"Nouvelle cliente";
+    add("danger","Nouvelle demande mariage",who+(d.dateMariage?" · mariage le "+frDate(d.dateMariage):""),null,"dash-open-demande-"+d.id,d.createdAt||d.date||today);
+  });
+
   (state.factures||[]).forEach(function(f){
     if(!f || !f.echeance || f.statut!=="envoyee" || f.versionArchive) return;
     var client=(f.client&&f.client.nom)||"Cliente";
@@ -1895,7 +1902,7 @@ function viewNotificationsDashboard(){
   var warning=items.filter(function(i){return i.level==="warning";}).length;
   var title=danger?"🔴 "+danger+" urgence"+(danger>1?"s":""):(warning?"🟠 "+warning+" point"+(warning>1?"s":"")+" à surveiller":"🟢 Tout est calme");
   var html='<div class="card" style="border-color:var(--bordeaux);background:#fffdfb;margin-bottom:14px;">'+
-    '<div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0;">🔔 Centre de notifications</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Actions prioritaires calculées automatiquement : factures, devis, mariages, ateliers et stock.</p></div><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(title)+'</span></div>';
+    '<div class="flexb" style="align-items:flex-start;"><div><h3 style="margin:0;">🎯 À faire aujourd’hui</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Ce qui nécessite ton attention maintenant : nouvelles demandes, devis à relancer, paiements, mariages, ateliers et stock.</p></div><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">'+esc(title)+'</span></div>';
   if(!items.length){
     html+='<p class="muted" style="margin:12px 0 0;">Aucune alerte prioritaire pour le moment.</p>';
   }else{
@@ -1905,7 +1912,7 @@ function viewNotificationsDashboard(){
       var icon=it.level==="danger"?"⚠️":(it.level==="warning"?"⏳":"ℹ️");
       html+='<div class="checkrow" style="align-items:flex-start;background:'+bg+';border-radius:10px;border-bottom:none;margin-bottom:7px;padding:10px;">'+
         '<div style="flex:1;min-width:0;"><div><b style="color:var(--bordeaux);">'+icon+' '+esc(it.title)+'</b></div><div class="muted" style="font-size:12px;margin-top:2px;">'+esc(it.detail)+'</div></div>'+
-        '<div style="text-align:right;min-width:96px;">'+(it.amount!=null?'<b style="color:var(--bordeaux);">'+euro(it.amount)+'</b>':'')+(it.action?'<div style="margin-top:6px;"><button class="btn small ghost" data-action="'+esc(it.action)+'">Ouvrir</button></div>':'')+'</div>'+
+        '<div style="text-align:right;min-width:96px;">'+(it.amount!=null?'<b style="color:var(--bordeaux);">'+euro(it.amount)+'</b>':'')+(it.action?'<div style="margin-top:6px;display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap;">'+(it.action.indexOf("notif-open-devis-")===0?'<button class="btn small gold" data-action="devis-relance-'+esc(it.action.slice(17))+'">Relancer</button>':'')+'<button class="btn small ghost" data-action="'+esc(it.action)+'">Ouvrir</button></div>':'')+'</div>'+
       '</div>';
     });
     html+='</div>';
@@ -2055,6 +2062,31 @@ function viewDashboardMarriageWeekendPlanning(){
   html+='</div></div>';
   return html;
 }
+function viewDashboardCommercialAnalytics(){
+  var demandes=(state.demandesMariage||[]), mariages=(state.mariages||[]);
+  var transformed=demandes.filter(function(d){return d.statut==="transformee" || d.mariageId;}).length;
+  var sansSuite=demandes.filter(function(d){return d.statut==="sans_suite" || d.statut==="indisponible";}).length;
+  var activeDemandes=Math.max(0,demandes.length-sansSuite);
+  var accepted=(state.devis||[]).filter(function(d){return d.statut==="accepte" && !d.versionArchive;});
+  var ca=accepted.reduce(function(sum,d){return sum+totals(d.lignes||[],state.settings.partService).total;},0);
+  var panier=accepted.length?ca/accepted.length:0;
+  var rate=demandes.length?Math.round((transformed/demandes.length)*100):0;
+  var portal=mariages.filter(function(m){return !!m.sourceDemandeId;}).length, manual=Math.max(0,mariages.length-portal);
+  var sizes={S:0,M:0,L:0,XL:0,XXL:0};
+  accepted.forEach(function(d){(d.lignes||[]).forEach(function(l){var x=String(l.label||l.designation||l.nom||"").toUpperCase(); if(x.indexOf("BOUQUET")<0 || x.indexOf("MARI")<0)return; ["XXL","XL","L","M","S"].some(function(z){var re=new RegExp("(?:TAILLE\\s*|\\b)"+z+"\\b"); if(re.test(x)){sizes[z]+=(Number(l.qte||l.quantite)||1);return true;}return false;});});});
+  var top=Object.keys(sizes).sort(function(a,b){return sizes[b]-sizes[a];})[0];
+  var topText=sizes[top]?top+" ("+sizes[top]+")":"—";
+  return '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb"><div><h3 style="margin:0;">📊 Analyse commerciale mariage</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">Calculée automatiquement à partir des demandes, mariages et devis enregistrés.</p></div></div>'+
+    '<div class="grid-stats" style="margin-top:12px;margin-bottom:10px;">'+
+      kpiCard("💌","Demandes reçues",String(demandes.length),"mod-clients-demandesMariage","dont "+transformed+" transformée(s)")+
+      kpiCard("🎯","Transformation",rate+" %","mod-clients-demandesMariage","demande → fiche mariage")+
+      kpiCard("✅","Devis acceptés",String(accepted.length),"nav-devis",euro(ca)+" signés")+
+      kpiCard("🧺","Panier moyen",euro(panier),"nav-devis","sur devis acceptés")+
+    '</div><div class="inline"><div class="summary"><b>Origine des dossiers</b><div style="margin-top:5px;">Espace mariage : <b>'+portal+'</b> · Créés manuellement : <b>'+manual+'</b></div></div><div class="summary"><b>Bouquet le plus choisi</b><div style="margin-top:5px;">Taille <b>'+topText+'</b></div></div></div>'+
+    '<p class="muted" style="margin:8px 0 0;font-size:11px;">Le taux de transformation mesure les demandes portail transformées en fiche mariage. Le CA signé et le panier moyen utilisent uniquement les devis au statut Accepté.</p></div>';
+}
+
 function viewDashboard(){
   return ''+
   '<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Tableau de bord</h2><div class="muted" style="font-size:12px;margin-top:3px;">Ton espace de travail du jour</div></div></div>'+ 
@@ -2063,6 +2095,7 @@ function viewDashboard(){
   viewDashboardHero()+
   viewTodoDashboard()+
   viewNotificationsDashboard()+
+  viewDashboardCommercialAnalytics()+
   viewDashboardMariageProgress();
 }
 function monthSales(year, mi){
@@ -2278,6 +2311,7 @@ function viewDevis(){
         '<button class="btn small soft" data-action="devis-edit-'+d.id+'">Modifier</button>'+
         '<button class="btn small ghost" data-action="devis-version-'+d.id+'">Nouvelle version</button>'+
         '<button class="btn small gold" data-action="devis-email-'+d.id+'">Envoyer par email</button>'+
+        (d.statut==="envoye"?'<button class="btn small gold" data-action="devis-relance-'+d.id+'">📞 Relancer</button>':'')+
         (d.statut==="brouillon"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-envoye">Marquer envoyé</button>':'')+
         (d.statut!=="accepte"&&d.statut!=="refuse"&&d.statut!=="archive"?'<button class="btn small soft" data-action="devis-st-'+d.id+'-accepte">Marquer accepté</button>':'')+
         (d.statut!=="refuse"&&d.statut!=="accepte"&&d.statut!=="archive"?'<button class="btn small danger" data-action="devis-st-'+d.id+'-refuse">Refusé</button>':'')+
@@ -8285,9 +8319,31 @@ async function sendCampaign(){
   render(); toast(ok+" e-mail(s) envoyé(s)"+(errors.length?" · "+errors.length+" erreur(s)":""));
 }
 
+async function sendRelanceDevis(doc){
+  if(!doc || doc.statut!=="envoye"){toast("Ce devis n’est pas au statut Envoyé.");return;}
+  var email=(doc.client&&doc.client.email)||"";
+  if(!emailValide(email)){ email=clientEmailOrPrompt("devis",doc); if(!email)return; }
+  var tpl=(state.settings&&state.settings.mailMessageRelance)||DEFAULT_SETTINGS.mailMessageRelance;
+  var message=applyDocTemplate(tpl,"devis",doc);
+  var sujet="Petit rappel concernant votre devis "+(doc.numero||"");
+  if(!confirm("Envoyer une relance à "+((doc.client&&doc.client.nom)||email)+" pour le devis "+(doc.numero||"")+" ?")) return;
+  toast("Envoi de la relance…");
+  try{
+    var payload={email:email,nom:(doc.client&&doc.client.nom)||"",sujet:sujet,message:message};
+    var res=await fetch(MAIL_WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    var txt=await res.text(); if(!res.ok) throw new Error(txt||("HTTP "+res.status));
+    var now=new Date().toISOString(); doc.derniereRelanceAt=now; doc.nbRelances=(Number(doc.nbRelances)||0)+1;
+    state.emails=state.emails||[]; state.emails.unshift({id:uid(),type:"relance-devis",date:now,sentAt:now,docId:doc.id,devisId:doc.id,numero:doc.numero||"",client:(doc.client&&doc.client.nom)||"",email:email,sujet:sujet,statut:"envoye"});
+    var m=findLinkedMariageForDoc("devis",doc); if(m){m.historique=m.historique||[];m.historique.unshift({date:now,texte:"Relance devis "+(doc.numero||"")+" envoyée par e-mail"});}
+    saveCache(); try{await saveCloudNow();}catch(e){console.error(e);} render(); toast("Relance envoyée à "+email+".");
+  }catch(e){console.error(e);toast("Échec de la relance : "+(e.message||e));}
+}
+
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
+  if(action.indexOf("devis-relance-")===0){ await sendRelanceDevis(findDevis(action.slice(14))); return; }
+  if(action.indexOf("dash-open-demande-")===0){ ui.tab="clientsModule"; ui.clientsSub="demandesMariage"; ui.demandeMariageOpen=action.slice(18); render(); window.scrollTo(0,0); return; }
   if(action==="campaign-refresh"){
     var c=document.getElementById("campaignCutoff"),su=document.getElementById("campaignSubject"),bo=document.getElementById("campaignBody");
     ui.campaignCutoff=c?c.value:todayISO(); ui.campaignSubject=su?su.value:""; ui.campaignBody=bo?bo.value:""; ui.campaignSelected={}; render(); return;
