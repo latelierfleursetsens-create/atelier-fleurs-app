@@ -1,10 +1,10 @@
-/* V7.5.7 PROD — Classement des fiches mariage refusées / sans suite. */
+/* V7.5.8 PROD — Classement des fiches mariage refusées / sans suite. */
 "use strict";
 
-var APP_VERSION="V7.5.7 PROD — Refusés / sans suite";
+var APP_VERSION="V7.5.8 PROD — Refusés / sans suite";
 var APP_VERSION_NOTE = "Ajout d’un onglet Refusés / sans suite pour conserver les fiches mariage non abouties, avec motif, réactivation et prise en compte du devis refusé dans l’analyse commerciale.";
 var APP_CHANGELOG = [
-  "V7.5.7 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
+  "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
   "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
   "V7.5.4 TEST — Les nouveaux liens envoyés aux clientes utilisent mariage.latelierfleursetsens.fr ; les anciens accès restent compatibles.",
   "V7.5.3 PROD — Demandes mariage : les demandes du portail sécurisé restent visibles même si la base principale Firebase termine son chargement après le portail.",
