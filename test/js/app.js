@@ -1,9 +1,10 @@
-/* V7.4.0 TEST — Tableau de bord actions, relance devis 1 clic, analyse commerciale mariage. */
+/* V7.4.1 TEST — Finances réorganisées, analyse commerciale mariage réelle, listes compactes. */
 "use strict";
 
-var APP_VERSION="V7.4.0 TEST — Pilotage commercial mariage";
-var APP_VERSION_NOTE = "Test de 3 évolutions : tableau de bord À faire aujourd’hui, relance des devis en 1 clic avec traçabilité, et analyse commerciale des demandes mariage. Le fonctionnement des devis/factures et la fluidité V7.3.3 restent inchangés.";
+var APP_VERSION="V7.4.1 TEST — Finances synthétiques";
+var APP_VERSION_NOTE = "Finances réorganisées en vues dédiées, analyse commerciale mariage basée sur les décisions des devis, et listes longues repliées par défaut. Aucun chiffre budgétaire n’est affiché sur le tableau de bord.";
 var APP_CHANGELOG = [
+  "V7.4.1 TEST — Finances classées en Vue d’ensemble / À encaisser / Analyse commerciale / Achats ; vrai taux devis acceptés vs refusés ; listes ventes et encaissements compactées.",
   "V7.4.0 TEST — Ajout À faire aujourd’hui, relance devis en 1 clic avec historique, et analyse commerciale mariage.",
   "V7.3.3 PROD — Fluidité générale : priorité aux clics/navigation, sauvegardes lourdes locales et cloud différées et regroupées après une courte période sans interaction.",
   "V7.3.2 TEST — Création devis mariage : affichage visible du choix et des quantités de fleurs premium stabilisées à l’étape Créations, sans modification automatique des devis existants.",
@@ -132,7 +133,7 @@ var DEFAULT_SETTINGS = {
 
 /* ===================== État ===================== */
 var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients:[], devis:[], factures:[], mariages:[], demandesMariage:[], encaissements:[], commandes:[], emails:[], achats:[], ventesSite:[], ateliers:[], logo:"", todoList:"", shoppingList:"", stockItems:[] };
-var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"tresorerie", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", mariageAtelierMode:false, mariageAtelierScroll:{}, stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"", reminderWorkerStatus:"unknown", reminderWorkerMessage:"" };
+var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"vue", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", mariageAtelierMode:false, mariageAtelierScroll:{}, stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"", reminderWorkerStatus:"unknown", reminderWorkerMessage:"", financeSalesExpanded:false, financePendingMariagesExpanded:false, financePendingAteliersExpanded:false };
 var fileHandle = null;
 window.addEventListener("beforeunload",function(e){
   if(documentEditorHasUnsavedChanges("devis")||documentEditorHasUnsavedChanges("facture")){ e.preventDefault(); e.returnValue=""; }
@@ -1380,10 +1381,12 @@ function viewDocumentsModule(){
 }
 
 function viewFinancesModule(){
-  var sub=ui.financesSub||"tresorerie";
-  var html=moduleHeader("Finances","Analyse globale : trésorerie, chiffre d’affaires, marge, achats fournisseurs.")+
-    subNav([["tresorerie","Trésorerie"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
+  var sub=ui.financesSub||"vue";
+  var html=moduleHeader("Finances","Une lecture synthétique : encaissements, trésorerie et performance commerciale mariage.")+
+    subNav([["vue","Vue d’ensemble"],["aEncaisser","À encaisser"],["analyseMariage","Analyse commerciale"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
   if(sub==="achats") return html+viewAchats();
+  if(sub==="aEncaisser") return html+viewFinancePendingPage();
+  if(sub==="analyseMariage") return html+viewFinanceCommercialAnalytics();
   return html+viewTresorerie();
 }
 
@@ -2095,7 +2098,6 @@ function viewDashboard(){
   viewDashboardHero()+
   viewTodoDashboard()+
   viewNotificationsDashboard()+
-  viewDashboardCommercialAnalytics()+
   viewDashboardMariageProgress();
 }
 function monthSales(year, mi){
@@ -3742,28 +3744,111 @@ function financePendingOverview(){
   var mariages=r2(items.filter(function(i){return i.kind==="mariage";}).reduce(function(s,i){return s+i.montant;},0));
   return {items:items,ateliers:ateliers,mariages:mariages,total:r2(ateliers+mariages)};
 }
-function financePendingBlock(data){
-  var html='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
-    '<div class="flexb" style="align-items:flex-start;gap:12px;"><div><h3 style="margin:0;">💰 Argent restant à encaisser</h3><p class="muted" style="margin:4px 0 0;">Source unique des montants restant dus sur les ventes engagées, après déduction des paiements encaissés. Les devis simplement en attente de validation sont exclus, mais un dossier terminé reste affiché tant que son solde n’est pas payé.</p></div><span class="badge" style="background:var(--blush-s);color:var(--bordeaux);">mise à jour automatique</span></div>'+ 
-    '<div class="grid-stats" style="margin-top:14px;margin-bottom:14px;">'+
-      stat('🌸 Ateliers à encaisser',euro(data.ateliers),false,'var(--green-s)')+
-      stat('💍 Mariages à encaisser',euro(data.mariages),false,'var(--blush-s)')+
-      stat('💰 Total à encaisser',euro(data.total),true,'#fff')+
-    '</div>'+
-    '<div class="flexb"><h3 style="margin:0 0 8px;">Détail des prochains encaissements</h3><span class="muted">'+data.items.length+' dossier(s)</span></div>';
-  if(!data.items.length){
-    html+='<p class="muted" style="margin:8px 0 0;">Aucun montant restant à encaisser sur les ventes engagées.</p>';
-  }else{
-    data.items.forEach(function(i){
-      var icon=i.kind==="mariage"?'💍':'🌸';
-      html+='<div class="checkrow" style="align-items:flex-start;">'+
-        '<div style="flex:1;"><b style="color:var(--bordeaux);">'+icon+' '+esc(i.client)+'</b><div class="muted" style="font-size:12px;">'+esc(i.label||'')+' · '+(i.date&&i.date!=="9999-12-31"?frDate(i.date):'date non renseignée')+' · '+esc(i.statut||'')+'</div></div>'+ 
-        '<div style="text-align:right;min-width:130px;"><b style="color:var(--bordeaux);font-size:16px;">'+euro(i.montant)+'</b><div style="margin-top:6px;"><button class="btn small ghost" data-action="'+esc(i.action)+'">Ouvrir</button></div></div>'+ 
-      '</div>';
-    });
+function financePendingSummary(data){
+  return '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;margin-bottom:14px;">'+
+    '<div class="flexb" style="gap:12px;align-items:center;"><div><h3 style="margin:0;">💰 Argent restant à encaisser</h3><p class="muted" style="margin:4px 0 0;font-size:12px;">'+data.items.length+' dossier(s) encore ouverts · le détail est classé dans l’onglet À encaisser.</p></div>'+
+    '<div style="text-align:right;"><div style="font-size:23px;font-weight:800;color:var(--bordeaux);">'+euro(data.total)+'</div><button class="btn small ghost" data-action="mod-finances-aEncaisser" style="margin-top:5px;">Voir le détail</button></div></div>'+
+    '<div class="inline" style="margin-top:10px;"><div class="summary" style="margin:0;"><b>🌸 Ateliers</b><div>'+euro(data.ateliers)+'</div></div><div class="summary" style="margin:0;"><b>💍 Mariages</b><div>'+euro(data.mariages)+'</div></div></div>'+
+  '</div>';
+}
+function financePendingGroup(data,kind,title,icon,expandedKey,toggleAction){
+  var items=data.items.filter(function(i){return i.kind===kind;});
+  var total=r2(items.reduce(function(sum,i){return sum+(Number(i.montant)||0);},0));
+  var open=!!ui[expandedKey];
+  var html='<div class="card"><div class="flexb" style="gap:10px;"><div><h3 style="margin:0;">'+icon+' '+esc(title)+'</h3><div class="muted" style="font-size:12px;margin-top:3px;">'+items.length+' dossier(s)</div></div>'+
+    '<div style="text-align:right;"><b style="font-size:18px;color:var(--bordeaux);">'+euro(total)+'</b><div style="margin-top:5px;"><button class="btn small ghost" data-action="'+toggleAction+'">'+(open?'Masquer':'Voir les dossiers')+'</button></div></div></div>';
+  if(open){
+    if(!items.length) html+='<p class="muted" style="margin:12px 0 0;">Aucun montant restant à encaisser.</p>';
+    else{
+      html+='<div style="margin-top:10px;border-top:1px solid var(--line);">';
+      items.forEach(function(i){
+        html+='<div class="checkrow" style="align-items:flex-start;">'+
+          '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(i.client)+'</b><div class="muted" style="font-size:12px;">'+esc(i.label||"")+' · '+(i.date&&i.date!=="9999-12-31"?frDate(i.date):"date non renseignée")+' · '+esc(i.statut||"")+'</div></div>'+
+          '<div style="text-align:right;min-width:120px;"><b>'+euro(i.montant)+'</b><div style="margin-top:5px;"><button class="btn small ghost" data-action="'+esc(i.action)+'">Ouvrir</button></div></div>'+
+        '</div>';
+      });
+      html+='</div>';
+    }
   }
   return html+'</div>';
 }
+function viewFinancePendingPage(){
+  var data=financePendingOverview();
+  return '<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">À encaisser</h2><span class="muted">Tous les montants restant dus, classés sans allonger inutilement la page.</span></div><div style="font-size:24px;font-weight:800;color:var(--bordeaux);">'+euro(data.total)+'</div></div>'+
+    '<div class="grid-stats" style="margin-bottom:14px;">'+
+      stat("🌸 Ateliers",euro(data.ateliers),false,"var(--green-s)")+
+      stat("💍 Mariages",euro(data.mariages),false,"var(--blush-s)")+
+      stat("💰 Total restant",euro(data.total),true,"#fffaf5")+
+    '</div>'+
+    financePendingGroup(data,"mariage","Mariages à encaisser","💍","financePendingMariagesExpanded","finance-pending-toggle-mariages")+
+    financePendingGroup(data,"atelier","Ateliers à encaisser","🌸","financePendingAteliersExpanded","finance-pending-toggle-ateliers");
+}
+function financeCommercialQuoteDate(d){
+  return mariageDocDate(d.emailEnvoyeLe||d.emailEnvoyeAt||d.dernierEnvoiAt||d.dateEnvoi||d.date||"");
+}
+function financeCommercialAcceptDate(d){
+  return mariageDocDate(d.accepteParClienteLe||d.dateValidation||d.valideLe||d.acceptedAt||d.accepteLe||"");
+}
+function financeCommercialMarriageQuotes(){
+  return (state.devis||[]).filter(function(d){
+    if(d.versionArchive || d.statut==="archive") return false;
+    if(d.mariageId && getMariage(d.mariageId)) return true;
+    return !!findLinkedMariageForDoc("devis",d);
+  });
+}
+function viewFinanceCommercialAnalytics(){
+  var demandes=(state.demandesMariage||[]);
+  var quotes=financeCommercialMarriageQuotes();
+  var sent=quotes.filter(function(d){return d.statut==="envoye"||d.statut==="accepte"||d.statut==="refuse";});
+  var pending=quotes.filter(function(d){return d.statut==="envoye";});
+  var accepted=quotes.filter(function(d){return d.statut==="accepte";});
+  var refused=quotes.filter(function(d){return d.statut==="refuse";});
+  var decided=accepted.length+refused.length;
+  var rate=decided?Math.round((accepted.length/decided)*1000)/10:null;
+  var won=accepted.reduce(function(sum,d){return sum+totals(d.lignes||[],state.settings.partService).total;},0);
+  var potential=pending.reduce(function(sum,d){return sum+totals(d.lignes||[],state.settings.partService).total;},0);
+  var avg=accepted.length?won/accepted.length:0;
+  var delays=[];
+  accepted.forEach(function(d){
+    var sd=financeCommercialQuoteDate(d), ad=financeCommercialAcceptDate(d);
+    if(!sd||!ad) return;
+    var a=new Date(sd+"T00:00:00"), b=new Date(ad+"T00:00:00");
+    var days=Math.round((b-a)/86400000);
+    if(isFinite(days)&&days>=0&&days<3650) delays.push(days);
+  });
+  var avgDelay=delays.length?Math.round((delays.reduce(function(a,b){return a+b;},0)/delays.length)*10)/10:null;
+  var sizes={S:0,M:0,L:0,XL:0,XXL:0};
+  accepted.forEach(function(d){(d.lignes||[]).forEach(function(l){
+    var x=String(l.label||l.designation||l.nom||"").toUpperCase();
+    if(x.indexOf("BOUQUET")<0 || x.indexOf("MARI")<0)return;
+    ["XXL","XL","L","M","S"].some(function(z){var re=new RegExp("(?:TAILLE\\s*|\\b)"+z+"\\b"); if(re.test(x)){sizes[z]+=(Number(l.qte||l.quantite)||1);return true;}return false;});
+  });});
+  var top=Object.keys(sizes).sort(function(a,b){return sizes[b]-sizes[a];})[0];
+  var topText=sizes[top]?"Taille "+top+" · "+sizes[top]+" bouquet(s)":"—";
+  var rateText=rate===null?"—":String(rate).replace(".",",")+" %";
+  var delayText=avgDelay===null?"—":String(avgDelay).replace(".",",")+" j";
+  return '<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Analyse commerciale mariage</h2><span class="muted">Le taux mesure maintenant les décisions réelles des devis, pas la création d’une fiche mariage.</span></div></div>'+
+    '<div class="card" style="border-color:var(--gold-s);background:#fffaf5;">'+
+      '<h3 style="margin:0 0 10px;">🎯 Tunnel commercial</h3>'+
+      '<div class="grid-stats">'+
+        stat("💌 Demandes reçues",String(demandes.length),false)+
+        stat("📨 Devis envoyés",String(sent.length),false,"var(--blush-s)")+
+        stat("⏳ En attente",String(pending.length),false,"#fff7dc")+
+        stat("✅ Acceptés",String(accepted.length),false,"var(--green-s)")+
+        stat("❌ Refusés / sans suite",String(refused.length),false,"#f8e4e4")+
+        stat("🎯 Taux de transformation",rateText,true,"#fff")+
+      '</div>'+
+      '<p class="muted" style="font-size:12px;margin:10px 0 0;">Taux = devis acceptés ÷ (devis acceptés + devis refusés). Les devis encore en attente ne pénalisent donc pas le résultat.</p>'+
+    '</div>'+
+    '<div class="grid-stats" style="margin-bottom:14px;">'+
+      stat("💚 CA gagné",euro(won),true,"var(--green-s)")+
+      stat("🕒 CA potentiel en attente",euro(potential),false,"#fff7dc")+
+      stat("🧺 Panier moyen accepté",euro(avg),false,"var(--blush-s)")+
+      stat("⏱ Délai moyen d’acceptation",delayText,false,"#fff")+
+    '</div>'+
+    '<div class="card"><div class="inline"><div class="summary" style="margin:0;"><b>Bouquet le plus choisi</b><div style="margin-top:5px;">'+esc(topText)+'</div></div><div class="summary" style="margin:0;"><b>Dossiers décidés</b><div style="margin-top:5px;">'+decided+' · '+accepted.length+' gagnés · '+refused.length+' perdus</div></div></div></div>';
+}
+
 function viewTresorerie(){
   var period=tresoSelectedPeriod();
   var list=encaissementsTresorerie();
@@ -3784,14 +3869,14 @@ function viewTresorerie(){
   var byAct=groupTresorerieBy(function(e){return e.activite;}, listYear);
   var label=tresoPeriodLabel(period);
   var pendingFinance=financePendingOverview();
-  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Trésorerie</h2><span class="muted">Factures payées + encaissements manuels + paiements et ventes Squarespace</span></div>'+ 
+  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Vue d’ensemble</h2><span class="muted">Synthèse mensuelle des encaissements, ventes, charges et cotisations.</span></div>'+ 
     '<div class="row-actions" style="margin:0;align-items:flex-end;">'+
       '<label class="field" style="margin:0;min-width:150px;"><span>Mois</span><select data-action="treso-month">'+tresoMonthOptions(period.month)+'</select></label>'+ 
       '<label class="field" style="margin:0;min-width:100px;"><span>Année</span><select data-action="treso-year">'+tresoYearOptions(years, period.year)+'</select></label>'+ 
       '<button class="btn small ghost" data-action="treso-current-month" style="align-self:flex-end;">Mois actuel</button>'+ 
     '</div></div>'+ 
     '<div class="card" style="background:#eef7f1;border-color:#9fc9ab;margin-bottom:14px;"><b style="color:var(--bordeaux);">🧪 Version active : '+esc(APP_VERSION)+'</b><div class="muted" style="font-size:12px;margin-top:4px;">Trésorerie mensuelle détaillée : '+esc(label)+'.</div></div>'+ 
-    financePendingBlock(pendingFinance)+
+    financePendingSummary(pendingFinance)+
     '<div class="grid-stats">'+
       stat('CA encaissé '+label,euro(caM),true)+
       stat('Vente de biens',euro(caMB),false,'var(--blush-s)')+
@@ -3811,20 +3896,20 @@ function viewTresorerie(){
         '<div class="totrow" style="font-weight:700;color:var(--bordeaux);border-top:1px solid var(--line);margin-top:4px;padding-top:5px;"><span>Total estimé à payer</span><span>'+euro(urssaf.total)+'</span></div>'+ 
       '</div>'+ 
       '<p class="muted" style="font-size:12px;margin:8px 0 0;">Montant indicatif calculé avec les taux renseignés dans Paramètres. À vérifier lors de la déclaration réelle.</p></div>'+ 
-    '<div class="card"><div class="flexb"><h3 style="margin:0 0 10px;">Détail des ventes encaissées — '+esc(label)+'</h3><span class="muted">'+listMonth.length+' ligne(s)</span></div>';
-  if(!listMonth.length) html+='<p class="muted">Aucune vente encaissée sur ce mois.</p>';
-  else listMonth.forEach(function(e){
-    html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+ 
-      '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+ 
-      '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · '+esc(siteSaleNatureLabel(e.siteSale)):'')+'</div>'+ 
-      '<div class="muted" style="font-size:12px;">'+euro(e.montantBiens||0)+' biens · '+euro(e.montantServices||0)+' services</div></div>'+ 
-      '<div style="font-weight:800;color:var(--bordeaux);white-space:nowrap;">'+euro(e.montant)+'</div></div>';
-  });
-  if(listMonth.length){
-    html+='<div style="border-top:2px solid var(--bordeaux);margin-top:10px;padding-top:8px;">'+
-      '<div class="totrow" style="font-weight:700;color:var(--bordeaux);"><span>Total encaissé</span><span>'+euro(caM)+'</span></div>'+ 
-      '<div class="muted" style="text-align:right;font-size:12px;">'+euro(caMB)+' biens · '+euro(caMS)+' services · URSSAF estimée '+euro(urssaf.total)+'</div>'+ 
-    '</div>';
+    '<div class="card"><div class="flexb" style="gap:10px;"><div><h3 style="margin:0;">Ventes encaissées — '+esc(label)+'</h3><div class="muted" style="font-size:12px;margin-top:3px;">'+listMonth.length+' vente(s) · '+euro(caM)+' encaissés</div></div><button class="btn small ghost" data-action="finance-sales-toggle">'+(ui.financeSalesExpanded?'Masquer le détail':'Voir les ventes')+'</button></div>';
+  if(ui.financeSalesExpanded){
+    if(!listMonth.length) html+='<p class="muted" style="margin:12px 0 0;">Aucune vente encaissée sur ce mois.</p>';
+    else{
+      html+='<div style="margin-top:10px;border-top:1px solid var(--line);">';
+      listMonth.forEach(function(e){
+        html+='<div class="checkrow" style="align-items:flex-start;cursor:'+(e.facture?'pointer':'default')+';" '+(e.facture?'data-action="treso-open-facture-'+e.id+'"':'')+'>'+
+          '<div style="flex:1;"><b style="color:var(--bordeaux);">'+esc(e.libelle)+'</b>'+
+          '<div class="muted" style="font-size:12px;">'+frDate(e.date)+(e.client?' · '+esc(e.client):'')+' · '+esc(e.activite)+' · '+esc(e.paiement)+(e.type==="site"?' · '+esc(siteSaleNatureLabel(e.siteSale)):'')+'</div>'+
+          '<div class="muted" style="font-size:12px;">'+euro(e.montantBiens||0)+' biens · '+euro(e.montantServices||0)+' services</div></div>'+
+          '<div style="font-weight:800;color:var(--bordeaux);white-space:nowrap;">'+euro(e.montant)+'</div></div>';
+      });
+      html+='</div>';
+    }
   }
   html+='</div>'+ 
     '<div class="card"><h3 style="margin:0 0 10px;">Répartition par moyen de paiement '+period.year+'</h3>';
@@ -8491,8 +8576,8 @@ async function handleAction(action){
       if(dest!=="mariages") ui.mariageOpen=null;
     } else if(["devis","factures","emails"].indexOf(dest)>=0){
       ui.tab="documentsModule"; ui.documentsSub=dest;
-    } else if(["tresorerie","achats"].indexOf(dest)>=0){
-      ui.tab="financesModule"; ui.financesSub=dest;
+    } else if(["tresorerie","vue","aEncaisser","analyseMariage","achats"].indexOf(dest)>=0){
+      ui.tab="financesModule"; ui.financesSub=(dest==="tresorerie"?"vue":dest);
     } else {
       ui.tab=dest;
     }
@@ -8501,6 +8586,9 @@ async function handleAction(action){
   
   if(action.indexOf("mod-clients-")===0){ ui.tab="clientsModule"; ui.clientsSub=action.slice(12); ui.commandeOpen=null; if(ui.clientsSub!=="ateliers") ui.atelierOpen=null; if(ui.clientsSub!=="mariages") ui.mariageOpen=null; render(); return; }
   if(action.indexOf("mod-documents-")===0){ ui.tab="documentsModule"; ui.documentsSub=action.slice(14); render(); return; }
+  if(action==="finance-sales-toggle"){ ui.financeSalesExpanded=!ui.financeSalesExpanded; render(); return; }
+  if(action==="finance-pending-toggle-mariages"){ ui.financePendingMariagesExpanded=!ui.financePendingMariagesExpanded; render(); return; }
+  if(action==="finance-pending-toggle-ateliers"){ ui.financePendingAteliersExpanded=!ui.financePendingAteliersExpanded; render(); return; }
   if(action.indexOf("mod-finances-")===0){ ui.tab="financesModule"; ui.financesSub=action.slice(13); render(); return; }
 
   

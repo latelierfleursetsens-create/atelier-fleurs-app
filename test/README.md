@@ -1,13 +1,15 @@
-# MyBusiness V7.4.0 TEST — NAVIGATION PLUS FLUIDE
+# MyBusiness V7.4.1 TEST — FINANCES SYNTHÉTIQUES
 
-## Correctif V7.4.0
+## Évolutions V7.4.1
 
-- Les clics, changements d’onglets et ouvertures de devis/factures sont désormais prioritaires.
-- Les sauvegardes locales lourdes (notamment quand des photos sont présentes) sont regroupées et repoussées après une courte période sans interaction.
-- La sauvegarde cloud automatique est également regroupée afin d’éviter les micro-blocages pendant une série de clics.
-- Les sauvegardes explicites importantes avec `saveCloudNow()` restent immédiates.
-- Aucun changement dans les règles métier devis/factures : un devis déjà créé n’est toujours jamais modifié automatiquement par une modification ultérieure de l’espace client.
-- Le choix et la quantité de fleurs premium restent visibles lors de la création du devis mariage.
+- L’analyse commerciale mariage quitte le tableau de bord et rejoint l’onglet **Finances**.
+- Finances est maintenant classé en **Vue d’ensemble / À encaisser / Analyse commerciale / Achats fournisseurs**.
+- Le taux de transformation est calculé sur les décisions réelles : **devis acceptés ÷ (acceptés + refusés)**. Les devis encore en attente ne faussent plus le résultat.
+- L’analyse affiche aussi le CA gagné, le CA potentiel encore en attente, le panier moyen accepté et le délai moyen d’acceptation lorsque la date est disponible.
+- La liste des paiements restant à encaisser est conservée intégralement mais rangée par **Mariages** et **Ateliers**, avec détails repliés par défaut.
+- Les ventes du mois sont synthétisées en une ligne et le détail est affiché uniquement via **Voir les ventes**.
+- Aucun chiffre budgétaire détaillé n’est ajouté au tableau de bord.
+- Les mécanismes devis/factures, la sécurité contre les modifications automatiques des devis et la fluidité V7.3.3 restent inchangés.
 
 # MyBusiness V7.3.2 TEST — FLEURS PREMIUM VISIBLES À LA CRÉATION DU DEVIS
 
