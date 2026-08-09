@@ -1,9 +1,11 @@
-/* V7.5.2 PROD — Mariages : une facture totale 100 % payée bascule aussi automatiquement le dossier en Préparation commande. */
+/* V7.5.3 PROD — Correction synchronisation des nouvelles demandes mariage du portail sécurisé. */
 "use strict";
 
-var APP_VERSION="V7.5.2 PROD — Facture 100 % payée = préparation commande";
-var APP_VERSION_NOTE = "Ajout d’un espace Sécurité & PRA, d’un suivi de fraîcheur des sauvegardes et d’un lecteur local hors ligne en lecture seule.";
+var APP_VERSION="V7.5.3 PROD — Synchronisation demandes mariage fiabilisée";
+var APP_VERSION_NOTE = "Correction d’une course de synchronisation Firebase pouvant masquer les nouvelles demandes mariage après le chargement de la base principale. La facture 100 % payée continue de basculer le mariage en Préparation commande.";
 var APP_CHANGELOG = [
+  "V7.5.3 PROD — Demandes mariage : les demandes du portail sécurisé restent visibles même si la base principale Firebase termine son chargement après le portail.",
+  "V7.5.2 PROD — Facture mariage 100 % payée : bascule automatique vers Préparation commande.",
   "V7.5.0 TEST — Sécurité & PRA : tableau d’état, export PRA daté, suivi du dernier test de restauration et lecteur local hors ligne en lecture seule.",
   "V7.4.1 TEST — Finances classées en Vue d’ensemble / À encaisser / Analyse commerciale / Achats ; vrai taux devis acceptés vs refusés ; listes ventes et encaissements compactées.",
   "V7.4.0 TEST — Ajout À faire aujourd’hui, relance devis en 1 clic avec historique, et analyse commerciale mariage.",
@@ -955,6 +957,10 @@ function mergePendingMariages(){
 }
 function applyData(d){
   if(!d) return;
+  // Les demandes du portail sécurisé sont alimentées par une collection Firebase
+  // indépendante de la base principale. Si son listener répond avant celui de la
+  // base, applyData ne doit jamais les effacer avec un instantané plus ancien.
+  var livePortalRequests=(state.demandesMariage||[]).filter(function(x){ return x && x.securePortal; });
   var savedSettings=d.settings||{};
   state.settings=Object.assign({},DEFAULT_SETTINGS,savedSettings);
   // Migration V5.4.5 : applique le nouveau texte du mail devis aux anciens modèles standard.
@@ -965,6 +971,17 @@ function applyData(d){
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
   state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.demandesMariage=d.demandesMariage||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
+  // Réinjecte immédiatement les demandes portail déjà reçues en temps réel.
+  // Cela supprime la course entre bases/{uid} et portalProjects.
+  livePortalRequests.forEach(function(x){
+    var i=state.demandesMariage.findIndex(function(r){ return r && r.id===x.id; });
+    if(i>=0){
+      var baseReq=state.demandesMariage[i]||{};
+      state.demandesMariage[i]=Object.assign({},baseReq,x);
+    }else{
+      state.demandesMariage.unshift(x);
+    }
+  });
   mergePendingMariages();
   restorePortalMarriageMedias();
   normalizeSiteSalesData();

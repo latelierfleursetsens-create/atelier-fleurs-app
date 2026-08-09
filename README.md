@@ -1,5 +1,5 @@
-# MyBusiness V7.5.2 PROD — FACTURE 100 % PAYÉE = PRÉPARATION COMMANDE
-- **V7.5.2 PROD** : une facture mariage totale à 100 % marquée payée fait désormais basculer automatiquement la fiche dans « Préparation commande ».
+# MyBusiness V7.5.3 PROD — FACTURE 100 % PAYÉE = PRÉPARATION COMMANDE
+- **V7.5.3 PROD** : une facture mariage totale à 100 % marquée payée fait désormais basculer automatiquement la fiche dans « Préparation commande ».
 - **V7.5.1 PROD** : pour les mariages, la facture de solde propose automatiquement une échéance à J-1 mois de la date du mariage, tout en restant modifiable manuellement.
 
 ## Évolution V7.4.2
