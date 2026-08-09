@@ -1,8 +1,8 @@
-/* V7.4.2 PROD — Analyse commerciale par fiche mariage et dernière version de devis uniquement. */
+/* V7.4.4 PROD — Détail audit CA gagné et CA potentiel dans Analyse commerciale. */
 "use strict";
 
-var APP_VERSION="V7.4.2 PROD — Analyse commerciale fiabilisée";
-var APP_VERSION_NOTE = "Finances réorganisées en vues dédiées, analyse commerciale mariage basée sur les décisions des devis, et listes longues repliées par défaut. Aucun chiffre budgétaire n’est affiché sur le tableau de bord.";
+var APP_VERSION="V7.4.4 PROD — Détail audit CA commercial";
+var APP_VERSION_NOTE = "Ajout du détail auditable du CA gagné et du CA potentiel en attente, toujours calculés avec uniquement la dernière version active du devis liée à chaque fiche mariage.";
 var APP_CHANGELOG = [
   "V7.4.1 TEST — Finances classées en Vue d’ensemble / À encaisser / Analyse commerciale / Achats ; vrai taux devis acceptés vs refusés ; listes ventes et encaissements compactées.",
   "V7.4.0 TEST — Ajout À faire aujourd’hui, relance devis en 1 clic avec historique, et analyse commerciale mariage.",
@@ -504,6 +504,7 @@ function euro(n){ return (Number(n)||0).toLocaleString("fr-FR",{style:"currency"
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function addDays(iso,d){ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }
 function addOneMonth(iso){ var dt=new Date((iso||todayISO())+"T00:00:00"); var day=dt.getDate(); dt.setDate(1); dt.setMonth(dt.getMonth()+1); var last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(); dt.setDate(Math.min(day,last)); return dt.toISOString().slice(0,10); }
+function subOneMonth(iso){ var dt=new Date((iso||todayISO())+"T00:00:00"); var day=dt.getDate(); dt.setDate(1); dt.setMonth(dt.getMonth()-1); var last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(); dt.setDate(Math.min(day,last)); return dt.toISOString().slice(0,10); }
 function askDueDate(defaultDate,label){ var d=window.prompt("Date d’échéance "+(label||"du document")+" (AAAA-MM-JJ)",defaultDate||addOneMonth(todayISO())); if(d===null||!String(d).trim()) return defaultDate||addOneMonth(todayISO()); d=String(d).trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d+"T00:00:00").getTime())){ toast("Date d’échéance invalide : la date par défaut a été conservée."); return defaultDate||addOneMonth(todayISO()); } return d; }
 function frDate(iso){ return iso? new Date(iso+"T00:00:00").toLocaleDateString("fr-FR") : "—"; }
 var MOIS=["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
@@ -3816,6 +3817,46 @@ function financeCommercialMarriageQuotes(){
   });
   return out;
 }
+function financeCommercialMarriageForQuote(d){
+  return (state.mariages||[]).find(function(m){
+    return (m.devisLie&&m.devisLie===d.id) || (d.mariageId&&m.id===d.mariageId);
+  })||null;
+}
+function financeCommercialDetailRows(list){
+  return list.map(function(d){
+    var m=financeCommercialMarriageForQuote(d);
+    var amount=totals(d.lignes||[],state.settings.partService).total;
+    return {
+      id:d.id,
+      client:(m&&m.nom)||(d.client&&d.client.nom)||"Cliente non renseignée",
+      mariageDate:(m&&m.dateMariage)||"",
+      numero:d.numero||"Devis",
+      version:Number(d.version)||1,
+      statut:d.statut||"",
+      montant:amount
+    };
+  }).sort(function(a,b){
+    return String(a.mariageDate||"9999-12-31").localeCompare(String(b.mariageDate||"9999-12-31")) || String(a.client||"").localeCompare(String(b.client||""),"fr");
+  });
+}
+function financeCommercialAuditBlock(title,icon,list,total,expandedKey,toggleAction,bg){
+  var open=!!ui[expandedKey];
+  var rows=financeCommercialDetailRows(list);
+  var html='<div class="card" style="background:'+(bg||'#fff')+';">'+
+    '<div class="flexb" style="gap:12px;align-items:center;"><div><h3 style="margin:0;">'+icon+' '+esc(title)+'</h3><div class="muted" style="font-size:12px;margin-top:3px;">'+rows.length+' devis retenu(s) · une seule dernière version par fiche mariage</div></div>'+
+    '<div style="text-align:right;"><b style="font-size:21px;color:var(--bordeaux);">'+euro(total)+'</b><div style="margin-top:5px;"><button class="btn small ghost" data-action="'+toggleAction+'">'+(open?'Masquer le détail':'Voir le détail')+'</button></div></div></div>';
+  if(open){
+    if(!rows.length){ html+='<p class="muted" style="margin:12px 0 0;">Aucun devis dans cette catégorie.</p>'; }
+    else{
+      html+='<div style="margin-top:12px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Cliente</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Mariage</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Devis retenu</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Statut</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--line);">Montant</th><th style="padding:8px;border-bottom:1px solid var(--line);"></th></tr></thead><tbody>';
+      rows.forEach(function(r){
+        html+='<tr><td style="padding:8px;border-bottom:1px solid var(--line);"><b>'+esc(r.client)+'</b></td><td style="padding:8px;border-bottom:1px solid var(--line);">'+(r.mariageDate?frDate(r.mariageDate):'—')+'</td><td style="padding:8px;border-bottom:1px solid var(--line);">'+esc(r.numero)+(r.version>1?' · V'+r.version:'')+'</td><td style="padding:8px;border-bottom:1px solid var(--line);">'+esc(((ST_DEVIS[r.statut]||{}).l)||r.statut||'—')+'</td><td style="padding:8px;border-bottom:1px solid var(--line);text-align:right;"><b>'+euro(r.montant)+'</b></td><td style="padding:8px;border-bottom:1px solid var(--line);text-align:right;"><button class="btn small ghost" data-action="notif-open-devis-'+esc(r.id)+'">Ouvrir</button></td></tr>';
+      });
+      html+='</tbody><tfoot><tr><td colspan="4" style="padding:10px 8px;text-align:right;"><b>TOTAL</b></td><td style="padding:10px 8px;text-align:right;font-size:16px;"><b>'+euro(total)+'</b></td><td></td></tr></tfoot></table></div>';
+    }
+  }
+  return html+'</div>';
+}
 function viewFinanceCommercialAnalytics(){
   var demandes=(state.demandesMariage||[]);
   var quotes=financeCommercialMarriageQuotes();
@@ -3866,6 +3907,8 @@ function viewFinanceCommercialAnalytics(){
       stat("🧺 Panier moyen accepté",euro(avg),false,"var(--blush-s)")+
       stat("⏱ Délai moyen d’acceptation",delayText,false,"#fff")+
     '</div>'+
+    financeCommercialAuditBlock("Détail du CA gagné","💚",accepted,won,"financeCommercialWonExpanded","finance-commercial-toggle-won","var(--green-s)")+
+    financeCommercialAuditBlock("Détail du CA potentiel en attente","🕒",pending,potential,"financeCommercialPotentialExpanded","finance-commercial-toggle-potential","#fff7dc")+
     '<div class="card"><div class="inline"><div class="summary" style="margin:0;"><b>Bouquet le plus choisi</b><div style="margin-top:5px;">'+esc(topText)+'</div></div><div class="summary" style="margin:0;"><b>Devis avec décision</b><div style="margin-top:5px;">'+decided+' · '+accepted.length+' acceptés · '+refused.length+' refusés / sans suite</div></div></div></div>';
 }
 
@@ -5655,7 +5698,11 @@ function creerAcompte(d){
 function creerSolde(d){
   var t=documentCalc(d.lignes,state.settings.partService,d); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
-  var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:askDueDate(addOneMonth(date),"de la facture de solde"),
+  // Pour une facture de solde mariage, l'échéance proposée est automatiquement fixée
+  // à un mois avant la date du mariage. Elle reste modifiable dans la fenêtre de confirmation.
+  var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d) || mariageLieADevis(d.id);
+  var echeanceSolde=(mariage&&mariage.dateMariage)?subOneMonth(mariage.dateMariage):addOneMonth(date);
+  var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:askDueDate(echeanceSolde,"de la facture de solde"),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(t.total-ac.montant), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
@@ -8609,6 +8656,8 @@ async function handleAction(action){
   if(action==="finance-sales-toggle"){ ui.financeSalesExpanded=!ui.financeSalesExpanded; render(); return; }
   if(action==="finance-pending-toggle-mariages"){ ui.financePendingMariagesExpanded=!ui.financePendingMariagesExpanded; render(); return; }
   if(action==="finance-pending-toggle-ateliers"){ ui.financePendingAteliersExpanded=!ui.financePendingAteliersExpanded; render(); return; }
+  if(action==="finance-commercial-toggle-won"){ ui.financeCommercialWonExpanded=!ui.financeCommercialWonExpanded; render(); return; }
+  if(action==="finance-commercial-toggle-potential"){ ui.financeCommercialPotentialExpanded=!ui.financeCommercialPotentialExpanded; render(); return; }
   if(action.indexOf("mod-finances-")===0){ ui.tab="financesModule"; ui.financesSub=action.slice(13); render(); return; }
 
   
