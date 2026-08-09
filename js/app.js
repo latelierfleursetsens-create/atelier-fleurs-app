@@ -1,7 +1,7 @@
-/* V7.4.2 TEST — Analyse commerciale par fiche mariage et dernière version de devis uniquement. */
+/* V7.4.2 PROD — Analyse commerciale par fiche mariage et dernière version de devis uniquement. */
 "use strict";
 
-var APP_VERSION="V7.4.2 TEST — Analyse commerciale fiabilisée";
+var APP_VERSION="V7.4.2 PROD — Analyse commerciale fiabilisée";
 var APP_VERSION_NOTE = "Finances réorganisées en vues dédiées, analyse commerciale mariage basée sur les décisions des devis, et listes longues repliées par défaut. Aucun chiffre budgétaire n’est affiché sur le tableau de bord.";
 var APP_CHANGELOG = [
   "V7.4.1 TEST — Finances classées en Vue d’ensemble / À encaisser / Analyse commerciale / Achats ; vrai taux devis acceptés vs refusés ; listes ventes et encaissements compactées.",
