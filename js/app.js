@@ -1,7 +1,7 @@
-/* V7.5.1 PROD — Échéances factures mariage : solde et facture 100 % à J-1 mois du mariage, hors ateliers et ventes internet. */
+/* V7.5.2 PROD — Mariages : une facture totale 100 % payée bascule aussi automatiquement le dossier en Préparation commande. */
 "use strict";
 
-var APP_VERSION="V7.5.1 PROD — Échéances factures mariage";
+var APP_VERSION="V7.5.2 PROD — Facture 100 % payée = préparation commande";
 var APP_VERSION_NOTE = "Ajout d’un espace Sécurité & PRA, d’un suivi de fraîcheur des sauvegardes et d’un lecteur local hors ligne en lecture seule.";
 var APP_CHANGELOG = [
   "V7.5.0 TEST — Sécurité & PRA : tableau d’état, export PRA daté, suivi du dernier test de restauration et lecteur local hors ligne en lecture seule.",
@@ -2765,12 +2765,10 @@ function mariageGroupKey(m){
   if(mariageTermine(m)) return "archives";
   if(mariageReady(m)) return "livraison";
 
-  // Dès qu'un acompte est encaissé, le dossier quitte l'étude commerciale
-  // et passe automatiquement en préparation de commande.
-  var acomptePaye=mariageFacturesLiees(m).some(function(f){
-    return f && f.type==="acompte" && f.statut==="payee";
-  });
-  if(acomptePaye) return "creation";
+  // Une réservation est confirmée dès qu'un acompte est encaissé OU qu'une
+  // facture totale (100 %) est payée. Dans les deux cas, le dossier quitte
+  // automatiquement « Études mariage » pour « Préparation commande ».
+  if(mariageAcomptePaye(m)) return "creation";
 
   var arts=m&&m.articles?m.articles:[];
   if(arts.some(function(a){return !!a.fait;})) return "creation";
