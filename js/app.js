@@ -1,9 +1,12 @@
-/* V7.5.3 PROD — Correction synchronisation des nouvelles demandes mariage du portail sécurisé. */
+/* V7.5.7 PROD — Classement des fiches mariage refusées / sans suite. */
 "use strict";
 
-var APP_VERSION="V7.5.3 PROD — Synchronisation demandes mariage fiabilisée";
-var APP_VERSION_NOTE = "Correction d’une course de synchronisation Firebase pouvant masquer les nouvelles demandes mariage après le chargement de la base principale. La facture 100 % payée continue de basculer le mariage en Préparation commande.";
+var APP_VERSION="V7.5.7 PROD — Refusés / sans suite";
+var APP_VERSION_NOTE = "Ajout d’un onglet Refusés / sans suite pour conserver les fiches mariage non abouties, avec motif, réactivation et prise en compte du devis refusé dans l’analyse commerciale.";
 var APP_CHANGELOG = [
+  "V7.5.7 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
+  "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
+  "V7.5.4 TEST — Les nouveaux liens envoyés aux clientes utilisent mariage.latelierfleursetsens.fr ; les anciens accès restent compatibles.",
   "V7.5.3 PROD — Demandes mariage : les demandes du portail sécurisé restent visibles même si la base principale Firebase termine son chargement après le portail.",
   "V7.5.2 PROD — Facture mariage 100 % payée : bascule automatique vers Préparation commande.",
   "V7.5.0 TEST — Sécurité & PRA : tableau d’état, export PRA daté, suivi du dernier test de restauration et lecteur local hors ligne en lecture seule.",
@@ -181,7 +184,7 @@ function activeQuoteReminderPayload(){
       clientNom:String(d.client&&d.client.nom||""), clientEmail:String(d.client&&d.client.email||""),
       montant:Number(documentCalc(d.lignes||[],state.settings.partService,d).total||0), statut:String(d.statut||""),
       mariageId:String((mariage&&mariage.id)||d.mariageId||""), espaceClient:!!(ownerUid || d.portalPublished || d.portalPdfUrl),
-      portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
+      portalUrl:"https://mariage.latelierfleursetsens.fr"
     };
   });
   return {enabled:!!s.rappelsDevisActifs,offsets:offsets,quotes:quotes,company:{name:s.nomEntreprise||"L'Atelier Fleurs & Sens",email:s.email||"latelierfleursetsens@gmail.com",site:s.site||"www.latelierfleursetsens.fr"}};
@@ -759,6 +762,7 @@ async function publishDocumentToClientPortal(kind,doc,pdf64){
     kind:kind,
     sourceId:doc.id||"",
     numero:doc.numero||"",
+    type:kind==="facture"?(doc.type||"totale"):"",
     date:doc.date||"",
     echeance:doc.echeance||"",
     statut:doc.statut||(kind==="devis"?"envoye":"envoyee"),
@@ -855,7 +859,7 @@ function publishSecureClientSpaces(){
       jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set(quotePortal,{merge:true}));
     }
     facts.filter(function(f){return !f.versionArchive && ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
-      var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+      var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",type:f.type||"totale",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
       if(f.portalPdfUrl) invoicePortal.pdfUrl=f.portalPdfUrl;
       if(f.portalStoragePath) invoicePortal.storagePath=f.portalStoragePath;
       if(f.portalFileName) invoicePortal.fileName=f.portalFileName;
@@ -2779,6 +2783,7 @@ function mariageReady(m){
 }
 function mariageTermine(m){ return !!(m && (m.livre || m.statut==="realise")); }
 function mariageGroupKey(m){
+  if(m && m.statut==="perdu") return "sans_suite";
   if(mariageTermine(m)) return "archives";
   if(mariageReady(m)) return "livraison";
 
@@ -6690,6 +6695,7 @@ function mariageDevisLie(m){
   return null;
 }
 function mariageSimpleStatus(m,stage){
+  if(stage==="sans_suite" || (m&&m.statut==="perdu")) return {l:"Refusé / sans suite",c:"#9b3b3b",b:"#f3dede"};
   if(stage==="archives") return {l:"Livré",c:"#3f5236",b:"#dbe6d2"};
   if(stage==="livraison") return {l:"Prêt à livrer",c:"var(--green)",b:"var(--green-s)"};
 
@@ -6728,7 +6734,8 @@ function mariageStageTabs(groups,current){
     {id:"preparation",label:"📋 Études mariage"},
     {id:"creation",label:"🌸 Préparation commande"},
     {id:"livraison",label:"📦 Livraison"},
-    {id:"archives",label:"✅ Archives"}
+    {id:"archives",label:"✅ Archives"},
+    {id:"sans_suite",label:"❌ Refusés / sans suite"}
   ];
   return '<div class="row-actions" style="margin-bottom:14px;">'+tabs.map(function(t){
     return '<button class="btn small '+(current===t.id?'primary':'ghost')+'" data-action="mar-stage-'+t.id+'">'+t.label+' <span style="opacity:.75;">('+(groups[t.id]||[]).length+')</span></button>';
@@ -6741,9 +6748,9 @@ function viewMariages(){
   if(ui.mariageView==="preparer") return header+'<div class="row-actions" style="margin-bottom:12px;"><button class="btn small ghost" data-action="mar-view-fiches">← Retour aux mariages</button></div>'+viewPreparer();
   if(ui.mariageView==="rdv") return header+viewMariageRdvWizard();
 
-  var list=state.mariages.filter(function(m){ return m.statut!=="perdu"; });
+  var list=(state.mariages||[]).slice();
   list.sort(function(a,b){ var da=mariageDateRef(a)||"9999", db=mariageDateRef(b)||"9999"; return da<db?-1:da>db?1:0; });
-  var groups={preparation:[],creation:[],livraison:[],archives:[]};
+  var groups={preparation:[],creation:[],livraison:[],archives:[],sans_suite:[]};
   list.forEach(function(m){ groups[mariageGroupKey(m)].push(m); });
 
   var current=ui.mariageStageFilter||"preparation";
@@ -6753,7 +6760,8 @@ function viewMariages(){
     preparation:"Contacts, rendez-vous et devis à étudier.",
     creation:"Commandes confirmées avec acompte payé, ou dont la fabrication a commencé.",
     livraison:"Toutes les créations sont terminées : il reste la remise, l’envoi ou la livraison.",
-    archives:"Mariages livrés et terminés."
+    archives:"Mariages livrés et terminés.",
+    sans_suite:"Projets non retenus, devis refusés ou dossiers classés sans suite. Les fiches restent entièrement consultables."
   };
   var html=header+mariageStageTabs(groups,current);
   html+='<p class="muted" style="margin-top:-5px;">'+labels[current]+' Classement par date de livraison, de la plus proche à la plus éloignée.</p>';
@@ -7695,7 +7703,11 @@ function viewMariageDetail(m){
   var del='<div class="row-actions" style="margin-top:6px;"><button class="btn danger" data-action="mar-del-'+m.id+'">'+(delPending?'Confirmer suppression':'Supprimer cette fiche')+'</button></div>';
   var topBack='<div class="card" style="padding:10px 14px;margin-bottom:10px;position:sticky;top:0;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.06);">'+
     '<div class="flexb"><div><b style="color:var(--bordeaux);">'+esc(m.nom||"Fiche mariage")+'</b><div class="muted" style="font-size:12px;margin-top:2px;">'+(m.dateLivraison?'Livraison : '+frDate(m.dateLivraison):'Date de livraison non renseignée')+'</div></div>'+ 
-    '<div class="row-actions" style="margin:0;"><button class="btn small primary" data-action="mar-atelier-open">🌸 Mode Atelier</button><button class="btn small ghost" data-action="mar-back">← Retour à la liste des mariages</button></div></div></div>';
+    '<div class="row-actions" style="margin:0;">'+
+    (m.statut==="perdu"?'<button class="btn small soft" data-action="mar-reactiver">↩ Réactiver le dossier</button>':'<button class="btn small danger" data-action="mar-sans-suite">❌ Classer sans suite</button>')+
+    '<button class="btn small primary" data-action="mar-atelier-open">🌸 Mode Atelier</button><button class="btn small ghost" data-action="mar-back">← Retour à la liste des mariages</button></div></div>'+
+    (m.statut==="perdu"?'<div class="summary" style="margin:10px 0 0;background:#f8e4e4;"><b>❌ Dossier classé sans suite</b>'+(m.sansSuiteMotif?'<div style="margin-top:4px;">Motif : '+esc(m.sansSuiteMotif)+'</div>':'')+(m.sansSuiteDate?'<div class="muted" style="margin-top:3px;">Classé le '+frDate(m.sansSuiteDate)+'</div>':'')+'</div>':'')+
+    '</div>';
   var content='';
   if(activeTab==="resume") content=mariageCrmMiniCards(m)+summary+viewMariageWorkflow(m);
   else if(activeTab==="fiche") content=infos;
@@ -8452,6 +8464,41 @@ async function envoyerDocumentEmail(kind, doc){
 }
 
 
+async function envoyerConfirmationReservationMariage(facture){
+  if(!facture || facture.statut!=="payee" || ["acompte","totale"].indexOf(facture.type)<0) return;
+  if(facture.reservationMariageMailSentAt || facture.reservationMariageMailSending) return;
+  var mariage=findLinkedMariageForDoc("facture",facture);
+  if(!mariage) return; // Sécurité : jamais ateliers, ventes internet ou factures hors mariage.
+  var email=String((facture.client&&facture.client.email)||mariage.email||"").trim();
+  if(!emailValide(email)){ console.warn("Confirmation réservation mariage non envoyée : e-mail invalide",email); return; }
+  facture.reservationMariageMailSending=true;
+  var nom=String((facture.client&&facture.client.nom)||mariage.nom||""), prenom=nom.trim().split(/\s+/)[0]||"";
+  var dateMariage=mariage.dateMariage?frDate(mariage.dateMariage):"votre mariage";
+  var message='<div style="font-family:Arial,Helvetica,sans-serif;color:#3b3033;line-height:1.65;">'+
+    '<p>Bonjour '+esc(prenom)+',</p><p>Bonne nouvelle ! 🤍</p>'+
+    '<p>J’ai bien reçu votre paiement. <strong>Votre commande florale pour votre mariage'+(mariage.dateMariage?' du '+esc(dateMariage):'')+' est désormais officiellement validée</strong>, et votre date est réservée dans mon planning. 🌸</p>'+
+    '<p>Merci infiniment pour votre confiance ! Je suis ravie de pouvoir vous accompagner dans la création de votre univers floral pour cette si belle journée. ✨</p>'+
+    '<h3 style="color:#7a2945;">🌿 Et maintenant ?</h3><p>Vous n’avez rien de particulier à faire pour le moment.</p>'+
+    '<p><strong>Environ 6 à 8 semaines avant votre mariage</strong>, je reviendrai personnellement vers vous afin de vous présenter une <strong>proposition visuelle pour votre bouquet de mariée</strong>, réalisée à partir de vos envies, couleurs et inspirations.</p>'+
+    '<p>Nous pourrons alors échanger ensemble et effectuer les derniers ajustements si nécessaire.</p>'+
+    '<p>Nous organiserons également à ce moment-là les modalités de <strong>livraison ou de remise de votre commande</strong>. Celle-ci pourra avoir lieu une fois le <strong>solde de votre commande réglé</strong>, lorsqu’un solde reste dû.</p>'+
+    '<p>D’ici là, votre espace mariage reste accessible à tout moment. Et bien entendu, <strong>je reste joignable si vous avez la moindre question ou si vous souhaitez ajouter une création à votre commande</strong> : boutonnières, bracelets, accessoires cheveux, décoration florale… 🤍</p>'+
+    '<p><strong>Félicitations, votre mariage est officiellement dans mon planning ! 🥂💍</strong></p>'+
+    '<p>À très bientôt,<br><strong>Élodie</strong><br>L’Atelier Fleurs &amp; SENS 🌸</p></div>';
+  try{
+    var payload={email:email,nom:nom,sujet:"💍 Votre mariage est officiellement réservé !",message:message};
+    var res=await fetch(MAIL_WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    var txt=await res.text(); if(!res.ok) throw new Error(txt||("HTTP "+res.status));
+    facture.reservationMariageMailSentAt=new Date().toISOString();
+    delete facture.reservationMariageMailError;
+    state.emails=state.emails||[]; state.emails.unshift({id:uid(),type:"confirmation-reservation-mariage",date:facture.reservationMariageMailSentAt,email:email,client:nom,factureId:facture.id,numero:facture.numero||"",sujet:payload.sujet});
+    mariageAddHistory(mariage,"Confirmation de réservation mariage envoyée à la cliente après paiement de "+(facture.type==="acompte"?"l’acompte":"la facture complète")+".");
+    saveCache(); try{await saveCloudNow();}catch(e){console.error(e);} toast("Mariage confirmé : e-mail envoyé à "+email+".");
+  }catch(e){
+    facture.reservationMariageMailError=(e&&e.message)||String(e); saveCache(); console.error(e); toast("Paiement enregistré, mais l’e-mail de confirmation n’a pas pu être envoyé.");
+  }finally{ delete facture.reservationMariageMailSending; }
+}
+
 /* ===================== Campagnes e-mail ===================== */
 function campaignDateSent(d){
   return String(d.emailEnvoyeAt||d.emailEnvoyeLe||d.dernierEnvoiAt||d.date||"").slice(0,10);
@@ -8479,7 +8526,7 @@ function campaignVars(d){
     prenom:pn.prenom, nom:pn.nom, client:String(d.client&&d.client.nom||""),
     numeroDevis:String(d.numero||""), dateMariage:mariage&&mariage.dateMariage?frDate(mariage.dateMariage):"",
     montantDevis:euro(total), dateExpiration:d.echeance?frDate(d.echeance):"",
-    lienEspaceClient:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
+    lienEspaceClient:"https://mariage.latelierfleursetsens.fr"
   };
 }
 function applyCampaignVars(text,d){
@@ -9175,6 +9222,7 @@ async function handleAction(action){
           else { toast("Facture marquée payée."); }
         } else { toast("Facture marquée payée."); }
         saveCache(); render();
+        if(["acompte","totale"].indexOf(fp.type)>=0){ envoyerConfirmationReservationMariage(fp); }
       };
       if(!fp.paiementClient){
         askPaymentMethodModal("Moyen de paiement", "Choisis le moyen de paiement avant de marquer la facture comme payée.", "", function(mp){
@@ -9197,6 +9245,7 @@ async function handleAction(action){
         if(st2==="payee") ff.datePaiement=ff.datePaiement||todayISO();
         else if(st2!=="envoyee") ff.datePaiement=null;
         saveCache(); render();
+        if(st2==="payee" && ["acompte","totale"].indexOf(ff.type)>=0){ envoyerConfirmationReservationMariage(ff); }
       };
       if(st2==="payee" && !ff.paiementClient){
         askPaymentMethodModal("Moyen de paiement", "Choisis le moyen de paiement avant de passer la facture en payée.", "", function(mp){
@@ -9261,7 +9310,7 @@ async function handleAction(action){
   if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); var selected=[],custom=[]; (crm.articles||[]).forEach(function(a){var canon=portailCreationCanonique(a.label||"");if(canon&&normName(canon)===normName(a.label||"")) selected.push(canon);else if(a.label) custom.push(a.label);}); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);}),creationSelections:selected,autreCreation:custom.join("\n")}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
   if(action.indexOf("mar-stage-")===0){
     var stage=action.slice(10);
-    if(["preparation","creation","livraison","archives"].indexOf(stage)>-1) ui.mariageStageFilter=stage;
+    if(["preparation","creation","livraison","archives","sans_suite"].indexOf(stage)>-1) ui.mariageStageFilter=stage;
     render(); return;
   }
   if(action==="mar-filter-avenir"){ ui.mariageFilter="avenir"; render(); return; }
@@ -9306,6 +9355,38 @@ async function handleAction(action){
   if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
+  if(action==="mar-sans-suite"){
+    var ms=getMariage(ui.mariageOpen);
+    if(!ms){ toast("Fiche mariage introuvable."); return; }
+    var motif=prompt("Pourquoi classer ce dossier sans suite ?\n\nExemples : Devis refusé, pas de réponse, budget, autre prestataire, annulation du projet.",ms.sansSuiteMotif||"");
+    if(motif===null) return;
+    motif=String(motif||"").trim();
+    if(!motif) motif="Sans motif renseigné";
+    if(!confirm("Classer ce mariage dans « Refusés / sans suite » ?\n\nLa fiche et tous ses documents resteront consultables.")) return;
+    persistMariageForm();
+    ms.statut="perdu";
+    ms.sansSuiteMotif=motif;
+    ms.sansSuiteDate=todayISO();
+    ms.historique=ms.historique||[];
+    ms.historique.unshift({date:todayISO(),texte:"Dossier classé refusé / sans suite — "+motif});
+    var md=mariageDevisLie(ms);
+    if(md && md.statut!=="accepte" && md.statut!=="archive") md.statut="refuse";
+    ui.mariageStageFilter="sans_suite";
+    saveCache(); render(); toast("Dossier classé dans Refusés / sans suite.");
+    return;
+  }
+  if(action==="mar-reactiver"){
+    var mrct=getMariage(ui.mariageOpen);
+    if(!mrct){ toast("Fiche mariage introuvable."); return; }
+    if(!confirm("Réactiver ce dossier et le remettre dans Études mariage ?")) return;
+    mrct.statut="contact";
+    mrct.historique=mrct.historique||[];
+    mrct.historique.unshift({date:todayISO(),texte:"Dossier réactivé depuis Refusés / sans suite."});
+    delete mrct.sansSuiteDate;
+    ui.mariageStageFilter="preparation";
+    saveCache(); render(); toast("Dossier réactivé.");
+    return;
+  }
   if(action==="mar-resync-from-devis"){
     var mr=getMariage(ui.mariageOpen);
     if(!mr){ toast("Fiche mariage introuvable."); return; }

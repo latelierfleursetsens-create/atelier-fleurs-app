@@ -1,3 +1,9 @@
+# MyBusiness V7.5.7 PROD — REFUSÉS / SANS SUITE
+- **V7.5.7 PROD** : classement des fiches mariage qui n’aboutissent pas dans un onglet « Refusés / sans suite », avec motif, conservation de l’historique, réactivation possible et prise en compte du dernier devis non accepté dans l’analyse commerciale.
+
+# MyBusiness V7.5.4 TEST — DOMAINE ESPACE MARIAGE
+- **V7.5.4 TEST** : tous les nouveaux liens générés ou envoyés aux clientes pointent vers `https://mariage.latelierfleursetsens.fr`. L’ancien `espace-client.html` reste présent et fonctionnel pour les liens déjà envoyés.
+
 # MyBusiness V7.5.3 PROD — FACTURE 100 % PAYÉE = PRÉPARATION COMMANDE
 - **V7.5.3 PROD** : une facture mariage totale à 100 % marquée payée fait désormais basculer automatiquement la fiche dans « Préparation commande ».
 - **V7.5.1 PROD** : pour les mariages, la facture de solde propose automatiquement une échéance à J-1 mois de la date du mariage, tout en restant modifiable manuellement.
