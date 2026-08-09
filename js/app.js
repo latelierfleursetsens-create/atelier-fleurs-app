@@ -1,9 +1,10 @@
-/* V7.4.4 PROD — Détail audit CA gagné et CA potentiel dans Analyse commerciale. */
+/* V7.5.1 PROD — Échéances factures mariage : solde et facture 100 % à J-1 mois du mariage, hors ateliers et ventes internet. */
 "use strict";
 
-var APP_VERSION="V7.4.4 PROD — Détail audit CA commercial";
-var APP_VERSION_NOTE = "Ajout du détail auditable du CA gagné et du CA potentiel en attente, toujours calculés avec uniquement la dernière version active du devis liée à chaque fiche mariage.";
+var APP_VERSION="V7.5.1 PROD — Échéances factures mariage";
+var APP_VERSION_NOTE = "Ajout d’un espace Sécurité & PRA, d’un suivi de fraîcheur des sauvegardes et d’un lecteur local hors ligne en lecture seule.";
 var APP_CHANGELOG = [
+  "V7.5.0 TEST — Sécurité & PRA : tableau d’état, export PRA daté, suivi du dernier test de restauration et lecteur local hors ligne en lecture seule.",
   "V7.4.1 TEST — Finances classées en Vue d’ensemble / À encaisser / Analyse commerciale / Achats ; vrai taux devis acceptés vs refusés ; listes ventes et encaissements compactées.",
   "V7.4.0 TEST — Ajout À faire aujourd’hui, relance devis en 1 clic avec historique, et analyse commerciale mariage.",
   "V7.3.3 PROD — Fluidité générale : priorité aux clics/navigation, sauvegardes lourdes locales et cloud différées et regroupées après une courte période sans interaction.",
@@ -5685,8 +5686,28 @@ function factureHeriteInfosDevis(d,f){
   }
   return f;
 }
+function mariagePourEcheanceFacture(d){
+  // La règle J-1 mois ne doit concerner QUE les devis réellement rattachés à une fiche mariage.
+  // Les devis/factures Atelier, commandes et ventes internet restent sur leur échéance standard.
+  if(!d || d.origine==="atelier" || d.atelierId || d.origine==="commande" || d.origine==="venteSite" || d.venteSiteId) return null;
+  if(d.mariageId){
+    var direct=getMariage(d.mariageId);
+    if(direct) return direct;
+  }
+  var lie=mariageLieADevis(d.id);
+  if(lie) return lie;
+  // Compatibilité avec les anciens devis mariage déjà existants, tout en excluant les autres origines ci-dessus.
+  var legacy=findLinkedMariageForDoc("devis",d);
+  return legacy||null;
+}
+function echeanceFactureMariageOuStandard(d,date){
+  var m=mariagePourEcheanceFacture(d);
+  return (m&&m.dateMariage)?subOneMonth(m.dateMariage):addOneMonth(date);
+}
 function creerAcompte(d){
   var t=documentCalc(d.lignes,state.settings.partService,d), p=state.settings.acompteParDefaut, date=todayISO();
+  // L'acompte conserve son échéance habituelle (+1 mois). La règle J-1 mois ne s'applique pas à l'acompte.
+  // Les ateliers et ventes internet conservent eux aussi leur fonctionnement d'échéance standard.
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:askDueDate(addOneMonth(date),"de la facture d’acompte"),
     devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:mb, montantServices:ms, montant:r2(t.total*p/100), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
@@ -5698,10 +5719,9 @@ function creerAcompte(d){
 function creerSolde(d){
   var t=documentCalc(d.lignes,state.settings.partService,d); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
-  // Pour une facture de solde mariage, l'échéance proposée est automatiquement fixée
-  // à un mois avant la date du mariage. Elle reste modifiable dans la fenêtre de confirmation.
-  var mariage=(d.mariageId?getMariage(d.mariageId):null) || findLinkedMariageForDoc("devis",d) || mariageLieADevis(d.id);
-  var echeanceSolde=(mariage&&mariage.dateMariage)?subOneMonth(mariage.dateMariage):addOneMonth(date);
+  // Solde : J-1 mois uniquement si ce devis est rattaché à une fiche mariage.
+  // Atelier / vente internet / autre devis : échéance standard, inchangée.
+  var echeanceSolde=echeanceFactureMariageOuStandard(d,date);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:askDueDate(echeanceSolde,"de la facture de solde"),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(t.total-ac.montant), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
@@ -5711,7 +5731,10 @@ function creerSolde(d){
 }
 function creerTotale(d){
   var t=documentCalc(d.lignes,state.settings.partService,d), date=todayISO();
-  var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:askDueDate(addOneMonth(date),"de la facture"),
+  // Facture 100 % : même règle que le solde lorsqu'elle est liée à un mariage.
+  // Aucun changement pour les ateliers, ventes internet et autres factures.
+  var echeanceTotale=echeanceFactureMariageOuStandard(d,date);
+  var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:askDueDate(echeanceTotale,"de la facture"),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
@@ -6029,13 +6052,44 @@ function viewAboutAppSettings(){
     '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--bordeaux);font-weight:700;">Voir les prochaines étapes</summary><ul style="margin:8px 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+road+'</ul></details>'+ 
   '</div>';
 }
+function praAgeInfo(iso){
+  if(!iso) return {text:"Jamais enregistré",level:"warn"};
+  var d=new Date(iso); if(isNaN(d.getTime())) return {text:"Date inconnue",level:"warn"};
+  var ms=Date.now()-d.getTime(); var h=Math.max(0,ms/3600000);
+  if(h<1) return {text:"il y a "+Math.max(1,Math.round(ms/60000))+" min",level:"ok"};
+  if(h<24) return {text:"il y a "+Math.round(h)+" h",level:"ok"};
+  var days=Math.floor(h/24); return {text:"il y a "+days+" jour"+(days>1?"s":""),level:days<=2?"warn":"bad"};
+}
+function praStatusCard(){
+  var s=state.settings||{};
+  var gd=praAgeInfo(s.googleDriveLastAt||"");
+  var exp=praAgeInfo(localStorage.getItem("afs_pra_last_export")||"");
+  var tst=praAgeInfo(localStorage.getItem("afs_pra_last_test")||"");
+  function dot(level){ return level==="ok"?"🟢":(level==="warn"?"🟠":"🔴"); }
+  var overall=(gd.level==="ok"||exp.level==="ok")?"🟢 Protégé":"🟠 À vérifier";
+  return '<div class="card" style="border:2px solid var(--blush);"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">'+
+    '<div><h3 style="margin:0 0 4px;">🛡️ Sécurité & PRA</h3><p class="muted" style="margin:0;font-size:12px;">Continuité d’activité et restauration indépendante des fournisseurs cloud.</p></div>'+
+    '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);font-size:13px;">'+overall+'</span></div>'+
+    '<div class="grid3" style="margin-top:12px;">'+
+      '<div class="summary"><b>'+dot(gd.level)+' Sauvegarde Google Drive</b><br><span class="muted">'+esc(gd.text)+'</span></div>'+
+      '<div class="summary"><b>'+dot(exp.level)+' Export PRA local</b><br><span class="muted">'+esc(exp.text)+'</span></div>'+
+      '<div class="summary"><b>'+dot(tst.level)+' Test de restauration</b><br><span class="muted">'+esc(tst.text)+'</span></div>'+
+    '</div>'+
+    '<div class="row-actions" style="margin-top:12px;">'+
+      '<button class="btn primary" data-action="pra-backup">Exporter sauvegarde PRA</button>'+
+      '<button class="btn soft" data-action="pra-open-local">Ouvrir le mode PRA hors ligne</button>'+
+      '<button class="btn ghost" data-action="pra-test-ok">Marquer un test réussi</button>'+
+    '</div>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">Le mode PRA est volontairement en <b>lecture seule</b> : il permet d’ouvrir une sauvegarde JSON sans Firebase, GitHub ni Cloudflare, sans risque de créer des conflits avec la base principale.</p></div>';
+}
 function viewParams(){
   var s=state.settings, partB=Math.max(0,100-num(s.partService));
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
-  return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
+  return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : sécurité, sauvegardes, entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
   '<div class="summary"><b>V3.4.1 PROD</b> — Suivi mariages amélioré : étapes semi-automatiques et validation manuelle possible pour les anciens dossiers.</div>'+
   viewAboutAppSettings()+
+  praStatusCard()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
@@ -8936,7 +8990,10 @@ async function handleAction(action){
   if(action==="secure-link-google"){ linkAdminToGoogle(); return; }
   if(action==="do-login"){ doLogin(); return; }
   if(action==="do-logout"){ if(confirm("Se déconnecter ?")){ auth.signOut(); } return; }
-  if(action==="cloud-backup"){ downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); return; }
+  if(action==="cloud-backup"){ var nowIso=new Date().toISOString(); localStorage.setItem("afs_pra_last_export",nowIso); downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); render(); return; }
+  if(action==="pra-backup"){ var praNow=new Date().toISOString(); localStorage.setItem("afs_pra_last_export",praNow); var pack=serialize(); if(!pack._meta) pack._meta={}; pack._meta.praExportAt=praNow; pack._meta.appVersion=APP_VERSION; downloadJSON(JSON.stringify(pack,null,2), "PRA-MyBusiness-"+todayISO()+".json"); toast("Sauvegarde PRA téléchargée. Conserve-la avec le ZIP PROD."); render(); return; }
+  if(action==="pra-open-local"){ window.open("PRA/pra-local.html","_blank"); return; }
+  if(action==="pra-test-ok"){ localStorage.setItem("afs_pra_last_test",new Date().toISOString()); toast("Test PRA marqué comme réussi aujourd’hui."); render(); return; }
   if(action==="restore-pick"){ var ri=document.getElementById("restoreInput"); if(ri) ri.click(); return; }
   if(action==="gdrive-save"){ saveParams(); return; }
   if(action==="gdrive-backup"){ state.settings.googleDriveUrl=val("pGoogleDriveUrl"); var gda=document.getElementById("pGoogleDriveAuto"); state.settings.googleDriveAuto=!!(gda&&gda.checked); googleDriveBackup(true); return; }

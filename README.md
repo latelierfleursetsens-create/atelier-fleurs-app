@@ -1,5 +1,5 @@
-# MyBusiness V7.4.4 PROD — ANALYSE COMMERCIALE FIABILISÉE
-- **V7.4.4 PROD** : pour les mariages, la facture de solde propose automatiquement une échéance à J-1 mois de la date du mariage, tout en restant modifiable manuellement.
+# MyBusiness V7.5.1 PROD — ANALYSE COMMERCIALE FIABILISÉE
+- **V7.5.1 PROD** : pour les mariages, la facture de solde propose automatiquement une échéance à J-1 mois de la date du mariage, tout en restant modifiable manuellement.
 
 ## Évolution V7.4.2
 - Analyse commerciale calculée par fiche mariage.
