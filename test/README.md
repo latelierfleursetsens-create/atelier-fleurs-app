@@ -1,6 +1,15 @@
-# MyBusiness V7.4.1 TEST — FINANCES SYNTHÉTIQUES
+# MyBusiness V7.5.4 TEST — DOMAINE ESPACE MARIAGE
+- **V7.5.4 TEST** : tous les nouveaux liens générés ou envoyés aux clientes pointent vers `https://mariage.latelierfleursetsens.fr`. L’ancien `espace-client.html` reste présent et fonctionnel pour les liens déjà envoyés.
 
-## Évolutions V7.4.1
+# MyBusiness V7.5.3 PROD — FACTURE 100 % PAYÉE = PRÉPARATION COMMANDE
+- **V7.5.3 PROD** : une facture mariage totale à 100 % marquée payée fait désormais basculer automatiquement la fiche dans « Préparation commande ».
+- **V7.5.1 PROD** : pour les mariages, la facture de solde propose automatiquement une échéance à J-1 mois de la date du mariage, tout en restant modifiable manuellement.
+
+## Évolution V7.4.2
+- Analyse commerciale calculée par fiche mariage.
+- Une seule version de devis est comptée : la dernière version active associée à la fiche mariage.
+- Les versions archivées / remplacées sont exclues des nombres, du CA gagné, du CA potentiel et du panier moyen.
+- « Dossiers décidés » devient « Devis avec décision ».
 
 - L’analyse commerciale mariage quitte le tableau de bord et rejoint l’onglet **Finances**.
 - Finances est maintenant classé en **Vue d’ensemble / À encaisser / Analyse commerciale / Achats fournisseurs**.

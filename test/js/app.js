@@ -1,9 +1,13 @@
-/* V7.4.1 TEST — Finances réorganisées, analyse commerciale mariage réelle, listes compactes. */
+/* V7.5.4 TEST — Nouveaux liens clients vers mariage.latelierfleursetsens.fr, anciens accès conservés. */
 "use strict";
 
-var APP_VERSION="V7.4.1 TEST — Finances synthétiques";
-var APP_VERSION_NOTE = "Finances réorganisées en vues dédiées, analyse commerciale mariage basée sur les décisions des devis, et listes longues repliées par défaut. Aucun chiffre budgétaire n’est affiché sur le tableau de bord.";
+var APP_VERSION="V7.5.4 TEST — Liens espace mariage sur domaine dédié";
+var APP_VERSION_NOTE = "Correction d’une course de synchronisation Firebase pouvant masquer les nouvelles demandes mariage après le chargement de la base principale. La facture 100 % payée continue de basculer le mariage en Préparation commande.";
 var APP_CHANGELOG = [
+  "V7.5.4 TEST — Les nouveaux liens envoyés aux clientes utilisent mariage.latelierfleursetsens.fr ; les anciens accès restent compatibles.",
+  "V7.5.3 PROD — Demandes mariage : les demandes du portail sécurisé restent visibles même si la base principale Firebase termine son chargement après le portail.",
+  "V7.5.2 PROD — Facture mariage 100 % payée : bascule automatique vers Préparation commande.",
+  "V7.5.0 TEST — Sécurité & PRA : tableau d’état, export PRA daté, suivi du dernier test de restauration et lecteur local hors ligne en lecture seule.",
   "V7.4.1 TEST — Finances classées en Vue d’ensemble / À encaisser / Analyse commerciale / Achats ; vrai taux devis acceptés vs refusés ; listes ventes et encaissements compactées.",
   "V7.4.0 TEST — Ajout À faire aujourd’hui, relance devis en 1 clic avec historique, et analyse commerciale mariage.",
   "V7.3.3 PROD — Fluidité générale : priorité aux clics/navigation, sauvegardes lourdes locales et cloud différées et regroupées après une courte période sans interaction.",
@@ -178,7 +182,7 @@ function activeQuoteReminderPayload(){
       clientNom:String(d.client&&d.client.nom||""), clientEmail:String(d.client&&d.client.email||""),
       montant:Number(documentCalc(d.lignes||[],state.settings.partService,d).total||0), statut:String(d.statut||""),
       mariageId:String((mariage&&mariage.id)||d.mariageId||""), espaceClient:!!(ownerUid || d.portalPublished || d.portalPdfUrl),
-      portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
+      portalUrl:"https://mariage.latelierfleursetsens.fr"
     };
   });
   return {enabled:!!s.rappelsDevisActifs,offsets:offsets,quotes:quotes,company:{name:s.nomEntreprise||"L'Atelier Fleurs & Sens",email:s.email||"latelierfleursetsens@gmail.com",site:s.site||"www.latelierfleursetsens.fr"}};
@@ -504,6 +508,7 @@ function euro(n){ return (Number(n)||0).toLocaleString("fr-FR",{style:"currency"
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function addDays(iso,d){ var dt=new Date(iso+"T00:00:00"); dt.setDate(dt.getDate()+d); return dt.toISOString().slice(0,10); }
 function addOneMonth(iso){ var dt=new Date((iso||todayISO())+"T00:00:00"); var day=dt.getDate(); dt.setDate(1); dt.setMonth(dt.getMonth()+1); var last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(); dt.setDate(Math.min(day,last)); return dt.toISOString().slice(0,10); }
+function subOneMonth(iso){ var dt=new Date((iso||todayISO())+"T00:00:00"); var day=dt.getDate(); dt.setDate(1); dt.setMonth(dt.getMonth()-1); var last=new Date(dt.getFullYear(),dt.getMonth()+1,0).getDate(); dt.setDate(Math.min(day,last)); return dt.toISOString().slice(0,10); }
 function askDueDate(defaultDate,label){ var d=window.prompt("Date d’échéance "+(label||"du document")+" (AAAA-MM-JJ)",defaultDate||addOneMonth(todayISO())); if(d===null||!String(d).trim()) return defaultDate||addOneMonth(todayISO()); d=String(d).trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||isNaN(new Date(d+"T00:00:00").getTime())){ toast("Date d’échéance invalide : la date par défaut a été conservée."); return defaultDate||addOneMonth(todayISO()); } return d; }
 function frDate(iso){ return iso? new Date(iso+"T00:00:00").toLocaleDateString("fr-FR") : "—"; }
 var MOIS=["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
@@ -953,6 +958,10 @@ function mergePendingMariages(){
 }
 function applyData(d){
   if(!d) return;
+  // Les demandes du portail sécurisé sont alimentées par une collection Firebase
+  // indépendante de la base principale. Si son listener répond avant celui de la
+  // base, applyData ne doit jamais les effacer avec un instantané plus ancien.
+  var livePortalRequests=(state.demandesMariage||[]).filter(function(x){ return x && x.securePortal; });
   var savedSettings=d.settings||{};
   state.settings=Object.assign({},DEFAULT_SETTINGS,savedSettings);
   // Migration V5.4.5 : applique le nouveau texte du mail devis aux anciens modèles standard.
@@ -963,6 +972,17 @@ function applyData(d){
   if(!state.settings.compteurs) state.settings.compteurs={};
   state.catalogue=d.catalogue||[]; state.clients=d.clients||[];
   state.devis=d.devis||[]; state.factures=d.factures||[]; state.mariages=d.mariages||[]; state.demandesMariage=d.demandesMariage||[]; state.encaissements=d.encaissements||[]; state.commandes=d.commandes||[]; state.emails=d.emails||[]; state.achats=d.achats||[]; state.ventesSite=d.ventesSite||[]; state.ateliers=d.ateliers||[]; state.logo=d.logo||""; state.todoList=d.todoList||""; state.shoppingList=d.shoppingList||""; state.stockItems=d.stockItems||[];
+  // Réinjecte immédiatement les demandes portail déjà reçues en temps réel.
+  // Cela supprime la course entre bases/{uid} et portalProjects.
+  livePortalRequests.forEach(function(x){
+    var i=state.demandesMariage.findIndex(function(r){ return r && r.id===x.id; });
+    if(i>=0){
+      var baseReq=state.demandesMariage[i]||{};
+      state.demandesMariage[i]=Object.assign({},baseReq,x);
+    }else{
+      state.demandesMariage.unshift(x);
+    }
+  });
   mergePendingMariages();
   restorePortalMarriageMedias();
   normalizeSiteSalesData();
@@ -2763,12 +2783,10 @@ function mariageGroupKey(m){
   if(mariageTermine(m)) return "archives";
   if(mariageReady(m)) return "livraison";
 
-  // Dès qu'un acompte est encaissé, le dossier quitte l'étude commerciale
-  // et passe automatiquement en préparation de commande.
-  var acomptePaye=mariageFacturesLiees(m).some(function(f){
-    return f && f.type==="acompte" && f.statut==="payee";
-  });
-  if(acomptePaye) return "creation";
+  // Une réservation est confirmée dès qu'un acompte est encaissé OU qu'une
+  // facture totale (100 %) est payée. Dans les deux cas, le dossier quitte
+  // automatiquement « Études mariage » pour « Préparation commande ».
+  if(mariageAcomptePaye(m)) return "creation";
 
   var arts=m&&m.articles?m.articles:[];
   if(arts.some(function(a){return !!a.fait;})) return "creation";
@@ -3790,11 +3808,71 @@ function financeCommercialAcceptDate(d){
   return mariageDocDate(d.accepteParClienteLe||d.dateValidation||d.valideLe||d.acceptedAt||d.accepteLe||"");
 }
 function financeCommercialMarriageQuotes(){
-  return (state.devis||[]).filter(function(d){
-    if(d.versionArchive || d.statut==="archive") return false;
-    if(d.mariageId && getMariage(d.mariageId)) return true;
-    return !!findLinkedMariageForDoc("devis",d);
+  // Une seule opportunité commerciale par fiche mariage : uniquement le devis
+  // actif / dernière version actuellement associé à la fiche. Les anciennes
+  // versions d'un même devis ne doivent jamais gonfler les statistiques.
+  var devis=state.devis||[];
+  var out=[];
+  (state.mariages||[]).forEach(function(m){
+    var d=null;
+    if(m.devisLie){
+      d=devis.find(function(x){return x.id===m.devisLie && !x.versionArchive && x.statut!=="archive";})||null;
+    }
+    // Compatibilité avec les anciennes fiches : si devisLie n'est pas renseigné
+    // correctement, reprendre uniquement la version active la plus récente liée
+    // explicitement à ce mariage.
+    if(!d){
+      var candidates=devis.filter(function(x){return x.mariageId===m.id && !x.versionArchive && x.statut!=="archive";});
+      candidates.sort(function(a,b){
+        var va=Number(a.version)||1, vb=Number(b.version)||1;
+        if(vb!==va) return vb-va;
+        return String(b.updatedAt||b.date||"").localeCompare(String(a.updatedAt||a.date||""));
+      });
+      d=candidates[0]||null;
+    }
+    if(d) out.push(d);
   });
+  return out;
+}
+function financeCommercialMarriageForQuote(d){
+  return (state.mariages||[]).find(function(m){
+    return (m.devisLie&&m.devisLie===d.id) || (d.mariageId&&m.id===d.mariageId);
+  })||null;
+}
+function financeCommercialDetailRows(list){
+  return list.map(function(d){
+    var m=financeCommercialMarriageForQuote(d);
+    var amount=totals(d.lignes||[],state.settings.partService).total;
+    return {
+      id:d.id,
+      client:(m&&m.nom)||(d.client&&d.client.nom)||"Cliente non renseignée",
+      mariageDate:(m&&m.dateMariage)||"",
+      numero:d.numero||"Devis",
+      version:Number(d.version)||1,
+      statut:d.statut||"",
+      montant:amount
+    };
+  }).sort(function(a,b){
+    return String(a.mariageDate||"9999-12-31").localeCompare(String(b.mariageDate||"9999-12-31")) || String(a.client||"").localeCompare(String(b.client||""),"fr");
+  });
+}
+function financeCommercialAuditBlock(title,icon,list,total,expandedKey,toggleAction,bg){
+  var open=!!ui[expandedKey];
+  var rows=financeCommercialDetailRows(list);
+  var html='<div class="card" style="background:'+(bg||'#fff')+';">'+
+    '<div class="flexb" style="gap:12px;align-items:center;"><div><h3 style="margin:0;">'+icon+' '+esc(title)+'</h3><div class="muted" style="font-size:12px;margin-top:3px;">'+rows.length+' devis retenu(s) · une seule dernière version par fiche mariage</div></div>'+
+    '<div style="text-align:right;"><b style="font-size:21px;color:var(--bordeaux);">'+euro(total)+'</b><div style="margin-top:5px;"><button class="btn small ghost" data-action="'+toggleAction+'">'+(open?'Masquer le détail':'Voir le détail')+'</button></div></div></div>';
+  if(open){
+    if(!rows.length){ html+='<p class="muted" style="margin:12px 0 0;">Aucun devis dans cette catégorie.</p>'; }
+    else{
+      html+='<div style="margin-top:12px;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Cliente</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Mariage</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Devis retenu</th><th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);">Statut</th><th style="text-align:right;padding:8px;border-bottom:1px solid var(--line);">Montant</th><th style="padding:8px;border-bottom:1px solid var(--line);"></th></tr></thead><tbody>';
+      rows.forEach(function(r){
+        html+='<tr><td style="padding:8px;border-bottom:1px solid var(--line);"><b>'+esc(r.client)+'</b></td><td style="padding:8px;border-bottom:1px solid var(--line);">'+(r.mariageDate?frDate(r.mariageDate):'—')+'</td><td style="padding:8px;border-bottom:1px solid var(--line);">'+esc(r.numero)+(r.version>1?' · V'+r.version:'')+'</td><td style="padding:8px;border-bottom:1px solid var(--line);">'+esc(((ST_DEVIS[r.statut]||{}).l)||r.statut||'—')+'</td><td style="padding:8px;border-bottom:1px solid var(--line);text-align:right;"><b>'+euro(r.montant)+'</b></td><td style="padding:8px;border-bottom:1px solid var(--line);text-align:right;"><button class="btn small ghost" data-action="notif-open-devis-'+esc(r.id)+'">Ouvrir</button></td></tr>';
+      });
+      html+='</tbody><tfoot><tr><td colspan="4" style="padding:10px 8px;text-align:right;"><b>TOTAL</b></td><td style="padding:10px 8px;text-align:right;font-size:16px;"><b>'+euro(total)+'</b></td><td></td></tr></tfoot></table></div>';
+    }
+  }
+  return html+'</div>';
 }
 function viewFinanceCommercialAnalytics(){
   var demandes=(state.demandesMariage||[]);
@@ -3846,7 +3924,9 @@ function viewFinanceCommercialAnalytics(){
       stat("🧺 Panier moyen accepté",euro(avg),false,"var(--blush-s)")+
       stat("⏱ Délai moyen d’acceptation",delayText,false,"#fff")+
     '</div>'+
-    '<div class="card"><div class="inline"><div class="summary" style="margin:0;"><b>Bouquet le plus choisi</b><div style="margin-top:5px;">'+esc(topText)+'</div></div><div class="summary" style="margin:0;"><b>Dossiers décidés</b><div style="margin-top:5px;">'+decided+' · '+accepted.length+' gagnés · '+refused.length+' perdus</div></div></div></div>';
+    financeCommercialAuditBlock("Détail du CA gagné","💚",accepted,won,"financeCommercialWonExpanded","finance-commercial-toggle-won","var(--green-s)")+
+    financeCommercialAuditBlock("Détail du CA potentiel en attente","🕒",pending,potential,"financeCommercialPotentialExpanded","finance-commercial-toggle-potential","#fff7dc")+
+    '<div class="card"><div class="inline"><div class="summary" style="margin:0;"><b>Bouquet le plus choisi</b><div style="margin-top:5px;">'+esc(topText)+'</div></div><div class="summary" style="margin:0;"><b>Devis avec décision</b><div style="margin-top:5px;">'+decided+' · '+accepted.length+' acceptés · '+refused.length+' refusés / sans suite</div></div></div></div>';
 }
 
 function viewTresorerie(){
@@ -5622,8 +5702,28 @@ function factureHeriteInfosDevis(d,f){
   }
   return f;
 }
+function mariagePourEcheanceFacture(d){
+  // La règle J-1 mois ne doit concerner QUE les devis réellement rattachés à une fiche mariage.
+  // Les devis/factures Atelier, commandes et ventes internet restent sur leur échéance standard.
+  if(!d || d.origine==="atelier" || d.atelierId || d.origine==="commande" || d.origine==="venteSite" || d.venteSiteId) return null;
+  if(d.mariageId){
+    var direct=getMariage(d.mariageId);
+    if(direct) return direct;
+  }
+  var lie=mariageLieADevis(d.id);
+  if(lie) return lie;
+  // Compatibilité avec les anciens devis mariage déjà existants, tout en excluant les autres origines ci-dessus.
+  var legacy=findLinkedMariageForDoc("devis",d);
+  return legacy||null;
+}
+function echeanceFactureMariageOuStandard(d,date){
+  var m=mariagePourEcheanceFacture(d);
+  return (m&&m.dateMariage)?subOneMonth(m.dateMariage):addOneMonth(date);
+}
 function creerAcompte(d){
   var t=documentCalc(d.lignes,state.settings.partService,d), p=state.settings.acompteParDefaut, date=todayISO();
+  // L'acompte conserve son échéance habituelle (+1 mois). La règle J-1 mois ne s'applique pas à l'acompte.
+  // Les ateliers et ventes internet conservent eux aussi leur fonctionnement d'échéance standard.
   var mb=r2(p/100*t.biens), ms=r2(p/100*t.services);
   var f={ id:uid(), numero:prochainNumero("facture"), type:"acompte", pourcentage:p, date:date, echeance:askDueDate(addOneMonth(date),"de la facture d’acompte"),
     devisId:d.id, devisNumero:d.numero, devisTotal:t.total, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:mb, montantServices:ms, montant:r2(t.total*p/100), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
@@ -5635,7 +5735,10 @@ function creerAcompte(d){
 function creerSolde(d){
   var t=documentCalc(d.lignes,state.settings.partService,d); var ac=facturesDuDevis(d.id).find(function(f){return f.type==="acompte";}); if(!ac)return null;
   var date=todayISO(), mb=r2(t.biens-ac.montantBiens), ms=r2(t.services-ac.montantServices);
-  var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:askDueDate(addOneMonth(date),"de la facture de solde"),
+  // Solde : J-1 mois uniquement si ce devis est rattaché à une fiche mariage.
+  // Atelier / vente internet / autre devis : échéance standard, inchangée.
+  var echeanceSolde=echeanceFactureMariageOuStandard(d,date);
+  var f={ id:uid(), numero:prochainNumero("facture"), type:"solde", date:date, echeance:askDueDate(echeanceSolde,"de la facture de solde"),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, acompteNumero:ac.numero, acompteMontant:ac.montant, montantBiens:mb, montantServices:ms, montant:r2(t.total-ac.montant), statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
@@ -5644,7 +5747,10 @@ function creerSolde(d){
 }
 function creerTotale(d){
   var t=documentCalc(d.lignes,state.settings.partService,d), date=todayISO();
-  var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:askDueDate(addOneMonth(date),"de la facture"),
+  // Facture 100 % : même règle que le solde lorsqu'elle est liée à un mariage.
+  // Aucun changement pour les ateliers, ventes internet et autres factures.
+  var echeanceTotale=echeanceFactureMariageOuStandard(d,date);
+  var f={ id:uid(), numero:prochainNumero("facture"), type:"totale", date:date, echeance:askDueDate(echeanceTotale,"de la facture"),
     devisId:d.id, devisNumero:d.numero, client:d.client, lignes:(d.lignes||[]).map(function(l){return Object.assign({},l);}), ajustements:deepCopyDoc(t.ajustements||[]), totalInitial:t.totalInitial, totalAjustements:t.totalAjustements, totalApresAjustements:t.total, montantBiens:t.biens, montantServices:t.services, montant:t.total, statut:"a_envoyer", paiementClient:"", datePaiement:null, origine:"devis", choixFacturation:true };
   factureHeriteInfosDevis(d,f);
   state.factures.unshift(f);
@@ -5962,13 +6068,44 @@ function viewAboutAppSettings(){
     '<details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--bordeaux);font-weight:700;">Voir les prochaines étapes</summary><ul style="margin:8px 0 0 18px;padding:0;font-size:13px;line-height:1.6;">'+road+'</ul></details>'+ 
   '</div>';
 }
+function praAgeInfo(iso){
+  if(!iso) return {text:"Jamais enregistré",level:"warn"};
+  var d=new Date(iso); if(isNaN(d.getTime())) return {text:"Date inconnue",level:"warn"};
+  var ms=Date.now()-d.getTime(); var h=Math.max(0,ms/3600000);
+  if(h<1) return {text:"il y a "+Math.max(1,Math.round(ms/60000))+" min",level:"ok"};
+  if(h<24) return {text:"il y a "+Math.round(h)+" h",level:"ok"};
+  var days=Math.floor(h/24); return {text:"il y a "+days+" jour"+(days>1?"s":""),level:days<=2?"warn":"bad"};
+}
+function praStatusCard(){
+  var s=state.settings||{};
+  var gd=praAgeInfo(s.googleDriveLastAt||"");
+  var exp=praAgeInfo(localStorage.getItem("afs_pra_last_export")||"");
+  var tst=praAgeInfo(localStorage.getItem("afs_pra_last_test")||"");
+  function dot(level){ return level==="ok"?"🟢":(level==="warn"?"🟠":"🔴"); }
+  var overall=(gd.level==="ok"||exp.level==="ok")?"🟢 Protégé":"🟠 À vérifier";
+  return '<div class="card" style="border:2px solid var(--blush);"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">'+
+    '<div><h3 style="margin:0 0 4px;">🛡️ Sécurité & PRA</h3><p class="muted" style="margin:0;font-size:12px;">Continuité d’activité et restauration indépendante des fournisseurs cloud.</p></div>'+
+    '<span class="pill" style="background:var(--blush-s);color:var(--bordeaux);font-size:13px;">'+overall+'</span></div>'+
+    '<div class="grid3" style="margin-top:12px;">'+
+      '<div class="summary"><b>'+dot(gd.level)+' Sauvegarde Google Drive</b><br><span class="muted">'+esc(gd.text)+'</span></div>'+
+      '<div class="summary"><b>'+dot(exp.level)+' Export PRA local</b><br><span class="muted">'+esc(exp.text)+'</span></div>'+
+      '<div class="summary"><b>'+dot(tst.level)+' Test de restauration</b><br><span class="muted">'+esc(tst.text)+'</span></div>'+
+    '</div>'+
+    '<div class="row-actions" style="margin-top:12px;">'+
+      '<button class="btn primary" data-action="pra-backup">Exporter sauvegarde PRA</button>'+
+      '<button class="btn soft" data-action="pra-open-local">Ouvrir le mode PRA hors ligne</button>'+
+      '<button class="btn ghost" data-action="pra-test-ok">Marquer un test réussi</button>'+
+    '</div>'+
+    '<p class="muted" style="font-size:11px;margin:10px 0 0;">Le mode PRA est volontairement en <b>lecture seule</b> : il permet d’ouvrir une sauvegarde JSON sans Firebase, GitHub ni Cloudflare, sans risque de créer des conflits avec la base principale.</p></div>';
+}
 function viewParams(){
   var s=state.settings, partB=Math.max(0,100-num(s.partService));
   var logoPrev = (state.logo&&state.logo.length>10) ? '<img src="'+state.logo+'" alt="logo" style="max-height:70px;max-width:180px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff;">' : '<div style="width:120px;height:60px;border:1px dashed var(--line);border-radius:8px;display:grid;place-items:center;font-size:12px;color:var(--ink-s);">aucun logo</div>';
   function F(label,id,val,hint,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" value="'+esc(val==null?"":val)+'"'+(type?' type="'+type+'"':"")+'>'+(hint?'<span class="hint">'+esc(hint)+'</span>':"")+'</label>'; }
-  return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
+  return '<h2 style="margin-top:0;">Paramètres</h2><p class="muted" style="margin-top:-6px;">Centre de réglages de l’ERP : sécurité, sauvegardes, entreprise, documents, déplacements, URSSAF, prestations et mails.</p>'+
   '<div class="summary"><b>V3.4.1 PROD</b> — Suivi mariages amélioré : étapes semi-automatiques et validation manuelle possible pour les anciens dossiers.</div>'+
   viewAboutAppSettings()+
+  praStatusCard()+
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde & restauration</h3>'+
     '<p class="muted" style="margin-top:0;">Télécharge une copie complète de tes données, ou restaure une sauvegarde JSON en cas de besoin.</p>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="cloud-backup">Télécharger une sauvegarde JSON</button>'+
@@ -8343,7 +8480,7 @@ function campaignVars(d){
     prenom:pn.prenom, nom:pn.nom, client:String(d.client&&d.client.nom||""),
     numeroDevis:String(d.numero||""), dateMariage:mariage&&mariage.dateMariage?frDate(mariage.dateMariage):"",
     montantDevis:euro(total), dateExpiration:d.echeance?frDate(d.echeance):"",
-    lienEspaceClient:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"
+    lienEspaceClient:"https://mariage.latelierfleursetsens.fr"
   };
 }
 function applyCampaignVars(text,d){
@@ -8589,6 +8726,8 @@ async function handleAction(action){
   if(action==="finance-sales-toggle"){ ui.financeSalesExpanded=!ui.financeSalesExpanded; render(); return; }
   if(action==="finance-pending-toggle-mariages"){ ui.financePendingMariagesExpanded=!ui.financePendingMariagesExpanded; render(); return; }
   if(action==="finance-pending-toggle-ateliers"){ ui.financePendingAteliersExpanded=!ui.financePendingAteliersExpanded; render(); return; }
+  if(action==="finance-commercial-toggle-won"){ ui.financeCommercialWonExpanded=!ui.financeCommercialWonExpanded; render(); return; }
+  if(action==="finance-commercial-toggle-potential"){ ui.financeCommercialPotentialExpanded=!ui.financeCommercialPotentialExpanded; render(); return; }
   if(action.indexOf("mod-finances-")===0){ ui.tab="financesModule"; ui.financesSub=action.slice(13); render(); return; }
 
   
@@ -8867,7 +9006,10 @@ async function handleAction(action){
   if(action==="secure-link-google"){ linkAdminToGoogle(); return; }
   if(action==="do-login"){ doLogin(); return; }
   if(action==="do-logout"){ if(confirm("Se déconnecter ?")){ auth.signOut(); } return; }
-  if(action==="cloud-backup"){ downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); return; }
+  if(action==="cloud-backup"){ var nowIso=new Date().toISOString(); localStorage.setItem("afs_pra_last_export",nowIso); downloadJSON(JSON.stringify(serialize(),null,2), "sauvegarde-atelier-"+todayISO()+".json"); toast("Sauvegarde téléchargée."); render(); return; }
+  if(action==="pra-backup"){ var praNow=new Date().toISOString(); localStorage.setItem("afs_pra_last_export",praNow); var pack=serialize(); if(!pack._meta) pack._meta={}; pack._meta.praExportAt=praNow; pack._meta.appVersion=APP_VERSION; downloadJSON(JSON.stringify(pack,null,2), "PRA-MyBusiness-"+todayISO()+".json"); toast("Sauvegarde PRA téléchargée. Conserve-la avec le ZIP PROD."); render(); return; }
+  if(action==="pra-open-local"){ window.open("PRA/pra-local.html","_blank"); return; }
+  if(action==="pra-test-ok"){ localStorage.setItem("afs_pra_last_test",new Date().toISOString()); toast("Test PRA marqué comme réussi aujourd’hui."); render(); return; }
   if(action==="restore-pick"){ var ri=document.getElementById("restoreInput"); if(ri) ri.click(); return; }
   if(action==="gdrive-save"){ saveParams(); return; }
   if(action==="gdrive-backup"){ state.settings.googleDriveUrl=val("pGoogleDriveUrl"); var gda=document.getElementById("pGoogleDriveAuto"); state.settings.googleDriveAuto=!!(gda&&gda.checked); googleDriveBackup(true); return; }

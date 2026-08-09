@@ -64,7 +64,7 @@ export default {
       if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(request,{ok:false,message:"Adresse e-mail invalide"},400);
       const due=new Date(); due.setDate(due.getDate()+14);
       const ymd=due.toISOString().slice(0,10);
-      const quote={numero:"D-TEST-REMINDER",echeance:ymd,clientNom:String(data.name||"Test MyBusiness"),portalUrl:"https://latelierfleursetsens-create.github.io/atelier-fleurs-app/espace-client.html"};
+      const quote={numero:"D-TEST-REMINDER",echeance:ymd,clientNom:String(data.name||"Test MyBusiness"),portalUrl:"https://mariage.latelierfleursetsens.fr"};
       const c=reminderCopy(quote,14,{name:env.SENDER_NAME||"L'Atelier Fleurs & Sens"});
       await sendBrevo(env,email,quote.clientNom,c.subject,c.html);
       return json(request,{ok:true,sentTo:email});
