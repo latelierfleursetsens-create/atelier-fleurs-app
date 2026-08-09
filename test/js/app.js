@@ -1,9 +1,10 @@
-/* V7.5.4 TEST — Nouveaux liens clients vers mariage.latelierfleursetsens.fr, anciens accès conservés. */
+/* V7.5.5 TEST — Confirmation automatique de réservation mariage après paiement. */
 "use strict";
 
-var APP_VERSION="V7.5.4 TEST — Liens espace mariage sur domaine dédié";
+var APP_VERSION="V7.5.5 TEST — Confirmation réservation mariage";
 var APP_VERSION_NOTE = "Correction d’une course de synchronisation Firebase pouvant masquer les nouvelles demandes mariage après le chargement de la base principale. La facture 100 % payée continue de basculer le mariage en Préparation commande.";
 var APP_CHANGELOG = [
+  "V7.5.5 TEST — Paiement acompte ou facture mariage 100 % : e-mail unique de confirmation et tableau de bord cliente avec mariage confirmé.",
   "V7.5.4 TEST — Les nouveaux liens envoyés aux clientes utilisent mariage.latelierfleursetsens.fr ; les anciens accès restent compatibles.",
   "V7.5.3 PROD — Demandes mariage : les demandes du portail sécurisé restent visibles même si la base principale Firebase termine son chargement après le portail.",
   "V7.5.2 PROD — Facture mariage 100 % payée : bascule automatique vers Préparation commande.",
@@ -760,6 +761,7 @@ async function publishDocumentToClientPortal(kind,doc,pdf64){
     kind:kind,
     sourceId:doc.id||"",
     numero:doc.numero||"",
+    type:kind==="facture"?(doc.type||"totale"):"",
     date:doc.date||"",
     echeance:doc.echeance||"",
     statut:doc.statut||(kind==="devis"?"envoye":"envoyee"),
@@ -856,7 +858,7 @@ function publishSecureClientSpaces(){
       jobs.push(db.collection("portalDocuments").doc("devis_"+devis.id).set(quotePortal,{merge:true}));
     }
     facts.filter(function(f){return !f.versionArchive && ["envoyee","payee"].indexOf(f.statut||"")>=0;}).forEach(function(f){
-      var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+      var invoicePortal={ownerUid:m.ownerUid,kind:"facture",sourceId:f.id,numero:f.numero||"",type:f.type||"totale",date:f.date||"",echeance:f.echeance||"",statut:f.statut||"envoyee",montant:Number(f.montant||0),lignes:clientSafeLines(f.lignes),visibleClient:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
       if(f.portalPdfUrl) invoicePortal.pdfUrl=f.portalPdfUrl;
       if(f.portalStoragePath) invoicePortal.storagePath=f.portalStoragePath;
       if(f.portalFileName) invoicePortal.fileName=f.portalFileName;
@@ -8453,6 +8455,41 @@ async function envoyerDocumentEmail(kind, doc){
 }
 
 
+async function envoyerConfirmationReservationMariage(facture){
+  if(!facture || facture.statut!=="payee" || ["acompte","totale"].indexOf(facture.type)<0) return;
+  if(facture.reservationMariageMailSentAt || facture.reservationMariageMailSending) return;
+  var mariage=findLinkedMariageForDoc("facture",facture);
+  if(!mariage) return; // Sécurité : jamais ateliers, ventes internet ou factures hors mariage.
+  var email=String((facture.client&&facture.client.email)||mariage.email||"").trim();
+  if(!emailValide(email)){ console.warn("Confirmation réservation mariage non envoyée : e-mail invalide",email); return; }
+  facture.reservationMariageMailSending=true;
+  var nom=String((facture.client&&facture.client.nom)||mariage.nom||""), prenom=nom.trim().split(/\s+/)[0]||"";
+  var dateMariage=mariage.dateMariage?frDate(mariage.dateMariage):"votre mariage";
+  var message='<div style="font-family:Arial,Helvetica,sans-serif;color:#3b3033;line-height:1.65;">'+
+    '<p>Bonjour '+esc(prenom)+',</p><p>Bonne nouvelle ! 🤍</p>'+
+    '<p>J’ai bien reçu votre paiement. <strong>Votre commande florale pour votre mariage'+(mariage.dateMariage?' du '+esc(dateMariage):'')+' est désormais officiellement validée</strong>, et votre date est réservée dans mon planning. 🌸</p>'+
+    '<p>Merci infiniment pour votre confiance ! Je suis ravie de pouvoir vous accompagner dans la création de votre univers floral pour cette si belle journée. ✨</p>'+
+    '<h3 style="color:#7a2945;">🌿 Et maintenant ?</h3><p>Vous n’avez rien de particulier à faire pour le moment.</p>'+
+    '<p><strong>Environ 4 à 6 semaines avant votre mariage</strong>, je reviendrai personnellement vers vous afin de vous présenter une <strong>proposition visuelle pour votre bouquet de mariée</strong>, réalisée à partir de vos envies, couleurs et inspirations.</p>'+
+    '<p>Nous pourrons alors échanger ensemble et effectuer les derniers ajustements si nécessaire.</p>'+
+    '<p>Nous organiserons également à ce moment-là les modalités de <strong>livraison ou de remise de votre commande</strong>. Celle-ci pourra avoir lieu une fois le <strong>solde de votre commande réglé</strong>, lorsqu’un solde reste dû.</p>'+
+    '<p>D’ici là, votre espace mariage reste accessible à tout moment. Et bien entendu, <strong>je reste joignable si vous avez la moindre question ou si vous souhaitez ajouter une création à votre commande</strong> : boutonnières, bracelets, accessoires cheveux, décoration florale… 🤍</p>'+
+    '<p><strong>Félicitations, votre mariage est officiellement dans mon planning ! 🥂💍</strong></p>'+
+    '<p>À très bientôt,<br><strong>Élodie</strong><br>L’Atelier Fleurs &amp; SENS 🌸</p></div>';
+  try{
+    var payload={email:email,nom:nom,sujet:"💍 Votre mariage est officiellement réservé !",message:message};
+    var res=await fetch(MAIL_WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    var txt=await res.text(); if(!res.ok) throw new Error(txt||("HTTP "+res.status));
+    facture.reservationMariageMailSentAt=new Date().toISOString();
+    delete facture.reservationMariageMailError;
+    state.emails=state.emails||[]; state.emails.unshift({id:uid(),type:"confirmation-reservation-mariage",date:facture.reservationMariageMailSentAt,email:email,client:nom,factureId:facture.id,numero:facture.numero||"",sujet:payload.sujet});
+    mariageAddHistory(mariage,"Confirmation de réservation mariage envoyée à la cliente après paiement de "+(facture.type==="acompte"?"l’acompte":"la facture complète")+".");
+    saveCache(); try{await saveCloudNow();}catch(e){console.error(e);} toast("Mariage confirmé : e-mail envoyé à "+email+".");
+  }catch(e){
+    facture.reservationMariageMailError=(e&&e.message)||String(e); saveCache(); console.error(e); toast("Paiement enregistré, mais l’e-mail de confirmation n’a pas pu être envoyé.");
+  }finally{ delete facture.reservationMariageMailSending; }
+}
+
 /* ===================== Campagnes e-mail ===================== */
 function campaignDateSent(d){
   return String(d.emailEnvoyeAt||d.emailEnvoyeLe||d.dernierEnvoiAt||d.date||"").slice(0,10);
@@ -9176,6 +9213,7 @@ async function handleAction(action){
           else { toast("Facture marquée payée."); }
         } else { toast("Facture marquée payée."); }
         saveCache(); render();
+        if(["acompte","totale"].indexOf(fp.type)>=0){ envoyerConfirmationReservationMariage(fp); }
       };
       if(!fp.paiementClient){
         askPaymentMethodModal("Moyen de paiement", "Choisis le moyen de paiement avant de marquer la facture comme payée.", "", function(mp){
@@ -9198,6 +9236,7 @@ async function handleAction(action){
         if(st2==="payee") ff.datePaiement=ff.datePaiement||todayISO();
         else if(st2!=="envoyee") ff.datePaiement=null;
         saveCache(); render();
+        if(st2==="payee" && ["acompte","totale"].indexOf(ff.type)>=0){ envoyerConfirmationReservationMariage(ff); }
       };
       if(st2==="payee" && !ff.paiementClient){
         askPaymentMethodModal("Moyen de paiement", "Choisis le moyen de paiement avant de passer la facture en payée.", "", function(mp){
