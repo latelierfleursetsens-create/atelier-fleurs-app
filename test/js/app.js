@@ -8690,7 +8690,7 @@ function campaignEmailHtml(body,d){
   '</div></div></div></div>';
 }
 function viewCommunication(){
-  var acquisitionCard='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;"><div class="flexb"><div><h3 style="margin:0;">🚀 Acquisition mariage — TEST</h3><div class="muted" style="font-size:12px;margin-top:3px;">Page publique indépendante : configurateur + demande express. L’espace mariage actuel n’est pas modifié.</div></div><a class="btn small primary" href="acquisition-mariage.html" target="_blank" rel="noopener">Ouvrir la page test</a></div></div>';
+  var acquisitionCard='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;"><div class="flexb"><div><h3 style="margin:0;">🚀 Acquisition mariage — TEST</h3><div class="muted" style="font-size:12px;margin-top:3px;">Page publique TEST : le configurateur envoie uniquement vers espace-mariage-test. L’espace mariage PROD n’est pas modifié.</div></div><a class="btn small primary" href="acquisition-mariage.html" target="_blank" rel="noopener">Ouvrir la page test</a></div></div>';
   var today=todayISO();
   var cutoff=(ui.campaignCutoff||today);
   var list=campaignEligibleDevis(cutoff);
