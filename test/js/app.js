@@ -1,10 +1,12 @@
-/* V7.5.5 TEST — Confirmation automatique de réservation mariage après paiement. */
+/* V7.5.9 TEST — Fluidité navigation + synchronisation RDV portail vers calendrier Apple. */
 "use strict";
 
-var APP_VERSION="V7.5.5 TEST — Confirmation réservation mariage";
-var APP_VERSION_NOTE = "Correction d’une course de synchronisation Firebase pouvant masquer les nouvelles demandes mariage après le chargement de la base principale. La facture 100 % payée continue de basculer le mariage en Préparation commande.";
+var APP_VERSION="V7.5.9 TEST — Navigation & calendrier RDV";
+var APP_VERSION_NOTE = "Navigation rendue prioritaire aux sauvegardes lourdes ; un changement de RDV téléphonique effectué par une cliente est maintenant répercuté sur la fiche mariage et republie automatiquement le calendrier Apple.";
 var APP_CHANGELOG = [
-  "V7.5.5 TEST — Paiement acompte ou facture mariage 100 % : e-mail unique de confirmation et tableau de bord cliente avec mariage confirmé.",
+  "V7.5.9 TEST — Fluidité : les sauvegardes locales/cloud en attente sont repoussées dès le premier toucher/clic afin de laisser la priorité à la navigation. Calendrier : les changements de RDV téléphonique reçus depuis l’espace mariage mettent à jour uniquement les champs RDV de la fiche liée et déclenchent une republication du flux Apple.",
+  "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
+  "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
   "V7.5.4 TEST — Les nouveaux liens envoyés aux clientes utilisent mariage.latelierfleursetsens.fr ; les anciens accès restent compatibles.",
   "V7.5.3 PROD — Demandes mariage : les demandes du portail sécurisé restent visibles même si la base principale Firebase termine son chargement après le portail.",
   "V7.5.2 PROD — Facture mariage 100 % payée : bascule automatique vers Préparation commande.",
@@ -661,16 +663,40 @@ function startSecurePortalRequests(){
     var incoming=[]; qs.forEach(function(doc){ incoming.push(portalProjectToDemande(doc)); });
     var secureIds={}; incoming.forEach(function(x){secureIds[x.id]=true;});
     state.demandesMariage=state.demandesMariage.filter(function(x){return !x.securePortal || secureIds[x.id];});
+    var linkedRdvChanged=false;
     incoming.forEach(function(x){
       var i=state.demandesMariage.findIndex(function(d){return d.id===x.id;});
       if(i>=0){ var old=state.demandesMariage[i]; x.statut=old.statut||x.statut; state.demandesMariage[i]=Object.assign({},old,x); }
       else state.demandesMariage.unshift(x);
+
+      // Sécurité V7.5.9 : une modification cliente ne réécrit jamais les besoins,
+      // créations ou devis existants. Seuls les champs du RDV téléphonique sont
+      // autorisés à suivre automatiquement la demande, car ils alimentent aussi
+      // le calendrier Apple.
+      var linked=(state.mariages||[]).find(function(m){
+        return m && (m.sourceDemandeId===x.id || (x.ownerUid && m.ownerUid===x.ownerUid));
+      });
+      if(linked){
+        var nd=x.rdvDateSouhaitee||"", nh=x.rdvHeureSouhaitee||"", ns=x.souhaiteRdvTelephonique||"";
+        if((linked.rdvDateSouhaitee||"")!==nd || (linked.rdvHeureSouhaitee||"")!==nh || (linked.souhaiteRdvTelephonique||"")!==ns){
+          linked.rdvDateSouhaitee=nd;
+          linked.rdvHeureSouhaitee=nh;
+          linked.souhaiteRdvTelephonique=ns;
+          linked.updatedAt=new Date().toISOString();
+          linkedRdvChanged=true;
+        }
+      }
     });
+    if(linkedRdvChanged){
+      // Enregistre la fiche liée puis republie le flux immédiatement. Le publish
+      // est également relancé après la sauvegarde cloud, ce qui garde un filet
+      // de sécurité si la première tentative réseau échoue.
+      saveCache();
+      scheduleCalendarPublish();
+    }
     // Ne jamais reconstruire toute l’interface pendant la saisie d’un champ :
     // cela ferait perdre le focus après chaque enregistrement automatique.
-    if(!(typeof isTextEditing === "function" && isTextEditing())){
-      try{render();}catch(e){}
-    }
+    schedulePassiveRender();
   },function(err){console.error("Lecture portail sécurisé impossible",err);});
 }
 function startSecurePortalDocumentDecisions(){
@@ -1046,14 +1072,35 @@ function saveTodoCloudDelayed(){
 // lourd qu'après une courte période sans clic/toucher. Les données métier restent modifiées
 // immédiatement en mémoire ; seule l'écriture persistante est différée.
 var localSaveTimer=null;
+var passiveRenderTimer=null;
 var lastUserInteractionAt=0;
-var SAVE_QUIET_MS=1400;
-function noteUserInteraction(){ lastUserInteractionAt=Date.now(); }
+var SAVE_QUIET_MS=1800;
+var LOCAL_SAVE_QUIET_MS=6000;
+function noteUserInteraction(){
+  lastUserInteractionAt=Date.now();
+  // Si une sauvegarde lourde attendait précisément au moment où l’utilisatrice
+  // commence à naviguer, on la décale avant qu’elle ne puisse monopoliser le thread.
+  if(localSaveTimer){ clearTimeout(localSaveTimer); localSaveTimer=setTimeout(runLocalCacheSave,LOCAL_SAVE_QUIET_MS); }
+  if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer=setTimeout(runCloudSave,SAVE_QUIET_MS); }
+  if(passiveRenderTimer){ clearTimeout(passiveRenderTimer); passiveRenderTimer=setTimeout(runPassiveRender,700); }
+}
+function runPassiveRender(){
+  passiveRenderTimer=null;
+  if(typeof isTextEditing === "function" && isTextEditing()) return;
+  var since=Date.now()-(lastUserInteractionAt||0);
+  if(since<650){ passiveRenderTimer=setTimeout(runPassiveRender,650-since+80); return; }
+  try{render();}catch(e){}
+}
+function schedulePassiveRender(){
+  if(typeof isTextEditing === "function" && isTextEditing()) return;
+  clearTimeout(passiveRenderTimer);
+  passiveRenderTimer=setTimeout(runPassiveRender,120);
+}
 function runLocalCacheSave(){
   localSaveTimer=null;
   var since=Date.now()-(lastUserInteractionAt||0);
-  if(since<SAVE_QUIET_MS){
-    localSaveTimer=setTimeout(runLocalCacheSave, SAVE_QUIET_MS-since+80);
+  if(since<LOCAL_SAVE_QUIET_MS){
+    localSaveTimer=setTimeout(runLocalCacheSave, LOCAL_SAVE_QUIET_MS-since+100);
     return;
   }
   try{
@@ -1065,7 +1112,7 @@ function runLocalCacheSave(){
 }
 function scheduleLocalCacheSave(){
   clearTimeout(localSaveTimer);
-  localSaveTimer=setTimeout(runLocalCacheSave,SAVE_QUIET_MS);
+  localSaveTimer=setTimeout(runLocalCacheSave,LOCAL_SAVE_QUIET_MS);
 }
 function saveCache(){
   lastLocalMutationAt=Date.now();
@@ -1118,7 +1165,7 @@ function startSync(uidStr){
         cloudStatus("☁️ Enregistrement…");
         return;
       }
-      applyRemote(remoteData); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
+      applyRemote(remoteData); schedulePassiveRender(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
     }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
@@ -2782,6 +2829,7 @@ function mariageReady(m){
 }
 function mariageTermine(m){ return !!(m && (m.livre || m.statut==="realise")); }
 function mariageGroupKey(m){
+  if(m && m.statut==="perdu") return "sans_suite";
   if(mariageTermine(m)) return "archives";
   if(mariageReady(m)) return "livraison";
 
@@ -6693,6 +6741,7 @@ function mariageDevisLie(m){
   return null;
 }
 function mariageSimpleStatus(m,stage){
+  if(stage==="sans_suite" || (m&&m.statut==="perdu")) return {l:"Refusé / sans suite",c:"#9b3b3b",b:"#f3dede"};
   if(stage==="archives") return {l:"Livré",c:"#3f5236",b:"#dbe6d2"};
   if(stage==="livraison") return {l:"Prêt à livrer",c:"var(--green)",b:"var(--green-s)"};
 
@@ -6731,7 +6780,8 @@ function mariageStageTabs(groups,current){
     {id:"preparation",label:"📋 Études mariage"},
     {id:"creation",label:"🌸 Préparation commande"},
     {id:"livraison",label:"📦 Livraison"},
-    {id:"archives",label:"✅ Archives"}
+    {id:"archives",label:"✅ Archives"},
+    {id:"sans_suite",label:"❌ Refusés / sans suite"}
   ];
   return '<div class="row-actions" style="margin-bottom:14px;">'+tabs.map(function(t){
     return '<button class="btn small '+(current===t.id?'primary':'ghost')+'" data-action="mar-stage-'+t.id+'">'+t.label+' <span style="opacity:.75;">('+(groups[t.id]||[]).length+')</span></button>';
@@ -6744,9 +6794,9 @@ function viewMariages(){
   if(ui.mariageView==="preparer") return header+'<div class="row-actions" style="margin-bottom:12px;"><button class="btn small ghost" data-action="mar-view-fiches">← Retour aux mariages</button></div>'+viewPreparer();
   if(ui.mariageView==="rdv") return header+viewMariageRdvWizard();
 
-  var list=state.mariages.filter(function(m){ return m.statut!=="perdu"; });
+  var list=(state.mariages||[]).slice();
   list.sort(function(a,b){ var da=mariageDateRef(a)||"9999", db=mariageDateRef(b)||"9999"; return da<db?-1:da>db?1:0; });
-  var groups={preparation:[],creation:[],livraison:[],archives:[]};
+  var groups={preparation:[],creation:[],livraison:[],archives:[],sans_suite:[]};
   list.forEach(function(m){ groups[mariageGroupKey(m)].push(m); });
 
   var current=ui.mariageStageFilter||"preparation";
@@ -6756,7 +6806,8 @@ function viewMariages(){
     preparation:"Contacts, rendez-vous et devis à étudier.",
     creation:"Commandes confirmées avec acompte payé, ou dont la fabrication a commencé.",
     livraison:"Toutes les créations sont terminées : il reste la remise, l’envoi ou la livraison.",
-    archives:"Mariages livrés et terminés."
+    archives:"Mariages livrés et terminés.",
+    sans_suite:"Projets non retenus, devis refusés ou dossiers classés sans suite. Les fiches restent entièrement consultables."
   };
   var html=header+mariageStageTabs(groups,current);
   html+='<p class="muted" style="margin-top:-5px;">'+labels[current]+' Classement par date de livraison, de la plus proche à la plus éloignée.</p>';
@@ -7698,7 +7749,11 @@ function viewMariageDetail(m){
   var del='<div class="row-actions" style="margin-top:6px;"><button class="btn danger" data-action="mar-del-'+m.id+'">'+(delPending?'Confirmer suppression':'Supprimer cette fiche')+'</button></div>';
   var topBack='<div class="card" style="padding:10px 14px;margin-bottom:10px;position:sticky;top:0;z-index:20;box-shadow:0 4px 14px rgba(0,0,0,.06);">'+
     '<div class="flexb"><div><b style="color:var(--bordeaux);">'+esc(m.nom||"Fiche mariage")+'</b><div class="muted" style="font-size:12px;margin-top:2px;">'+(m.dateLivraison?'Livraison : '+frDate(m.dateLivraison):'Date de livraison non renseignée')+'</div></div>'+ 
-    '<div class="row-actions" style="margin:0;"><button class="btn small primary" data-action="mar-atelier-open">🌸 Mode Atelier</button><button class="btn small ghost" data-action="mar-back">← Retour à la liste des mariages</button></div></div></div>';
+    '<div class="row-actions" style="margin:0;">'+
+    (m.statut==="perdu"?'<button class="btn small soft" data-action="mar-reactiver">↩ Réactiver le dossier</button>':'<button class="btn small danger" data-action="mar-sans-suite">❌ Classer sans suite</button>')+
+    '<button class="btn small primary" data-action="mar-atelier-open">🌸 Mode Atelier</button><button class="btn small ghost" data-action="mar-back">← Retour à la liste des mariages</button></div></div>'+
+    (m.statut==="perdu"?'<div class="summary" style="margin:10px 0 0;background:#f8e4e4;"><b>❌ Dossier classé sans suite</b>'+(m.sansSuiteMotif?'<div style="margin-top:4px;">Motif : '+esc(m.sansSuiteMotif)+'</div>':'')+(m.sansSuiteDate?'<div class="muted" style="margin-top:3px;">Classé le '+frDate(m.sansSuiteDate)+'</div>':'')+'</div>':'')+
+    '</div>';
   var content='';
   if(activeTab==="resume") content=mariageCrmMiniCards(m)+summary+viewMariageWorkflow(m);
   else if(activeTab==="fiche") content=infos;
@@ -8470,7 +8525,7 @@ async function envoyerConfirmationReservationMariage(facture){
     '<p>J’ai bien reçu votre paiement. <strong>Votre commande florale pour votre mariage'+(mariage.dateMariage?' du '+esc(dateMariage):'')+' est désormais officiellement validée</strong>, et votre date est réservée dans mon planning. 🌸</p>'+
     '<p>Merci infiniment pour votre confiance ! Je suis ravie de pouvoir vous accompagner dans la création de votre univers floral pour cette si belle journée. ✨</p>'+
     '<h3 style="color:#7a2945;">🌿 Et maintenant ?</h3><p>Vous n’avez rien de particulier à faire pour le moment.</p>'+
-    '<p><strong>Environ 4 à 6 semaines avant votre mariage</strong>, je reviendrai personnellement vers vous afin de vous présenter une <strong>proposition visuelle pour votre bouquet de mariée</strong>, réalisée à partir de vos envies, couleurs et inspirations.</p>'+
+    '<p><strong>Environ 6 à 8 semaines avant votre mariage</strong>, je reviendrai personnellement vers vous afin de vous présenter une <strong>proposition visuelle pour votre bouquet de mariée</strong>, réalisée à partir de vos envies, couleurs et inspirations.</p>'+
     '<p>Nous pourrons alors échanger ensemble et effectuer les derniers ajustements si nécessaire.</p>'+
     '<p>Nous organiserons également à ce moment-là les modalités de <strong>livraison ou de remise de votre commande</strong>. Celle-ci pourra avoir lieu une fois le <strong>solde de votre commande réglé</strong>, lorsqu’un solde reste dû.</p>'+
     '<p>D’ici là, votre espace mariage reste accessible à tout moment. Et bien entendu, <strong>je reste joignable si vous avez la moindre question ou si vous souhaitez ajouter une création à votre commande</strong> : boutonnières, bracelets, accessoires cheveux, décoration florale… 🤍</p>'+
@@ -9301,7 +9356,7 @@ async function handleAction(action){
   if(action==="mar-rdv-from-current"){ var crm=getMariage(ui.mariageOpen); if(crm){ captureMariageInputs(); var selected=[],custom=[]; (crm.articles||[]).forEach(function(a){var canon=portailCreationCanonique(a.label||"");if(canon&&normName(canon)===normName(a.label||"")) selected.push(canon);else if(a.label) custom.push(a.label);}); ui.mariageRdvDraft=Object.assign(mariageRdvDefault(),{nom:crm.nom||"",email:crm.email||"",tel:crm.tel||"",canalCommunication:crm.canalCommunication||"Téléphone",dateMariage:crm.dateMariage||"",dateLivraison:crm.dateLivraison||"",modeLivraison:crm.modeLivraison||"",lieu:crm.lieu||"",theme:crm.theme||"",budget:crm.budget||"",notes:crm.besoins||"",relance:crm.relance||"",medias:(crm.medias||[]).map(function(md){return Object.assign({},md);}),creationSelections:selected,autreCreation:custom.join("\n")}); ui.mariageView="rdv"; ui.mariageOpen=null; render(); window.scrollTo(0,0); } return; }
   if(action.indexOf("mar-stage-")===0){
     var stage=action.slice(10);
-    if(["preparation","creation","livraison","archives"].indexOf(stage)>-1) ui.mariageStageFilter=stage;
+    if(["preparation","creation","livraison","archives","sans_suite"].indexOf(stage)>-1) ui.mariageStageFilter=stage;
     render(); return;
   }
   if(action==="mar-filter-avenir"){ ui.mariageFilter="avenir"; render(); return; }
@@ -9346,6 +9401,38 @@ async function handleAction(action){
   if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
+  if(action==="mar-sans-suite"){
+    var ms=getMariage(ui.mariageOpen);
+    if(!ms){ toast("Fiche mariage introuvable."); return; }
+    var motif=prompt("Pourquoi classer ce dossier sans suite ?\n\nExemples : Devis refusé, pas de réponse, budget, autre prestataire, annulation du projet.",ms.sansSuiteMotif||"");
+    if(motif===null) return;
+    motif=String(motif||"").trim();
+    if(!motif) motif="Sans motif renseigné";
+    if(!confirm("Classer ce mariage dans « Refusés / sans suite » ?\n\nLa fiche et tous ses documents resteront consultables.")) return;
+    persistMariageForm();
+    ms.statut="perdu";
+    ms.sansSuiteMotif=motif;
+    ms.sansSuiteDate=todayISO();
+    ms.historique=ms.historique||[];
+    ms.historique.unshift({date:todayISO(),texte:"Dossier classé refusé / sans suite — "+motif});
+    var md=mariageDevisLie(ms);
+    if(md && md.statut!=="accepte" && md.statut!=="archive") md.statut="refuse";
+    ui.mariageStageFilter="sans_suite";
+    saveCache(); render(); toast("Dossier classé dans Refusés / sans suite.");
+    return;
+  }
+  if(action==="mar-reactiver"){
+    var mrct=getMariage(ui.mariageOpen);
+    if(!mrct){ toast("Fiche mariage introuvable."); return; }
+    if(!confirm("Réactiver ce dossier et le remettre dans Études mariage ?")) return;
+    mrct.statut="contact";
+    mrct.historique=mrct.historique||[];
+    mrct.historique.unshift({date:todayISO(),texte:"Dossier réactivé depuis Refusés / sans suite."});
+    delete mrct.sansSuiteDate;
+    ui.mariageStageFilter="preparation";
+    saveCache(); render(); toast("Dossier réactivé.");
+    return;
+  }
   if(action==="mar-resync-from-devis"){
     var mr=getMariage(ui.mariageOpen);
     if(!mr){ toast("Fiche mariage introuvable."); return; }

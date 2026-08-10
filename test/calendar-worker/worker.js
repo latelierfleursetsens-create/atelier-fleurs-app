@@ -1,11 +1,15 @@
 const ADMIN_UID = "fxBdwCBgdKT36VjSo67Ip4v4wow2";
 const FIREBASE_API_KEY = "AIzaSyCPuUcFt99zQsUI1lBDSEZkX-RJHtgs5BY";
-const ALLOWED_ORIGIN = "https://latelierfleursetsens-create.github.io";
+const ALLOWED_ORIGINS = [
+  "https://mybusiness.latelierfleursetsens.fr",
+  "https://latelierfleursetsens-create.github.io"
+];
 
 function cors(request, extra = {}) {
   const origin = request.headers.get("Origin") || "";
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
-    "Access-Control-Allow-Origin": origin === ALLOWED_ORIGIN ? origin : ALLOWED_ORIGIN,
+    "Access-Control-Allow-Origin": allowed,
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
@@ -55,12 +59,12 @@ export default {
         ok: true,
         configured: Boolean(env.CALENDAR_KV),
         service: "MyBusiness Calendar",
-        version: "6.0.1"
+        version: "7.5.9"
       });
     }
 
     if (request.method === "POST" && url.pathname === "/publish") {
-      if ((request.headers.get("Origin") || "") !== ALLOWED_ORIGIN) {
+      if (!ALLOWED_ORIGINS.includes(request.headers.get("Origin") || "")) {
         return json(request, { ok: false, message: "Origine refusée" }, 403);
       }
       if (!env.CALENDAR_KV) return json(request, { ok: false, message: "Binding CALENDAR_KV manquant" }, 503);
@@ -100,6 +104,6 @@ export default {
       });
     }
 
-    return json(request, { ok: true, service: "MyBusiness Calendar", version: "6.0.1" });
+    return json(request, { ok: true, service: "MyBusiness Calendar", version: "7.5.9" });
   }
 };
