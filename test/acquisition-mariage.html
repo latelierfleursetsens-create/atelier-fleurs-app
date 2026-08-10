@@ -44,8 +44,9 @@ h1{font-size:clamp(34px,7vw,58px);line-height:1.02;margin:8px 0}
 .cta .btn{font-size:17px;padding:16px 24px}
 .muted{color:var(--muted)}
 .info{background:var(--green);border:1px solid #c9ddcd;border-radius:14px;padding:12px;margin-top:12px}
+.size-guides{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 14px}.size-guides figure{margin:0;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}.size-guides img{display:block;width:100%;height:auto}.size-guides figcaption{padding:8px;text-align:center;font-size:12px;color:var(--muted);font-weight:700}
 @media(max-width:650px){
-  .grid{grid-template-columns:1fr 1fr}.sizes{grid-template-columns:repeat(3,1fr)}
+  .grid{grid-template-columns:1fr 1fr}.size-guides{grid-template-columns:1fr}.sizes{grid-template-columns:repeat(3,1fr)}
   .options{grid-template-columns:1fr}.hero{padding:23px 14px}.placeholder{height:105px}
 }
 </style>
@@ -77,12 +78,17 @@ h1{font-size:clamp(34px,7vw,58px);line-height:1.02;margin:8px 0}
 <section class="card">
   <div class="progress"><span class="on"></span><span class="on"></span><span></span></div>
   <h2>2. Quelle taille imaginez-vous ?</h2>
+  <p class="muted">Retrouvez les mêmes visuels que dans votre espace mariage pour comparer les dimensions et le rendu porté.</p>
+  <div class="size-guides">
+    <figure><img src="assets/guide-tailles-bouquets.jpg" alt="Comparatif des dimensions des bouquets S, M, L et XL"><figcaption>Dimensions des bouquets</figcaption></figure>
+    <figure><img src="assets/guide-tailles-portees.jpg" alt="Comparatif des bouquets portés S, M, L et XL"><figcaption>Rendu porté</figcaption></figure>
+  </div>
   <div class="sizes" id="sizes">
-    <div class="size" data-v="S — 18 à 20 cm"><b>S</b><br><span class="small">18–20 cm</span></div>
-    <div class="size active" data-v="M — 20 à 23 cm"><b>M</b><br><span class="small">20–23 cm</span></div>
-    <div class="size" data-v="L — 25 à 28 cm"><b>L</b><br><span class="small">25–28 cm</span></div>
-    <div class="size" data-v="XL — 28 à 32 cm"><b>XL</b><br><span class="small">28–32 cm</span></div>
-    <div class="size" data-v="XXL — 32 à 35 cm"><b>XXL</b><br><span class="small">32–35 cm</span></div>
+    <div class="size" data-code="S" data-v="S — 18 à 20 cm"><b>S</b><br><span class="small">18–20 cm</span></div>
+    <div class="size active" data-code="M" data-v="M — 20 à 23 cm"><b>M</b><br><span class="small">20–23 cm</span></div>
+    <div class="size" data-code="L" data-v="L — 25 à 28 cm"><b>L</b><br><span class="small">25–28 cm</span></div>
+    <div class="size" data-code="XL" data-v="XL — 28 à 32 cm"><b>XL</b><br><span class="small">28–32 cm</span></div>
+    <div class="size" data-code="XXL" data-v="XXL — 32 à 35 cm"><b>XXL</b><br><span class="small">32–35 cm</span></div>
   </div>
   <div class="info small">Vous hésitez ? Aucun souci : la taille pourra être ajustée avec Élodie selon votre silhouette, votre robe et le rendu souhaité.</div>
 </section>
@@ -92,12 +98,12 @@ h1{font-size:clamp(34px,7vw,58px);line-height:1.02;margin:8px 0}
   <h2>3. Et autour du bouquet ?</h2>
   <p class="muted">Sélectionnez ce qui pourrait vous intéresser. Rien n'est définitif à ce stade.</p>
   <div class="options" id="opts">
-    <div class="opt" data-v="Bouquet à lancer">💐 Bouquet à lancer</div>
-    <div class="opt" data-v="Boutonnières">🌿 Boutonnières</div>
-    <div class="opt" data-v="Bracelets fleuris">🌸 Bracelets fleuris</div>
-    <div class="opt" data-v="Accessoires cheveux / couronne">👰 Accessoires cheveux / couronne</div>
-    <div class="opt" data-v="Bouquets demoiselles d'honneur">🤍 Bouquets demoiselles d'honneur</div>
-    <div class="opt" data-v="Décoration / autres créations">✨ Décoration / autres créations</div>
+    <div class="opt" data-v="Bouquet à lancer" data-code="bouquet-lancer">💐 Bouquet à lancer</div>
+    <div class="opt" data-v="Boutonnières" data-code="boutonnieres">🌿 Boutonnières</div>
+    <div class="opt" data-v="Bracelets fleuris" data-code="bracelets">🌸 Bracelets fleuris</div>
+    <div class="opt" data-v="Accessoires cheveux / couronne" data-code="cheveux">👰 Accessoires cheveux / couronne</div>
+    <div class="opt" data-v="Bouquets demoiselles d'honneur" data-code="demoiselles">🤍 Bouquets demoiselles d'honneur</div>
+    <div class="opt" data-v="Décoration / autres créations" data-code="decoration">✨ Décoration / autres créations</div>
   </div>
 </section>
 
@@ -109,32 +115,43 @@ h1{font-size:clamp(34px,7vw,58px);line-height:1.02;margin:8px 0}
   <div class="cta">
     <h2>Votre projet commence à prendre forme 🤍</h2>
     <p class="muted">Il ne reste plus qu'à me transmettre votre demande complète. Vous pourrez préciser vos couleurs, vos fleurs préférées, vos quantités et ajouter vos photos d'inspiration.</p>
-    <a class="btn" href="https://mariage.latelierfleursetsens.fr">Je crée mon projet mariage 💍</a>
+    <a class="btn" id="projectLink" href="https://mariage.latelierfleursetsens.fr">Je crée mon projet mariage 💍</a>
     <p class="small" style="margin-top:12px">Vous serez dirigée vers l'espace mariage sécurisé de L'Atelier Fleurs & Sens.</p>
   </div>
 </section>
 
-<p class="small" style="text-align:center;margin:22px">Prototype configurateur • V7.5.12 TEST • Aucun changement de l'espace mariage actuel</p>
+<p class="small" style="text-align:center;margin:22px">Prototype configurateur • V7.5.13 TEST • Aucun changement de l'espace mariage actuel</p>
 </div>
 <script>
-let style="Bohème chic blanc & beige",size="M — 20 à 23 cm",opts=[];
+let style="Bohème chic blanc & beige",size="M — 20 à 23 cm",sizeCode="M",opts=[],optCodes=[];
+function buildProjectUrl(){
+  const u=new URL("https://mariage.latelierfleursetsens.fr");
+  u.searchParams.set("from","configurateur");
+  u.searchParams.set("style",style);
+  u.searchParams.set("size",sizeCode);
+  if(optCodes.length)u.searchParams.set("interets",optCodes.join(","));
+  return u.toString();
+}
 function update(){
   document.getElementById("recap").innerHTML=
     "<b>Ambiance :</b> "+style+
     "<br><b>Taille :</b> "+size+
     "<br><b>Créations complémentaires :</b> "+(opts.length?opts.join(", "):"à définir");
+  document.getElementById("projectLink").href=buildProjectUrl();
 }
 document.querySelectorAll("#styles .visual").forEach(x=>x.onclick=()=>{
   document.querySelectorAll("#styles .visual").forEach(y=>y.classList.remove("active"));
-  x.classList.add("active"); style=x.dataset.v; update();
+  x.classList.add("active");style=x.dataset.v;update();
 });
 document.querySelectorAll("#sizes .size").forEach(x=>x.onclick=()=>{
   document.querySelectorAll("#sizes .size").forEach(y=>y.classList.remove("active"));
-  x.classList.add("active"); size=x.dataset.v; update();
+  x.classList.add("active");size=x.dataset.v;sizeCode=x.dataset.code;update();
 });
 document.querySelectorAll("#opts .opt").forEach(x=>x.onclick=()=>{
   x.classList.toggle("active");
-  opts=[...document.querySelectorAll("#opts .opt.active")].map(y=>y.dataset.v);
+  const active=[...document.querySelectorAll("#opts .opt.active")];
+  opts=active.map(y=>y.dataset.v);
+  optCodes=active.map(y=>y.dataset.code);
   update();
 });
 update();

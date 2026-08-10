@@ -1,10 +1,10 @@
 /* V7.5.9 PROD — Fluidité navigation + synchronisation RDV portail vers calendrier Apple. */
 "use strict";
 
-var APP_VERSION="V7.5.12 TEST — Suivi commercial mariage";
-var APP_VERSION_NOTE = "Acquisition mariage TEST : nouvelle page publique indépendante avec configurateur et demande express, sans modification de l’espace mariage sécurisé existant.";
+var APP_VERSION="V7.5.13 TEST — Suivi commercial mariage";
+var APP_VERSION_NOTE = "Configurateur mariage TEST : réutilisation des visuels de tailles et transmission sécurisée des choix vers l’espace mariage, sans modifier les données existantes.";
 var APP_CHANGELOG = [
-  "V7.5.12 TEST — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
+  "V7.5.13 TEST — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
   "V7.5.9 PROD — Fluidité : les sauvegardes locales/cloud en attente sont repoussées dès le premier toucher/clic afin de laisser la priorité à la navigation. Calendrier : les changements de RDV téléphonique reçus depuis l’espace mariage mettent à jour uniquement les champs RDV de la fiche liée et déclenchent une republication du flux Apple.",
   "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
   "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
