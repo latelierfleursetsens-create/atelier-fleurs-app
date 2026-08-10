@@ -1,10 +1,10 @@
 /* V7.5.9 PROD — Fluidité navigation + synchronisation RDV portail vers calendrier Apple. */
 "use strict";
 
-var APP_VERSION="V7.5.9 PROD — Navigation & calendrier RDV";
-var APP_VERSION_NOTE = "Calendrier Apple : les dates de mariage et de livraison sont publiées uniquement pour les mariages réellement confirmés par paiement d’un acompte ou d’une facture mariage à 100 %. Les RDV téléphoniques restent synchronisés avant confirmation.";
+var APP_VERSION="V7.5.11 TEST — Suivi commercial mariage";
+var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
-  "V7.5.10 TEST — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
+  "V7.5.11 TEST — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
   "V7.5.9 PROD — Fluidité : les sauvegardes locales/cloud en attente sont repoussées dès le premier toucher/clic afin de laisser la priorité à la navigation. Calendrier : les changements de RDV téléphonique reçus depuis l’espace mariage mettent à jour uniquement les champs RDV de la fiche liée et déclenchent une republication du flux Apple.",
   "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
   "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
@@ -1459,10 +1459,11 @@ function viewDocumentsModule(){
 function viewFinancesModule(){
   var sub=ui.financesSub||"vue";
   var html=moduleHeader("Finances","Une lecture synthétique : encaissements, trésorerie et performance commerciale mariage.")+
-    subNav([["vue","Vue d’ensemble"],["aEncaisser","À encaisser"],["analyseMariage","Analyse commerciale"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
+    subNav([["vue","Vue d’ensemble"],["aEncaisser","À encaisser"],["analyseMariage","Analyse commerciale"],["suiviCommercial","Suivi commercial 💍"],["achats","Achats fournisseurs"]],sub,"mod-finances-");
   if(sub==="achats") return html+viewAchats();
   if(sub==="aEncaisser") return html+viewFinancePendingPage();
   if(sub==="analyseMariage") return html+viewFinanceCommercialAnalytics();
+  if(sub==="suiviCommercial") return html+viewMarriageCommercialFollowup();
   return html+viewTresorerie();
 }
 
@@ -3931,6 +3932,96 @@ function financeCommercialAuditBlock(title,icon,list,total,expandedKey,toggleAct
   }
   return html+'</div>';
 }
+
+function commercialDaysSince(iso){
+  iso=String(iso||"").slice(0,10);
+  if(!iso) return null;
+  var a=new Date(iso+"T00:00:00"), b=new Date(todayISO()+"T00:00:00");
+  var n=Math.floor((b-a)/86400000);
+  return isFinite(n)?Math.max(0,n):null;
+}
+function commercialMarriageOpportunities(){
+  return financeCommercialMarriageQuotes().filter(function(d){return d&&d.statut==="envoye";}).map(function(d){
+    var m=financeCommercialMarriageForQuote(d);
+    var sent=financeCommercialQuoteDate(d);
+    var age=commercialDaysSince(sent);
+    var amount=totals(d.lignes||[],state.settings.partService).total;
+    var rel=String(d.derniereRelanceAt||"").slice(0,10);
+    return {devis:d,mariage:m,sent:sent,age:age,montant:amount,derniereRelance:rel,nbRelances:Number(d.nbRelances)||0};
+  }).sort(function(a,b){return (b.age||0)-(a.age||0) || String(a.mariage&&a.mariage.dateMariage||"9999-12-31").localeCompare(String(b.mariage&&b.mariage.dateMariage||"9999-12-31"));});
+}
+function commercialRiskLabel(age){
+  if(age===null) return {l:"Date inconnue",bg:"#eee",c:"#555"};
+  if(age>=30) return {l:"J+30 et +",bg:"#f8dddd",c:"#7a2929"};
+  if(age>=14) return {l:"J+14 à J+29",bg:"#fbe7d4",c:"#7b4520"};
+  if(age>=7) return {l:"J+7 à J+13",bg:"#fff7d9",c:"#725d18"};
+  return {l:"Récent",bg:"#eef7ef",c:"#315d38"};
+}
+function commercialQuickMailTemplate(kind,m){
+  var prenom=campaignPersonName(m&&m.nom||"").prenom||"";
+  var date=m&&m.dateMariage?frDate(m.dateMariage):"";
+  var templates={
+    relance:{s:"Votre projet floral de mariage",b:"Bonjour "+prenom+",\n\nJe me permets de revenir vers vous concernant votre projet floral"+(date?" pour votre mariage du "+date:"")+".\n\nVotre devis est toujours en attente de validation. N’hésitez pas à me dire si vous souhaitez un ajustement ou si vous avez une question.\n\nLe planning se remplissant progressivement, la validation du devis permet de réserver définitivement votre créneau.\n\nBien chaleureusement,\nÉlodie"},
+    acompte:{s:"Acompte de votre commande mariage",b:"Bonjour "+prenom+",\n\nJe me permets de revenir vers vous concernant l’acompte de votre commande mariage"+(date?" du "+date:"")+".\n\nDès réception du règlement, votre réservation sera définitivement confirmée dans mon planning.\n\nJe reste à votre disposition si vous avez la moindre question.\n\nBien chaleureusement,\nÉlodie"},
+    solde:{s:"Solde de votre commande mariage",b:"Bonjour "+prenom+",\n\nVotre mariage approche"+(date?" ("+date+")":"")+". Je me permets de revenir vers vous concernant le règlement du solde de votre commande florale.\n\nUne fois le solde réglé, nous pourrons finaliser sereinement l’organisation de la remise ou de la livraison.\n\nBien chaleureusement,\nÉlodie"},
+    livraison:{s:"Organisation de la remise de votre commande mariage",b:"Bonjour "+prenom+",\n\nVotre mariage approche"+(date?" ("+date+")":"")+". Je vous contacte afin d’organiser ensemble la remise ou la livraison de votre commande florale.\n\nPouvez-vous me confirmer vos disponibilités et les dernières informations utiles ?\n\nBien chaleureusement,\nÉlodie"}
+  };
+  return templates[kind]||templates.relance;
+}
+async function sendCommercialMarriageMail(m,kind){
+  if(!m){toast("Fiche mariage introuvable.");return;}
+  var email=m.email||"";
+  if(!emailValide(email)){toast("Aucune adresse e-mail valide sur cette fiche mariage.");return;}
+  var t=commercialQuickMailTemplate(kind,m);
+  var labels={relance:"relance devis",acompte:"rappel acompte",solde:"rappel solde",livraison:"organisation livraison"};
+  if(!confirm("Envoyer le message « "+(labels[kind]||kind)+" » à "+(m.nom||email)+" ?")) return;
+  try{
+    toast("Envoi du message…");
+    var body=t.b.replace(/\n/g,"<br>");
+    var res=await fetch(MAIL_WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,nom:m.nom||"",sujet:t.s,message:body})});
+    var responseText=await res.text(); if(!res.ok) throw new Error(responseText||("HTTP "+res.status));
+    var now=new Date().toISOString();
+    state.emails=state.emails||[];
+    state.emails.unshift({id:uid(),type:"mariage-commercial-"+kind,date:now,sentAt:now,mariageId:m.id,client:m.nom||"",email:email,sujet:t.s,statut:"envoye"});
+    mariageAddHistory(m,"Message commercial envoyé : "+(labels[kind]||kind)+".");
+    if(kind==="relance"){
+      var d=financeCommercialMarriageQuotes().find(function(x){return financeCommercialMarriageForQuote(x)&&financeCommercialMarriageForQuote(x).id===m.id && x.statut==="envoye";});
+      if(d){d.derniereRelanceAt=now;d.nbRelances=(Number(d.nbRelances)||0)+1;}
+    }
+    saveCache(); try{await saveCloudNow();}catch(e){}
+    render(); toast("Message envoyé à "+email+".");
+  }catch(e){console.error(e);toast("Échec de l’envoi : "+(e.message||e));}
+}
+function viewMarriageCommercialFollowup(){
+  var ops=commercialMarriageOpportunities(), potential=ops.reduce(function(s,x){return s+x.montant;},0);
+  var j7=ops.filter(function(x){return x.age!==null&&x.age>=7&&x.age<14;});
+  var j14=ops.filter(function(x){return x.age!==null&&x.age>=14&&x.age<30;});
+  var j30=ops.filter(function(x){return x.age!==null&&x.age>=30;});
+  var relanced=(state.devis||[]).filter(function(d){return d&&Number(d.nbRelances)>0&&!d.versionArchive;});
+  var relancedAccepted=relanced.filter(function(d){return d.statut==="accepte";});
+  var conv=relanced.length?Math.round(relancedAccepted.length/relanced.length*1000)/10:null;
+  var html='<div class="flexb" style="margin-bottom:14px;"><div><h2 style="margin:0;">Suivi commercial mariage</h2><span class="muted">Uniquement les dernières versions des devis liés aux fiches mariage.</span></div></div>'+
+    '<div class="grid-stats" style="margin-bottom:14px;">'+
+      stat("💰 Potentiel en attente",euro(potential),true,"#fff7dc")+
+      stat("🟡 À relancer J+7",String(j7.length),false,"#fff7dc")+
+      stat("🟠 À relancer J+14",String(j14.length),false,"#fbe7d4")+
+      stat("🔴 À relancer J+30",String(j30.length),false,"#f8dddd")+
+      stat("🎯 Conversion après relance",conv===null?"—":String(conv).replace(".",",")+" %",false,"var(--green-s)")+
+    '</div>'+
+    '<div class="card"><div class="flexb"><div><h3 style="margin:0;">Opportunités à suivre</h3><div class="muted" style="font-size:12px;margin-top:3px;">'+ops.length+' devis mariage en attente · '+euro(potential)+'</div></div></div>';
+  if(!ops.length) return html+'<p class="muted" style="margin-top:12px;">Aucun devis mariage en attente.</p></div>';
+  html+='<div style="overflow:auto;margin-top:10px;"><table class="table"><thead><tr><th>Cliente</th><th>Mariage</th><th>Devis</th><th>Montant</th><th>Âge</th><th>Dernière relance</th><th>Actions</th></tr></thead><tbody>';
+  ops.forEach(function(o){
+    var r=commercialRiskLabel(o.age), m=o.mariage||{}, d=o.devis;
+    html+='<tr><td><b>'+esc(m.nom||(d.client&&d.client.nom)||"Cliente")+'</b></td><td>'+(m.dateMariage?frDate(m.dateMariage):"—")+'</td><td>'+esc(d.numero||"Devis")+'</td><td><b>'+euro(o.montant)+'</b></td><td><span class="pill" style="background:'+r.bg+';color:'+r.c+';">'+esc(r.l)+'</span></td><td>'+(o.derniereRelance?frDate(o.derniereRelance)+(o.nbRelances?' · '+o.nbRelances+' relance(s)':''):"Jamais")+'</td><td><div class="row-actions" style="margin:0;white-space:nowrap;">'+
+      '<button class="btn small soft" data-action="commercial-open-mar-'+esc(m.id||"")+'">Fiche</button>'+
+      '<button class="btn small primary" data-action="commercial-relance-'+esc(d.id)+'">Relancer</button>'+
+      (m.id?'<button class="btn small ghost" data-action="commercial-sans-suite-'+esc(m.id)+'">Sans suite</button>':'')+
+      '</div></td></tr>';
+  });
+  return html+'</tbody></table></div><p class="muted" style="font-size:12px;margin:10px 0 0;">J+7, J+14 et J+30 sont calculés depuis la date d’envoi du dernier devis actif. Une acceptation ou un classement sans suite retire automatiquement le dossier de cette liste.</p></div>';
+}
+
 function viewFinanceCommercialAnalytics(){
   var demandes=(state.demandesMariage||[]);
   var quotes=financeCommercialMarriageQuotes();
@@ -7701,6 +7792,7 @@ function viewMariageDetail(m){
     '<div class="muted" style="margin-top:5px;">'+mariageDocumentsResumeHTML(m)+'</div>';
   if(m.devisLie){ var dl=state.devis.find(function(d){return d.id===m.devisLie;}); if(dl){ var fs=facturesDuDevis(dl.id); summary+='<div class="muted" style="margin-top:4px;">Devis lié : '+esc(dl.numero)+' ('+(ST_DEVIS[dl.statut]||ST_DEVIS.brouillon).l.toLowerCase()+')'+(fs.length?" · "+fs.map(function(f){return esc(f.numero);}).join(", "):"")+'</div>'; } }
   summary+='</div>';
+  var commercialMailCard='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;"><div class="flexb"><div><h3 style="margin:0;">✉️ Messages mariage en 1 clic</h3><div class="muted" style="font-size:12px;margin-top:3px;">Modèles préremplis réservés à cette fiche mariage. Chaque envoi est conservé dans l’historique.</div></div></div><div class="row-actions" style="margin-top:10px;"><button class="btn small soft" data-action="mar-mail-relance">Relancer le devis</button><button class="btn small ghost" data-action="mar-mail-acompte">Rappeler l’acompte</button><button class="btn small ghost" data-action="mar-mail-solde">Demander le solde</button><button class="btn small ghost" data-action="mar-mail-livraison">Organiser la livraison</button></div></div>';
   // infos
   function F(label,id,val,type){ return '<label class="field"><span>'+esc(label)+'</span><input id="'+id+'" '+(type?'type="'+type+'" ':"")+'value="'+esc(val==null?"":val)+'"></label>'; }
   var infos='<div class="card"><div class="flexb" style="margin-bottom:6px;"><h3 style="margin:0;">Fiche contact & projet</h3>'+
@@ -7762,7 +7854,7 @@ function viewMariageDetail(m){
     (m.statut==="perdu"?'<div class="summary" style="margin:10px 0 0;background:#f8e4e4;"><b>❌ Dossier classé sans suite</b>'+(m.sansSuiteMotif?'<div style="margin-top:4px;">Motif : '+esc(m.sansSuiteMotif)+'</div>':'')+(m.sansSuiteDate?'<div class="muted" style="margin-top:3px;">Classé le '+frDate(m.sansSuiteDate)+'</div>':'')+'</div>':'')+
     '</div>';
   var content='';
-  if(activeTab==="resume") content=mariageCrmMiniCards(m)+summary+viewMariageWorkflow(m);
+  if(activeTab==="resume") content=mariageCrmMiniCards(m)+summary+commercialMailCard+viewMariageWorkflow(m);
   else if(activeTab==="fiche") content=infos;
   else if(activeTab==="creations") content=artsCard+viewMariagePrestationsComplementaires(m);
   else if(activeTab==="inspirations") content=medCard;
@@ -8663,6 +8755,18 @@ async function sendRelanceDevis(doc){
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
+  if(action.indexOf("commercial-open-mar-")===0){
+    var cmid=action.slice(20); ui.tab="clientsModule";ui.clientsSub="mariages";ui.mariageView="fiches";ui.mariageOpen=cmid;ui.mariageDetailTab="resume";render();window.scrollTo(0,0);return;
+  }
+  if(action.indexOf("commercial-relance-")===0){await sendRelanceDevis(findDevis(action.slice(20)));return;}
+  if(action.indexOf("commercial-sans-suite-")===0){
+    var csm=getMariage(action.slice(22));
+    if(csm){ui.tab="clientsModule";ui.clientsSub="mariages";ui.mariageOpen=csm.id;render();setTimeout(function(){handleAction("mar-sans-suite");},0);}
+    return;
+  }
+  if(action.indexOf("mar-mail-")===0){
+    var mkind=action.slice(9), mmail=getMariage(ui.mariageOpen); await sendCommercialMarriageMail(mmail,mkind); return;
+  }
   if(action.indexOf("devis-relance-")===0){ await sendRelanceDevis(findDevis(action.slice(14))); return; }
   if(action.indexOf("dash-open-demande-")===0){ ui.tab="clientsModule"; ui.clientsSub="demandesMariage"; ui.demandeMariageOpen=action.slice(18); render(); window.scrollTo(0,0); return; }
   if(action==="campaign-refresh"){
