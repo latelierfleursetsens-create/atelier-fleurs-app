@@ -2,8 +2,9 @@
 "use strict";
 
 var APP_VERSION="V7.5.9 PROD — Navigation & calendrier RDV";
-var APP_VERSION_NOTE = "Navigation rendue prioritaire aux sauvegardes lourdes ; un changement de RDV téléphonique effectué par une cliente est maintenant répercuté sur la fiche mariage et republie automatiquement le calendrier Apple.";
+var APP_VERSION_NOTE = "Calendrier Apple : les dates de mariage et de livraison sont publiées uniquement pour les mariages réellement confirmés par paiement d’un acompte ou d’une facture mariage à 100 %. Les RDV téléphoniques restent synchronisés avant confirmation.";
 var APP_CHANGELOG = [
+  "V7.5.10 PROD — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
   "V7.5.9 PROD — Fluidité : les sauvegardes locales/cloud en attente sont repoussées dès le premier toucher/clic afin de laisser la priorité à la navigation. Calendrier : les changements de RDV téléphonique reçus depuis l’espace mariage mettent à jour uniquement les champs RDV de la fiche liée et déclenchent une republication du flux Apple.",
   "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
   "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
@@ -408,8 +409,14 @@ function calendarBuildIcs(){
       var parts=rdv.heure.split(":"), mins=(Number(parts[0]||0)*60+Number(parts[1]||0)+30), eh=String(Math.floor(mins/60)%24).padStart(2,"0")+":"+String(mins%60).padStart(2,"0");
       addEvent("rdv-"+m.id,"☎️ RDV téléphonique - "+nom,rdv.date,rdv.heure,eh,"",notes,false,m.updatedAt);
     }
-    if(m.dateLivraison) addEvent("livraison-"+m.id,"📦 Livraison / retrait - "+nom,m.dateLivraison,"","",m.lieu||"",notes,true,m.updatedAt);
-    if(m.dateMariage) addEvent("mariage-"+m.id,"💍 Mariage - "+nom,m.dateMariage,"","",m.lieu||"",notes,true,m.updatedAt);
+
+    // Les dates de mariage et de livraison ne sont publiées sur l'iPhone
+    // qu'une fois la réservation réellement confirmée :
+    // facture d'acompte payée OU facture mariage 100 % payée.
+    // Les RDV téléphoniques restent visibles avant confirmation.
+    var mariageConfirme=mariagePlanningConfirmed(m);
+    if(mariageConfirme && m.dateLivraison) addEvent("livraison-"+m.id,"📦 Livraison / retrait - "+nom,m.dateLivraison,"","",m.lieu||"",notes,true,m.updatedAt);
+    if(mariageConfirme && m.dateMariage) addEvent("mariage-"+m.id,"💍 Mariage - "+nom,m.dateMariage,"","",m.lieu||"",notes,true,m.updatedAt);
   });
   (state.devis||[]).forEach(function(d){
     if(!d || !d.echeance || d.statut!=="envoye" || d.versionArchive) return;

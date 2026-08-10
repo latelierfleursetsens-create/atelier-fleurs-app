@@ -1,5 +1,5 @@
-# MyBusiness V7.5.9 PROD — REFUSÉS / SANS SUITE
-- **V7.5.9 PROD** : classement des fiches mariage qui n’aboutissent pas dans un onglet « Refusés / sans suite », avec motif, conservation de l’historique, réactivation possible et prise en compte du dernier devis non accepté dans l’analyse commerciale.
+# MyBusiness V7.5.10 PROD — REFUSÉS / SANS SUITE
+- **V7.5.10 PROD** : classement des fiches mariage qui n’aboutissent pas dans un onglet « Refusés / sans suite », avec motif, conservation de l’historique, réactivation possible et prise en compte du dernier devis non accepté dans l’analyse commerciale.
 
 # MyBusiness V7.5.4 TEST — DOMAINE ESPACE MARIAGE
 - **V7.5.4 TEST** : tous les nouveaux liens générés ou envoyés aux clientes pointent vers `https://mariage.latelierfleursetsens.fr`. L’ancien `espace-client.html` reste présent et fonctionnel pour les liens déjà envoyés.
