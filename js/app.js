@@ -1,9 +1,10 @@
-/* V7.5.8 PROD — Classement des fiches mariage refusées / sans suite. */
+/* V7.5.9 PROD — Fluidité navigation + synchronisation RDV portail vers calendrier Apple. */
 "use strict";
 
-var APP_VERSION="V7.5.8 PROD — Refusés / sans suite";
-var APP_VERSION_NOTE = "Ajout d’un onglet Refusés / sans suite pour conserver les fiches mariage non abouties, avec motif, réactivation et prise en compte du devis refusé dans l’analyse commerciale.";
+var APP_VERSION="V7.5.9 PROD — Navigation & calendrier RDV";
+var APP_VERSION_NOTE = "Navigation rendue prioritaire aux sauvegardes lourdes ; un changement de RDV téléphonique effectué par une cliente est maintenant répercuté sur la fiche mariage et republie automatiquement le calendrier Apple.";
 var APP_CHANGELOG = [
+  "V7.5.9 PROD — Fluidité : les sauvegardes locales/cloud en attente sont repoussées dès le premier toucher/clic afin de laisser la priorité à la navigation. Calendrier : les changements de RDV téléphonique reçus depuis l’espace mariage mettent à jour uniquement les champs RDV de la fiche liée et déclenchent une republication du flux Apple.",
   "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
   "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
   "V7.5.4 TEST — Les nouveaux liens envoyés aux clientes utilisent mariage.latelierfleursetsens.fr ; les anciens accès restent compatibles.",
@@ -662,16 +663,40 @@ function startSecurePortalRequests(){
     var incoming=[]; qs.forEach(function(doc){ incoming.push(portalProjectToDemande(doc)); });
     var secureIds={}; incoming.forEach(function(x){secureIds[x.id]=true;});
     state.demandesMariage=state.demandesMariage.filter(function(x){return !x.securePortal || secureIds[x.id];});
+    var linkedRdvChanged=false;
     incoming.forEach(function(x){
       var i=state.demandesMariage.findIndex(function(d){return d.id===x.id;});
       if(i>=0){ var old=state.demandesMariage[i]; x.statut=old.statut||x.statut; state.demandesMariage[i]=Object.assign({},old,x); }
       else state.demandesMariage.unshift(x);
+
+      // Sécurité V7.5.9 : une modification cliente ne réécrit jamais les besoins,
+      // créations ou devis existants. Seuls les champs du RDV téléphonique sont
+      // autorisés à suivre automatiquement la demande, car ils alimentent aussi
+      // le calendrier Apple.
+      var linked=(state.mariages||[]).find(function(m){
+        return m && (m.sourceDemandeId===x.id || (x.ownerUid && m.ownerUid===x.ownerUid));
+      });
+      if(linked){
+        var nd=x.rdvDateSouhaitee||"", nh=x.rdvHeureSouhaitee||"", ns=x.souhaiteRdvTelephonique||"";
+        if((linked.rdvDateSouhaitee||"")!==nd || (linked.rdvHeureSouhaitee||"")!==nh || (linked.souhaiteRdvTelephonique||"")!==ns){
+          linked.rdvDateSouhaitee=nd;
+          linked.rdvHeureSouhaitee=nh;
+          linked.souhaiteRdvTelephonique=ns;
+          linked.updatedAt=new Date().toISOString();
+          linkedRdvChanged=true;
+        }
+      }
     });
+    if(linkedRdvChanged){
+      // Enregistre la fiche liée puis republie le flux immédiatement. Le publish
+      // est également relancé après la sauvegarde cloud, ce qui garde un filet
+      // de sécurité si la première tentative réseau échoue.
+      saveCache();
+      scheduleCalendarPublish();
+    }
     // Ne jamais reconstruire toute l’interface pendant la saisie d’un champ :
     // cela ferait perdre le focus après chaque enregistrement automatique.
-    if(!(typeof isTextEditing === "function" && isTextEditing())){
-      try{render();}catch(e){}
-    }
+    schedulePassiveRender();
   },function(err){console.error("Lecture portail sécurisé impossible",err);});
 }
 function startSecurePortalDocumentDecisions(){
@@ -1047,14 +1072,35 @@ function saveTodoCloudDelayed(){
 // lourd qu'après une courte période sans clic/toucher. Les données métier restent modifiées
 // immédiatement en mémoire ; seule l'écriture persistante est différée.
 var localSaveTimer=null;
+var passiveRenderTimer=null;
 var lastUserInteractionAt=0;
-var SAVE_QUIET_MS=1400;
-function noteUserInteraction(){ lastUserInteractionAt=Date.now(); }
+var SAVE_QUIET_MS=1800;
+var LOCAL_SAVE_QUIET_MS=6000;
+function noteUserInteraction(){
+  lastUserInteractionAt=Date.now();
+  // Si une sauvegarde lourde attendait précisément au moment où l’utilisatrice
+  // commence à naviguer, on la décale avant qu’elle ne puisse monopoliser le thread.
+  if(localSaveTimer){ clearTimeout(localSaveTimer); localSaveTimer=setTimeout(runLocalCacheSave,LOCAL_SAVE_QUIET_MS); }
+  if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer=setTimeout(runCloudSave,SAVE_QUIET_MS); }
+  if(passiveRenderTimer){ clearTimeout(passiveRenderTimer); passiveRenderTimer=setTimeout(runPassiveRender,700); }
+}
+function runPassiveRender(){
+  passiveRenderTimer=null;
+  if(typeof isTextEditing === "function" && isTextEditing()) return;
+  var since=Date.now()-(lastUserInteractionAt||0);
+  if(since<650){ passiveRenderTimer=setTimeout(runPassiveRender,650-since+80); return; }
+  try{render();}catch(e){}
+}
+function schedulePassiveRender(){
+  if(typeof isTextEditing === "function" && isTextEditing()) return;
+  clearTimeout(passiveRenderTimer);
+  passiveRenderTimer=setTimeout(runPassiveRender,120);
+}
 function runLocalCacheSave(){
   localSaveTimer=null;
   var since=Date.now()-(lastUserInteractionAt||0);
-  if(since<SAVE_QUIET_MS){
-    localSaveTimer=setTimeout(runLocalCacheSave, SAVE_QUIET_MS-since+80);
+  if(since<LOCAL_SAVE_QUIET_MS){
+    localSaveTimer=setTimeout(runLocalCacheSave, LOCAL_SAVE_QUIET_MS-since+100);
     return;
   }
   try{
@@ -1066,7 +1112,7 @@ function runLocalCacheSave(){
 }
 function scheduleLocalCacheSave(){
   clearTimeout(localSaveTimer);
-  localSaveTimer=setTimeout(runLocalCacheSave,SAVE_QUIET_MS);
+  localSaveTimer=setTimeout(runLocalCacheSave,LOCAL_SAVE_QUIET_MS);
 }
 function saveCache(){
   lastLocalMutationAt=Date.now();
@@ -1119,7 +1165,7 @@ function startSync(uidStr){
         cloudStatus("☁️ Enregistrement…");
         return;
       }
-      applyRemote(remoteData); render(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
+      applyRemote(remoteData); schedulePassiveRender(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
     }catch(e){ console.error(e); } } }
     cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
   }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
