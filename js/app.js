@@ -913,8 +913,11 @@ function serializeCloud(){
   d.mariages=(d.mariages||[]).map(function(m){
     var c=Object.assign({},m);
     c.medias=(m.medias||[]).filter(function(md){
-      var src=md&&(md.dataUrl||md.data||"");
-      return /^https?:\/\//i.test(src);
+      if(!md) return false;
+      var src=md.dataUrl||md.url||md.data||"";
+      // SAFE 7.6.5 : une référence Firebase Storage est durable même si son URL
+      // de téléchargement n'a pas encore été résolue sur cet appareil.
+      return !!md.storagePath || /^https?:\/\//i.test(src);
     }).map(function(md){return Object.assign({},md,{data:undefined});});
     return c;
   });
@@ -940,6 +943,27 @@ function portalPhotosToMariageMedias(photos){
     return {id:obj.mediaId||obj.id||uid(),name:obj.name||"Inspiration portail",type:mediaType,dataUrl:src,storagePath:obj.path||obj.storagePath||"",source:"portal"};
   }).filter(Boolean);
 }
+
+async function hydrateMariageMediaUrlsFromStorage(){
+  if(!storage || !Array.isArray(state.mariages)) return 0;
+  var changed=0, jobs=[];
+  state.mariages.forEach(function(m){
+    (m&&Array.isArray(m.medias)?m.medias:[]).forEach(function(md){
+      if(!md || md.type!=="image" || !md.storagePath) return;
+      var current=md.dataUrl||md.url||md.data||"";
+      if(/^https?:\/\//i.test(current)) return;
+      jobs.push(storage.ref().child(md.storagePath).getDownloadURL().then(function(url){
+        if(url){ md.url=url; md.dataUrl=url; changed++; }
+      }).catch(function(err){
+        console.warn("Inspiration Firebase non résolue",md.storagePath,err);
+      }));
+    });
+  });
+  await Promise.all(jobs);
+  if(changed){ try{render();}catch(e){} }
+  return changed;
+}
+
 function restorePortalMarriageMedias(){
   if(!Array.isArray(state.mariages)) return 0;
   var byId={};
@@ -1006,6 +1030,9 @@ function applyData(d){
   });
   mergePendingMariages();
   restorePortalMarriageMedias();
+  // SAFE 7.6.5 : lecture seule. Résout les anciennes références Storage pour
+  // les afficher sur tous les appareils, sans enregistrer ni modifier Firebase.
+  setTimeout(function(){ hydrateMariageMediaUrlsFromStorage(); },0);
   normalizeSiteSalesData();
   reconcileSiteSaleParticipants();
 }
