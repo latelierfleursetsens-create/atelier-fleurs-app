@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.4 SAFE — Sauvegarde Drive 365 jours + verrou multi-appareil";
+var APP_VERSION="V7.6.6 SAFE — Inspirations + vrai contrôle des modifications";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -9810,7 +9810,16 @@ async function handleAction(action){
   if(action==="mar-atelier-open"){ persistMariageForm(); ui.mariageAtelierMode=true; render(); mariageAtelierRestoreScroll(); return; }
   if(action==="mar-atelier-close"){ mariageAtelierRememberScroll(); ui.mariageAtelierMode=false; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-tab-")===0){ persistMariageForm(); ui.mariageDetailTab=action.slice(8)||"resume"; render(); window.scrollTo(0,0); return; }
-  if(action==="mar-back"){ persistMariageForm(); ui.mariageOpen=null; ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; render(); return; }
+  if(action==="mar-back"){
+    // V7.6.6 SAFE : revenir à la liste sans écrire ni marquer la fiche comme modifiée.
+    // Les données ne sont capturées qu'après une vraie action utilisateur puis Enregistrer.
+    ui.mariageOpen=null;
+    ui.mariageDetailTab="resume";
+    ui.mariageAtelierMode=false;
+    setManualDirty(false);
+    render();
+    return;
+  }
   if(action==="mar-save"){ persistMariageForm(); var saved=await manualSaveNow(); render(); if(saved) toast("Fiche enregistrée. Les montants du devis sont conservés."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
