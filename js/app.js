@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.8 SAFE — Détection réelle des modifications";
+var APP_VERSION="V7.6.9 SAFE — Navigation neutre + enregistrement réel";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -6984,14 +6984,29 @@ function newMariage(){
   // Toute création manuelle passe par l’assistant afin de sélectionner uniquement les créations réellement demandées.
   mariageRdvStart();
 }
-function captureMariageInputs(){
+function mariageBusinessSnapshot(m){
+  if(!m) return null;
+  var c=cloneSafe(m)||{};
+  // Champs techniques qui ne doivent jamais transformer une simple navigation en modification métier.
+  delete c.updatedAt;
+  delete c._safePendingMedia;
+  return c;
+}
+function captureMariageInputs(opts){
+  opts=opts||{};
   var m=getMariage(ui.mariageOpen); if(!m) return null;
+  var before=mariageBusinessSnapshot(m);
   var g=function(id){ var e=document.getElementById(id); return e?e.value:undefined; };
   ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","fleursAimees","besoins","synthese","relance","devisDate","factureDate","coutMatieres","rdvDateSouhaitee","rdvHeureSouhaitee"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
   captureMariagePrestations(m);
-  m.updatedAt=new Date().toISOString();
+  var changed=!sameJson(before,mariageBusinessSnapshot(m));
+  if(changed){
+    m.updatedAt=new Date().toISOString();
+    if(opts.markDirty!==false) setManualDirty(true);
+  }
+  m.__captureChanged=changed;
   return m;
 }
 function mariagePrestations(m){ return atelierPrestations(m); }
@@ -9827,9 +9842,9 @@ async function handleAction(action){
     toast("Atelier resynchronisé depuis le devis "+(rd.numero||"lié")+". Le devis, les besoins / mémo et la synthèse sont restés inchangés.");
     return;
   }
-  if(action==="mar-atelier-open"){ persistMariageForm(); ui.mariageAtelierMode=true; render(); mariageAtelierRestoreScroll(); return; }
+  if(action==="mar-atelier-open"){ persistMariageForm({syncRelated:false}); ui.mariageAtelierMode=true; render(); mariageAtelierRestoreScroll(); return; }
   if(action==="mar-atelier-close"){ mariageAtelierRememberScroll(); ui.mariageAtelierMode=false; render(); window.scrollTo(0,0); return; }
-  if(action.indexOf("mar-tab-")===0){ persistMariageForm(); ui.mariageDetailTab=action.slice(8)||"resume"; render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("mar-tab-")===0){ persistMariageForm({syncRelated:false}); ui.mariageDetailTab=action.slice(8)||"resume"; render(); window.scrollTo(0,0); return; }
   if(action==="mar-back"){
     // V7.6.7 SAFE : le garde situé au début de handleAction a déjà traité
     // les éventuelles modifications non enregistrées.
@@ -9840,7 +9855,7 @@ async function handleAction(action){
     render();
     return;
   }
-  if(action==="mar-save"){ persistMariageForm(); var saved=await manualSaveNow(); render(); if(saved) toast("Fiche enregistrée. Les montants du devis sont conservés."); return; }
+  if(action==="mar-save"){ persistMariageForm({syncRelated:true}); var saved=await manualSaveNow(); render(); if(saved) toast("Fiche enregistrée. Les montants du devis sont conservés."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
     var mariageSupprime=getMariage(mid);
@@ -10106,11 +10121,16 @@ function syncMariageLinkedDevis(m, opts){
 }
 function persistMariageForm(opts){
   opts=opts||{};
-  var m=captureMariageInputs();
+  var m=captureMariageInputs({markDirty:opts.markDirty!==false});
   if(!m) return null;
-  syncMariageContactToClient(m);
-  syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:opts.syncLines===true});
-  saveCache();
+  var changed=!!m.__captureChanged;
+  try{ delete m.__captureChanged; }catch(e){}
+  // Une simple navigation ne doit jamais toucher aux autres objets.
+  // La synchro contact/devis n'est autorisée qu'au clic explicite Enregistrer la fiche.
+  if(opts.syncRelated===true && changed){
+    syncMariageContactToClient(m);
+    syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:opts.syncLines===true});
+  }
   return m;
 }
 var mariageAutoSyncTimer=null;
