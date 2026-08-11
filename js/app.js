@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.9 SAFE — Navigation neutre + enregistrement réel";
+var APP_VERSION="V7.6.10 SAFE — Détection métier stable";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -1099,11 +1099,34 @@ var manualDirty=false;
 
 var marriageOpenBaseline=null;
 
+function normalizeMediaForDirtyCheck(md){
+  if(!md) return null;
+  // Ne garder que l'identité métier durable du média.
+  // Les URL Firebase peuvent être résolues après coup sans que l'utilisateur ait modifié la fiche.
+  return {
+    id: md.id||"",
+    name: md.name||md.nom||"",
+    type: md.type||"",
+    storagePath: md.storagePath||"",
+    source: md.source||"",
+    deleted: !!md.deleted
+  };
+}
 function currentMarriageSnapshotSafe(){
   try{
     if(!ui || !ui.mariageOpen) return null;
     var m=(state.mariages||[]).find(function(x){return x&&String(x.id)===String(ui.mariageOpen);});
-    return m?cloneSafe(m):null;
+    if(!m) return null;
+    var c=mariageBusinessSnapshot(m);
+    // Champs purement techniques / calculés qui peuvent évoluer sans action utilisateur.
+    delete c.__captureChanged;
+    delete c.updatedAt;
+    delete c._safePendingMedia;
+    delete c._safeMediaHydrated;
+    if(Array.isArray(c.medias)){
+      c.medias=c.medias.map(normalizeMediaForDirtyCheck);
+    }
+    return cloneSafe(c);
   }catch(e){ return null; }
 }
 function markMarriageBaseline(){
@@ -1163,6 +1186,7 @@ function fieldLabelSafe(path){
   return labels[last]||last||"Champ";
 }
 function mergeValue3(base,local,remote,path,conflicts){
+  if(/(^|\.)updatedAt$/.test(String(path||""))) return cloneSafe(remote!==undefined?remote:local);
   if(sameJson(local,remote)) return cloneSafe(local);
   if(sameJson(local,base)) return cloneSafe(remote);
   if(sameJson(remote,base)) return cloneSafe(local);
