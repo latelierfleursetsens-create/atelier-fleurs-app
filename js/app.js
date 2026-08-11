@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.11 SAFE — Suppression inspirations synchronisée";
+var APP_VERSION="V7.6.12 SAFE — Navigation neutre renforcée";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -1120,6 +1120,10 @@ function currentMarriageSnapshotSafe(){
     delete c._safeMediaHydrated;
     if(Array.isArray(c.medias)){
       c.medias=c.medias.map(normalizeMediaForDirtyCheck);
+    }
+    // undefined et [] sont équivalents pour ces collections facultatives.
+    if(!Array.isArray(c.prestationsComplementaires) || !c.prestationsComplementaires.length){
+      c.prestationsComplementaires=[];
     }
     return cloneSafe(c);
   }catch(e){ return null; }
@@ -7019,7 +7023,9 @@ function captureMariageInputs(opts){
   ["nom","email","tel","canalCommunication","dateMariage","dateLivraison","modeLivraison","lieu","theme","budget","fleursAimees","besoins","synthese","relance","devisDate","factureDate","coutMatieres","rdvDateSouhaitee","rdvHeureSouhaitee"].forEach(function(k){
     var id="mar"+k.charAt(0).toUpperCase()+k.slice(1); var v=g(id); if(v!==undefined) m[k]=v;
   });
-  captureMariagePrestations(m);
+  // V7.6.12 SAFE : les prestations complémentaires affichées dans la fiche
+  // sont en lecture seule. Une simple navigation ne doit jamais les reconstruire
+  // depuis le DOM ni remplacer une valeur existante par [].
   var changed=!sameJson(before,mariageBusinessSnapshot(m));
   if(changed){
     m.updatedAt=new Date().toISOString();
@@ -7045,8 +7051,10 @@ function mariageExtraLinesFromDOM(){
 }
 function captureMariagePrestations(m){
   if(!m) return;
+  // SAFE : cette zone est actuellement en lecture seule.
+  // N'autoriser une capture que si une future interface l'indique explicitement.
   var box=document.getElementById('marExtraBox');
-  if(!box) return;
+  if(!box || box.getAttribute('data-editable')!=='true') return;
   m.prestationsComplementaires=mariageExtraLinesFromDOM();
 }
 function refreshMariageExtraTotalsFromDOM(){
