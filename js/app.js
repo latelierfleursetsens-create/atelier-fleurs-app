@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.7 SAFE — Enregistrement manuel + conflits multi-appareil";
+var APP_VERSION="V7.6.8 SAFE — Détection réelle des modifications";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -1096,6 +1096,25 @@ var lastUserInteractionAt=0;
 var SAVE_QUIET_MS=1800;
 var LOCAL_SAVE_QUIET_MS=6000;
 var manualDirty=false;
+
+var marriageOpenBaseline=null;
+
+function currentMarriageSnapshotSafe(){
+  try{
+    if(!ui || !ui.mariageOpen) return null;
+    var m=(state.mariages||[]).find(function(x){return x&&String(x.id)===String(ui.mariageOpen);});
+    return m?cloneSafe(m):null;
+  }catch(e){ return null; }
+}
+function markMarriageBaseline(){
+  marriageOpenBaseline=currentMarriageSnapshotSafe();
+}
+function marriageActuallyChanged(){
+  var cur=currentMarriageSnapshotSafe();
+  if(!marriageOpenBaseline && !cur) return false;
+  return !sameJson(cur, marriageOpenBaseline);
+}
+
 var manualSaving=false;
 var manualSyncReady=false;
 var baselineCloud=null;
@@ -1254,7 +1273,7 @@ function manualSaveNow(){
       tx.set(docRef,{data:JSON.stringify(resolved),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); return resolved;
     });});
   }).then(function(mergedData){
-    baselineCloud=cloneSafe(mergedData); applyRemote(mergedData); manualDirty=false; remoteChangedWhileDirty=false;
+    baselineCloud=cloneSafe(mergedData); applyRemote(mergedData); manualDirty=false; remoteChangedWhileDirty=false; markMarriageBaseline();
     try{localStorage.removeItem("afs_cache");}catch(e){}
     pendingMariagesMarkSaved(); cloudStatus("🟢 Enregistré"); setManualDirty(false);
     publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish();
@@ -9003,6 +9022,7 @@ async function sendRelanceDevis(doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
   if(action==="manual-save"){ await manualSaveNow(); return; }
+  if(action && ui && ui.mariageOpen && marriageActuallyChanged()) manualDirty=true;
   if(manualDirty && action && (action.indexOf("nav-")===0 || action==="dem-back" || action==="mar-back" || action.indexOf("dem-open-")===0 || action.indexOf("mar-open-")===0)){
     if(!confirm("Cette fiche contient des modifications non enregistrées.\n\nOK = enregistrer avant de continuer\nAnnuler = rester sur cette fiche")) return;
     var ok=await manualSaveNow(); if(!ok) return;
@@ -9760,7 +9780,7 @@ async function handleAction(action){
     else { toast("Cette photo d’inspiration est indisponible."); }
     return;
   }
-  if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); window.scrollTo(0,0); return; }
+  if(action.indexOf("mar-open-")===0){ ui.tab="clientsModule"; ui.clientsSub="mariages"; ui.mariageOpen=action.slice(9); ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; ui.atelierOpen=null; ui.commandeOpen=null; ui.confirmDelete=null; render(); markMarriageBaseline(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-livre-")===0){ var ml=getMariage(action.slice(10)); if(ml){ ml.livre=true; ml.dateLivree=ml.dateLivree||todayISO(); ml.statut="realise"; saveCache(); render(); toast("Fiche classée en terminée."); } return; }
   if(action==="mar-livre-toggle"){ var mt=getMariage(ui.mariageOpen); if(mt){ mt.livre=!mt.livre; mt.dateLivree=mt.livre?todayISO():""; if(mt.livre) mt.statut="realise"; captureMariageInputs(); saveCache(); render(); } return; }
   if(action==="mar-sans-suite"){
@@ -9814,6 +9834,7 @@ async function handleAction(action){
     // V7.6.7 SAFE : le garde situé au début de handleAction a déjà traité
     // les éventuelles modifications non enregistrées.
     ui.mariageOpen=null;
+    marriageOpenBaseline=null;
     ui.mariageDetailTab="resume";
     ui.mariageAtelierMode=false;
     render();
