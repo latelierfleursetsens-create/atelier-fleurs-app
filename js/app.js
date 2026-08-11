@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.13 SAFE — État de navigation fiabilisé";
+var APP_VERSION="V7.6.14 SAFE — Aucun changement métier passif au démarrage";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -672,37 +672,16 @@ function startSecurePortalRequests(){
     var incoming=[]; qs.forEach(function(doc){ incoming.push(portalProjectToDemande(doc)); });
     var secureIds={}; incoming.forEach(function(x){secureIds[x.id]=true;});
     state.demandesMariage=state.demandesMariage.filter(function(x){return !x.securePortal || secureIds[x.id];});
-    var linkedRdvChanged=false;
     incoming.forEach(function(x){
       var i=state.demandesMariage.findIndex(function(d){return d.id===x.id;});
       if(i>=0){ var old=state.demandesMariage[i]; x.statut=old.statut||x.statut; state.demandesMariage[i]=Object.assign({},old,x); }
       else state.demandesMariage.unshift(x);
-
-      // Sécurité V7.5.9 : une modification cliente ne réécrit jamais les besoins,
-      // créations ou devis existants. Seuls les champs du RDV téléphonique sont
-      // autorisés à suivre automatiquement la demande, car ils alimentent aussi
-      // le calendrier Apple.
-      var linked=(state.mariages||[]).find(function(m){
-        return m && (m.sourceDemandeId===x.id || (x.ownerUid && m.ownerUid===x.ownerUid));
-      });
-      if(linked){
-        var nd=x.rdvDateSouhaitee||"", nh=x.rdvHeureSouhaitee||"", ns=x.souhaiteRdvTelephonique||"";
-        if((linked.rdvDateSouhaitee||"")!==nd || (linked.rdvHeureSouhaitee||"")!==nh || (linked.souhaiteRdvTelephonique||"")!==ns){
-          linked.rdvDateSouhaitee=nd;
-          linked.rdvHeureSouhaitee=nh;
-          linked.souhaiteRdvTelephonique=ns;
-          linked.updatedAt=new Date().toISOString();
-          linkedRdvChanged=true;
-        }
-      }
+      // V7.6.14 SAFE :
+      // les informations reçues du portail restent dans la demande sécurisée.
+      // Elles ne modifient plus automatiquement la fiche mariage liée.
+      // Toute intégration dans la fiche principale doit résulter d'une action
+      // volontaire de l'utilisateur puis d'un clic sur Enregistrer.
     });
-    if(linkedRdvChanged){
-      // Enregistre la fiche liée puis republie le flux immédiatement. Le publish
-      // est également relancé après la sauvegarde cloud, ce qui garde un filet
-      // de sécurité si la première tentative réseau échoue.
-      saveCache();
-      scheduleCalendarPublish();
-    }
     // Ne jamais reconstruire toute l’interface pendant la saisie d’un champ :
     // cela ferait perdre le focus après chaque enregistrement automatique.
     schedulePassiveRender();
@@ -710,34 +689,13 @@ function startSecurePortalRequests(){
 }
 function startSecurePortalDocumentDecisions(){
   if(portalDocumentsUnsub) portalDocumentsUnsub();
-  portalDocumentsUnsub=db.collection("portalDocuments").where("kind","==","devis").onSnapshot(async function(qs){
-    var changed=false;
-    qs.forEach(function(doc){
-      var x=doc.data()||{};
-      if(!x.sourceId||!x.clientDecision) return;
-      var d=(state.devis||[]).find(function(v){return v.id===x.sourceId;});
-      if(!d) return;
-      if(x.clientDecision==="accepted" && d.statut!=="accepte"){
-        d.statut="accepte";
-        d.accepteParClienteLe=x.clientDecisionAt&&x.clientDecisionAt.toDate?x.clientDecisionAt.toDate().toISOString():new Date().toISOString();
-        d.accepteParClienteNom=x.clientDecisionName||"";
-        d.accepteParClienteEmail=x.clientDecisionEmail||"";
-        d.validationPortail=true;
-        var pm=state.mariages.find(function(m){return m.devisLie===d.id || m.id===d.mariageId;});
-        if(pm) mariageAddHistory(pm,"Devis "+(d.numero||"")+" validé en ligne par la cliente"+(d.accepteParClienteNom?" ("+d.accepteParClienteNom+")":"")+".");
-        changed=true;
-      }
-      if(x.clientDecision==="changes_requested"){
-        var note="Modification demandée depuis l’espace client"+(x.clientDecisionMessage?" : "+x.clientDecisionMessage:"");
-        if(d.demandeModificationPortail!==note){ d.demandeModificationPortail=note; changed=true; }
-      }
-    });
-    if(changed){
-      saveCache();
-      // V7.6 SAFE : la validation reçue est visible, mais la base principale
-      // n'est écrite qu'après clic volontaire sur Enregistrer.
-      try{render();}catch(e){}
-    }
+  portalDocumentsUnsub=db.collection("portalDocuments").where("kind","==","devis").onSnapshot(function(qs){
+    // V7.6.14 SAFE :
+    // lecture seule des décisions clientes. Elles restent dans portalDocuments
+    // et ne modifient plus state.devis au chargement ou en arrière-plan.
+    // Cela empêche un démarrage de MyBusiness de devenir artificiellement
+    // "modifications locales non enregistrées".
+    schedulePassiveRender();
   },function(err){console.error("Lecture validations portail impossible",err);});
 }
 function clientSafeLines(lines){return (Array.isArray(lines)?lines:[]).map(function(l){
@@ -1036,13 +994,16 @@ function applyData(d){
   normalizeSiteSalesData();
   reconcileSiteSaleParticipants();
 }
+var applyingRemoteState=false;
 function applyRemote(d){
-  // V7.6.11 SAFE : quand aucune modification locale n'est en attente, la version
-  // Firebase fait foi, y compris pour une suppression volontaire d'inspiration.
-  // Les ajouts non enregistrés restent protégés par manualDirty : le listener
-  // n'appelle pas applyRemote tant qu'une fiche contient des changements locaux.
-  applyData(d);
-  try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
+  // V7.6.14 SAFE : appliquer Firebase est une lecture, jamais une modification utilisateur.
+  applyingRemoteState=true;
+  try{
+    applyData(d);
+    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
+  }finally{
+    applyingRemoteState=false;
+  }
 }
 function loadCache(){ try{ var raw=localStorage.getItem("afs_cache"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
 
@@ -1176,11 +1137,13 @@ function schedulePassiveRender(){
 function runLocalCacheSave(){ /* désactivé en V7.6 SAFE */ }
 function scheduleLocalCacheSave(){ /* désactivé en V7.6 SAFE */ }
 function saveCache(){
+  if(applyingRemoteState) return;
   lastLocalMutationAt=Date.now();
   setManualDirty(true);
 }
 function saveCloud(){
   // Compatibilité avec l'ancien code : aucune écriture automatique.
+  if(applyingRemoteState) return;
   setManualDirty(true);
 }
 
