@@ -1,10 +1,10 @@
 /* V7.5.9 PROD — Fluidité navigation + synchronisation RDV portail vers calendrier Apple. */
 "use strict";
 
-var APP_VERSION="V7.5.13 TEST — Suivi commercial mariage";
-var APP_VERSION_NOTE = "Configurateur mariage TEST : réutilisation des visuels de tailles et transmission sécurisée des choix vers l’espace mariage, sans modifier les données existantes.";
+var APP_VERSION="V7.5.11 TEST — Suivi commercial mariage";
+var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
-  "V7.5.13 TEST — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
+  "V7.5.11 TEST — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
   "V7.5.9 PROD — Fluidité : les sauvegardes locales/cloud en attente sont repoussées dès le premier toucher/clic afin de laisser la priorité à la navigation. Calendrier : les changements de RDV téléphonique reçus depuis l’espace mariage mettent à jour uniquement les champs RDV de la fiche liée et déclenchent une republication du flux Apple.",
   "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
   "V7.5.6 TEST — Paiement mariage : mail de confirmation à 6 à 8 semaines et avancement du dossier selon les factures payées.",
@@ -8690,7 +8690,6 @@ function campaignEmailHtml(body,d){
   '</div></div></div></div>';
 }
 function viewCommunication(){
-  var acquisitionCard='<div class="card" style="border-color:var(--gold-s);background:#fffaf5;"><div class="flexb"><div><h3 style="margin:0;">🚀 Acquisition mariage — TEST</h3><div class="muted" style="font-size:12px;margin-top:3px;">Page publique TEST : le configurateur envoie uniquement vers espace-mariage-test. L’espace mariage PROD n’est pas modifié.</div></div><a class="btn small primary" href="acquisition-mariage.html" target="_blank" rel="noopener">Ouvrir la page test</a></div></div>';
   var today=todayISO();
   var cutoff=(ui.campaignCutoff||today);
   var list=campaignEligibleDevis(cutoff);
@@ -8699,7 +8698,7 @@ function viewCommunication(){
   ui.campaignSelected=selected;
   var rows=list.length?list.map(function(d){var v=campaignVars(d);return '<tr><td><input type="checkbox" data-campaign-id="'+esc(d.id)+'" '+(selected[d.id]!==false?'checked':'')+'></td><td><b>'+esc(d.client.nom||'')+'</b><br><span class="muted">'+esc(d.client.email||'')+'</span></td><td>'+esc(d.numero||'')+'</td><td>'+esc(campaignDateSent(d)?frDate(campaignDateSent(d)):'—')+'</td><td>'+esc(v.dateMariage||'—')+'</td></tr>';}).join(''):'<tr><td colspan="5" class="muted">Aucun devis correspondant.</td></tr>';
   var history=(state.emails||[]).filter(function(e){return e&&e.type==="campagne";}).slice(0,15).map(function(e){return '<div class="card" style="margin-top:8px;"><b>'+esc(e.objet||'Campagne')+'</b><div class="muted">'+esc(e.date?new Date(e.date).toLocaleString('fr-FR'):'')+' · '+Number(e.envoyes||0)+' envoyé(s) · '+Number(e.erreurs||0)+' erreur(s)</div></div>';}).join('')||'<div class="muted">Aucune campagne envoyée.</div>';
-  return '<div class="section-head"><div><h2>Communication</h2><p class="muted">Campagnes e-mail personnalisées</p></div></div>'+acquisitionCard+
+  return '<div class="section-head"><div><h2>Communication</h2><p class="muted">Campagnes e-mail personnalisées</p></div></div>'+
   '<div class="card"><h3>1. Destinataires</h3><div class="inline"><label class="field"><span>Devis envoyés avant ou le</span><input type="date" id="campaignCutoff" value="'+esc(cutoff)+'"></label><div style="display:flex;align-items:flex-end;"><button class="btn soft" data-action="campaign-refresh">Actualiser la sélection</button></div></div>'+
   '<div style="margin:10px 0;font-weight:700;color:var(--bordeaux);">'+list.length+' cliente(s) trouvée(s)</div>'+  '<div class="row-actions" style="margin:8px 0 10px;"><button class="btn small soft" data-action="campaign-select-all">✓ Tout cocher</button><button class="btn small ghost" data-action="campaign-select-none">☐ Tout décocher</button></div>'+  '<div style="overflow:auto;max-height:320px;"><table class="table"><thead><tr><th></th><th>Cliente</th><th>Devis</th><th>Envoyé le</th><th>Mariage</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
   '<div class="card"><h3>2. Message</h3><label class="field"><span>Objet</span><input id="campaignSubject" value="'+esc(ui.campaignSubject||'Concernant votre devis mariage {{numeroDevis}}')+'"></label>'+
