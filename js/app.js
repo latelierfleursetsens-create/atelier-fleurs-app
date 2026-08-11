@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.6 SAFE — Inspirations + vrai contrôle des modifications";
+var APP_VERSION="V7.6.7 SAFE — Enregistrement manuel + conflits multi-appareil";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -9003,7 +9003,7 @@ async function sendRelanceDevis(doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
   if(action==="manual-save"){ await manualSaveNow(); return; }
-  if(manualDirty && action && (action.indexOf("nav-")===0 || action==="dem-back" || action.indexOf("dem-open-")===0 || action.indexOf("mar-open-")===0)){
+  if(manualDirty && action && (action.indexOf("nav-")===0 || action==="dem-back" || action==="mar-back" || action.indexOf("dem-open-")===0 || action.indexOf("mar-open-")===0)){
     if(!confirm("Cette fiche contient des modifications non enregistrées.\n\nOK = enregistrer avant de continuer\nAnnuler = rester sur cette fiche")) return;
     var ok=await manualSaveNow(); if(!ok) return;
   }  if(action.indexOf("commercial-open-mar-")===0){
@@ -9811,12 +9811,11 @@ async function handleAction(action){
   if(action==="mar-atelier-close"){ mariageAtelierRememberScroll(); ui.mariageAtelierMode=false; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-tab-")===0){ persistMariageForm(); ui.mariageDetailTab=action.slice(8)||"resume"; render(); window.scrollTo(0,0); return; }
   if(action==="mar-back"){
-    // V7.6.6 SAFE : revenir à la liste sans écrire ni marquer la fiche comme modifiée.
-    // Les données ne sont capturées qu'après une vraie action utilisateur puis Enregistrer.
+    // V7.6.7 SAFE : le garde situé au début de handleAction a déjà traité
+    // les éventuelles modifications non enregistrées.
     ui.mariageOpen=null;
     ui.mariageDetailTab="resume";
     ui.mariageAtelierMode=false;
-    setManualDirty(false);
     render();
     return;
   }
