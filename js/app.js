@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.12 SAFE — Navigation neutre renforcée";
+var APP_VERSION="V7.6.13 SAFE — État de navigation fiabilisé";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -1091,6 +1091,11 @@ var lastUserInteractionAt=0;
 var SAVE_QUIET_MS=1800;
 var LOCAL_SAVE_QUIET_MS=6000;
 var manualDirty=false;
+
+function isMarriageEditorActive(){
+  return !!(ui && ui.tab==="clientsModule" && ui.clientsSub==="mariages" && ui.mariageOpen);
+}
+
 
 var marriageOpenBaseline=null;
 
@@ -9064,7 +9069,7 @@ async function sendRelanceDevis(doc){
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
   if(action==="manual-save"){ await manualSaveNow(); return; }
-  if(action && ui && ui.mariageOpen && marriageActuallyChanged()) manualDirty=true;
+  if(action && isMarriageEditorActive() && marriageActuallyChanged()) manualDirty=true;
   if(manualDirty && action && (action.indexOf("nav-")===0 || action==="dem-back" || action==="mar-back" || action.indexOf("dem-open-")===0 || action.indexOf("mar-open-")===0)){
     if(!confirm("Cette fiche contient des modifications non enregistrées.\n\nOK = enregistrer avant de continuer\nAnnuler = rester sur cette fiche")) return;
     var ok=await manualSaveNow(); if(!ok) return;
@@ -9223,6 +9228,8 @@ async function handleAction(action){
   if(action.indexOf("nav-")===0){
     var dest=action.slice(4);
     ui.wizard=null; ui.confirmDelete=null; ui.commandeOpen=null;
+    if(dest!=="mariages") ui.mariageOpen=null;
+    if(dest!=="demandesMariage") ui.demandeMariageOpen=null;
     if(["clients","demandesMariage","mariages","ateliers","commandes","ventesSite","encaissements"].indexOf(dest)>=0){
       ui.tab="clientsModule"; ui.clientsSub=dest;
       if(dest!=="ateliers") ui.atelierOpen=null;
@@ -10406,13 +10413,24 @@ function refreshWizardTotals(){
 // l'utilisatrice voit qu'un enregistrement manuel est nécessaire.
 document.addEventListener("input",function(e){
   var t=e.target; if(!t) return;
-  if((ui&&ui.mariageOpen)||(ui&&ui.demandeMariageOpen)){
-    if(t.id!=="globalSearchInput") setManualDirty(true);
+  if(t.id==="globalSearchInput") return;
+  if(isMarriageEditorActive()){
+    setManualDirty(true);
+    return;
+  }
+  if(ui && ui.tab==="clientsModule" && ui.clientsSub==="demandesMariage" && ui.demandeMariageOpen){
+    setManualDirty(true);
   }
 });
 document.addEventListener("change",function(e){
   var t=e.target; if(!t) return;
-  if((ui&&ui.mariageOpen)||(ui&&ui.demandeMariageOpen)) setManualDirty(true);
+  if(isMarriageEditorActive()){
+    setManualDirty(true);
+    return;
+  }
+  if(ui && ui.tab==="clientsModule" && ui.clientsSub==="demandesMariage" && ui.demandeMariageOpen){
+    setManualDirty(true);
+  }
 });
 
 /* ===================== Démarrage ===================== */
