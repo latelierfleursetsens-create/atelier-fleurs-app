@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.10 SAFE — Détection métier stable";
+var APP_VERSION="V7.6.11 SAFE — Suppression inspirations synchronisée";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -1037,16 +1037,11 @@ function applyData(d){
   reconcileSiteSaleParticipants();
 }
 function applyRemote(d){
-  var localMedias={}; state.mariages.forEach(function(m){ localMedias[m.id]=(m.medias||[]).slice(); });
+  // V7.6.11 SAFE : quand aucune modification locale n'est en attente, la version
+  // Firebase fait foi, y compris pour une suppression volontaire d'inspiration.
+  // Les ajouts non enregistrés restent protégés par manualDirty : le listener
+  // n'appelle pas applyRemote tant qu'une fiche contient des changements locaux.
   applyData(d);
-  state.mariages.forEach(function(m){
-    var local=localMedias[m.id]||[];
-    m.medias=Array.isArray(m.medias)?m.medias:[];
-    if(!local.length) return;
-    var known={};
-    m.medias.forEach(function(md){ var k=(md&& (md.storagePath||md.url||md.dataUrl||md.data||md.id))||""; if(k) known[k]=true; });
-    local.forEach(function(md){ var k=(md&& (md.storagePath||md.url||md.dataUrl||md.data||md.id))||""; if(k&&!known[k]){m.medias.push(md);known[k]=true;} });
-  });
   try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
 }
 function loadCache(){ try{ var raw=localStorage.getItem("afs_cache"); if(raw){ applyData(JSON.parse(raw).data); } }catch(e){} }
