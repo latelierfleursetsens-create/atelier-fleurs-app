@@ -1,9 +1,11 @@
-/* V7.5.9 PROD — Fluidité navigation + synchronisation RDV portail vers calendrier Apple. */
+/* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.5.11 PROD — Suivi commercial mariage";
+var APP_VERSION="V7.6.4 SAFE — Sauvegarde Drive 365 jours + verrou multi-appareil";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
+  "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
+  "V7.6.3 SAFE — Neutralisation des réinjections locales héritées (pending mariages / cache portail) : seule la base cloud et le portail sécurisé en temps réel peuvent alimenter MyBusiness. V7.6.2 SAFE — Fusion champ par champ et comparaison interactive des conflits.",
   "V7.5.11 PROD — Calendrier Apple : dates de mariage et livraisons synchronisées uniquement après paiement d’un acompte mariage ou d’une facture mariage 100 %. Les RDV téléphoniques restent visibles avant confirmation.",
   "V7.5.9 PROD — Fluidité : les sauvegardes locales/cloud en attente sont repoussées dès le premier toucher/clic afin de laisser la priorité à la navigation. Calendrier : les changements de RDV téléphonique reçus depuis l’espace mariage mettent à jour uniquement les champs RDV de la fiche liée et déclenchent une republication du flux Apple.",
   "V7.5.8 PROD — Fiches mariage : nouvel onglet Refusés / sans suite, classement manuel avec motif et réactivation possible. Le dernier devis lié non accepté est classé refusé pour fiabiliser l’analyse commerciale.",
@@ -144,7 +146,7 @@ var state = { settings:Object.assign({},DEFAULT_SETTINGS), catalogue:[], clients
 var ui = { tab:"accueil", wizard:null, factureDraft:null, commandeDraft:null, commandeOpen:null, preview:null, anneeDash:new Date().getFullYear(), dirty:false, baseName:null, mariageOpen:null, demandeMariageOpen:null, demandeMariageFilter:"nouvelles", mariageFilter:"avenir", mariageStageFilter:"preparation", mariageView:"fiches", lightbox:null, wizardLinkMariage:null, clientOpen:null, monthDetail:null, confirmDelete:null, achatDraft:null, mariageGroups:null, atelierOpen:null, clientsSub:"clients", documentsSub:"devis", financesSub:"vue", pendingPaymentsModal:false, paymentPrompt:null, todoEditing:false, todoSaveTimer:null, globalSearch:"", tresoYear:new Date().getFullYear(), tresoMonth:new Date().getMonth()+1, versionNotesModal:false, mariageRdvDraft:null, mariageDetailTab:"resume", mariageAtelierMode:false, mariageAtelierScroll:{}, stockRecipeModel:"", stockRecipeFocusItem:"", stockSearch:"", stockCategoryFilter:"", stockEditId:null, atelierLibraryEditId:null, atelierLibrarySearch:"", atelierLibraryStatus:"all", stockSub:"articles", siteSaleEditingId:null, devisEditForceVersion:false, factureEditForceVersion:false, calendarWorkerStatus:"unknown", calendarWorkerMessage:"", reminderWorkerStatus:"unknown", reminderWorkerMessage:"", financeSalesExpanded:false, financePendingMariagesExpanded:false, financePendingAteliersExpanded:false };
 var fileHandle = null;
 window.addEventListener("beforeunload",function(e){
-  if(documentEditorHasUnsavedChanges("devis")||documentEditorHasUnsavedChanges("facture")){ e.preventDefault(); e.returnValue=""; }
+  if(manualDirty||documentEditorHasUnsavedChanges("devis")||documentEditorHasUnsavedChanges("facture")){ e.preventDefault(); e.returnValue=""; }
 });
 
 
@@ -647,7 +649,7 @@ firebase.initializeApp(firebaseConfig);
 var auth=firebase.auth();
 var db=firebase.firestore();
 var storage=firebase.storage();
-try{ db.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
+/* V7.6 SAFE : pas de persistance Firestore multi-onglets pour la base principale. */
 var docRef=null, cloudTimer=null, lastLocalMutationAt=0;
 
 var portalProjectsUnsub=null, portalDocumentsUnsub=null;
@@ -732,7 +734,8 @@ function startSecurePortalDocumentDecisions(){
     });
     if(changed){
       saveCache();
-      try{ await saveCloudNow(); }catch(syncErr){ console.error("Sauvegarde de la validation portail impossible",syncErr); }
+      // V7.6 SAFE : la validation reçue est visible, mais la base principale
+      // n'est écrite qu'après clic volontaire sur Enregistrer.
       try{render();}catch(e){}
     }
   },function(err){console.error("Lecture validations portail impossible",err);});
@@ -920,10 +923,8 @@ function serializeCloud(){
 }
 
 function portalRequestsLocalRead(){
-  try{
-    var list=JSON.parse(localStorage.getItem("afs_portal_requests")||"[]");
-    return Array.isArray(list)?list:[];
-  }catch(e){ return []; }
+  // V7.6.3 SAFE : un ancien cache navigateur ne doit jamais réinjecter une demande ou une photo.
+  return [];
 }
 function portalRequestLocalById(id){
   if(!id) return null;
@@ -941,9 +942,8 @@ function portalPhotosToMariageMedias(photos){
 }
 function restorePortalMarriageMedias(){
   if(!Array.isArray(state.mariages)) return 0;
-  var localRequests=portalRequestsLocalRead();
   var byId={};
-  localRequests.forEach(function(d){if(d&&d.id) byId[d.id]=d;});
+  // V7.6.3 SAFE : uniquement les demandes présentes dans l'état courant / portail sécurisé.
   (state.demandesMariage||[]).forEach(function(d){if(d&&d.id) byId[d.id]=d;});
   var restored=0;
   state.mariages.forEach(function(m){
@@ -964,32 +964,18 @@ function restorePortalMarriageMedias(){
   return restored;
 }
 
-function pendingMariagesRead(){
-  try{ var a=JSON.parse(localStorage.getItem("afs_pending_mariages")||"[]"); return Array.isArray(a)?a:[]; }catch(e){ return []; }
-}
+function pendingMariagesRead(){ return []; }
 function pendingMariagesWrite(list){
-  try{ localStorage.setItem("afs_pending_mariages",JSON.stringify(list||[])); }catch(e){ console.error("Sauvegarde de secours mariage impossible",e); }
+  // V7.6.3 SAFE : ancien secours local neutralisé pour empêcher toute réinjection d'une vieille fiche.
+  try{ localStorage.removeItem("afs_pending_mariages"); }catch(e){}
 }
-function pendingMariageForget(id){
-  if(!id) return;
-  pendingMariagesWrite(pendingMariagesRead().filter(function(x){return x&&x.id!==id;}));
-}
-function pendingMariagesMarkSaved(){
-  // Les secours ne servent que jusqu'à la confirmation d'une sauvegarde cloud réussie.
-  // Les conserver après synchronisation recréerait une fiche supprimée lors d'un prochain chargement.
-  pendingMariagesWrite([]);
-}
+function pendingMariageForget(id){ pendingMariagesWrite([]); }
+function pendingMariagesMarkSaved(){ pendingMariagesWrite([]); }
 function pendingMariageRemember(m){
-  if(!m||!m.id) return;
-  var light=Object.assign({},m); light.medias=[];
-  var list=pendingMariagesRead().filter(function(x){return x&&x.id!==light.id;});
-  list.unshift(light); pendingMariagesWrite(list.slice(0,30));
+  // Désactivé : une fiche non enregistrée reste uniquement en mémoire de la session jusqu'au clic Enregistrer.
 }
 function mergePendingMariages(){
-  var pending=pendingMariagesRead();
-  if(!pending.length) return;
-  if(!Array.isArray(state.mariages)) state.mariages=[];
-  pending.forEach(function(m){ if(m&&m.id&&!state.mariages.some(function(x){return x&&x.id===m.id;})) state.mariages.unshift(m); });
+  // Désactivé : aucune ancienne fiche locale ne peut être réinjectée au chargement cloud.
 }
 function applyData(d){
   if(!d) return;
@@ -1074,21 +1060,32 @@ function saveTodoCloudDelayed(){
   }, 1200);
 }
 
-// V7.3.3 — Les gros JSON (notamment les photos locales) pouvaient bloquer le navigateur
-// pendant 1 à 3 secondes. On regroupe maintenant les sauvegardes et on ne lance le travail
-// lourd qu'après une courte période sans clic/toucher. Les données métier restent modifiées
-// immédiatement en mémoire ; seule l'écriture persistante est différée.
+// V7.6.0 SAFE — la base principale n'est plus sauvegardée automatiquement.
+// Toute modification locale est d'abord marquée comme "non enregistrée".
+// Le bouton Enregistrer lance ensuite une transaction avec fusion fiche par fiche.
 var localSaveTimer=null;
 var passiveRenderTimer=null;
 var lastUserInteractionAt=0;
 var SAVE_QUIET_MS=1800;
 var LOCAL_SAVE_QUIET_MS=6000;
+var manualDirty=false;
+var manualSaving=false;
+var manualSyncReady=false;
+var baselineCloud=null;
+var remoteChangedWhileDirty=false;
+
+function cloneSafe(v){ try{return JSON.parse(JSON.stringify(v));}catch(e){return v;} }
+function stableJson(v){ try{return JSON.stringify(v===undefined?null:v);}catch(e){return String(v);} }
+function sameJson(a,b){ return stableJson(a)===stableJson(b); }
+function setManualDirty(on){
+  manualDirty=!!on;
+  var b=document.getElementById("manualSaveBtn");
+  if(b){ b.style.display=manualDirty?"inline-flex":"none"; b.disabled=manualSaving; }
+  if(manualDirty) cloudStatus("🟠 Modifications non enregistrées");
+  else if(manualSyncReady) cloudStatus("🟢 Base à jour");
+}
 function noteUserInteraction(){
   lastUserInteractionAt=Date.now();
-  // Si une sauvegarde lourde attendait précisément au moment où l’utilisatrice
-  // commence à naviguer, on la décale avant qu’elle ne puisse monopoliser le thread.
-  if(localSaveTimer){ clearTimeout(localSaveTimer); localSaveTimer=setTimeout(runLocalCacheSave,LOCAL_SAVE_QUIET_MS); }
-  if(cloudTimer){ clearTimeout(cloudTimer); cloudTimer=setTimeout(runCloudSave,SAVE_QUIET_MS); }
   if(passiveRenderTimer){ clearTimeout(passiveRenderTimer); passiveRenderTimer=setTimeout(runPassiveRender,700); }
 }
 function runPassiveRender(){
@@ -1103,79 +1100,163 @@ function schedulePassiveRender(){
   clearTimeout(passiveRenderTimer);
   passiveRenderTimer=setTimeout(runPassiveRender,120);
 }
-function runLocalCacheSave(){
-  localSaveTimer=null;
-  var since=Date.now()-(lastUserInteractionAt||0);
-  if(since<LOCAL_SAVE_QUIET_MS){
-    localSaveTimer=setTimeout(runLocalCacheSave, LOCAL_SAVE_QUIET_MS-since+100);
-    return;
-  }
-  try{
-    localStorage.setItem("afs_cache", JSON.stringify({data:serialize()}));
-  }catch(e){
-    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serializeCloud()})); }
-    catch(e2){ console.error("Cache local saturé",e2); }
-  }
-}
-function scheduleLocalCacheSave(){
-  clearTimeout(localSaveTimer);
-  localSaveTimer=setTimeout(runLocalCacheSave,LOCAL_SAVE_QUIET_MS);
-}
+function runLocalCacheSave(){ /* désactivé en V7.6 SAFE */ }
+function scheduleLocalCacheSave(){ /* désactivé en V7.6 SAFE */ }
 function saveCache(){
   lastLocalMutationAt=Date.now();
-  scheduleLocalCacheSave();
-  if(ui && ui.todoEditing) return;
-  saveCloud();
-}
-function runCloudSave(){
-  cloudTimer=null;
-  if(!docRef || (ui&&ui.todoEditing)) return;
-  var since=Date.now()-(lastUserInteractionAt||0);
-  if(since<SAVE_QUIET_MS){
-    cloudTimer=setTimeout(runCloudSave, SAVE_QUIET_MS-since+80);
-    return;
-  }
-  var cloudJson;
-  try{ cloudJson=JSON.stringify(serializeCloud()); }
-  catch(e){ cloudStatus("⚠️ Erreur de sauvegarde"); console.error(e); return; }
-  docRef.set({ data:cloudJson, updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); })
-    .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); });
+  setManualDirty(true);
 }
 function saveCloud(){
-  if(!docRef) return;
-  if(ui && ui.todoEditing) return;
-  cloudStatus("☁️ Enregistrement…");
-  clearTimeout(cloudTimer);
-  cloudTimer=setTimeout(runCloudSave,SAVE_QUIET_MS);
+  // Compatibilité avec l'ancien code : aucune écriture automatique.
+  setManualDirty(true);
 }
-function saveCloudNow(){
-  if(!docRef) return Promise.resolve();
-  clearTimeout(cloudTimer);
-  cloudStatus("☁️ Enregistrement…");
-  var payload=serializeCloud();
-  return docRef.set({ data:JSON.stringify(payload), updatedAt:firebase.firestore.FieldValue.serverTimestamp() })
-    .then(function(){ cloudStatus("☁️ Synchronisé ✓"); pendingMariagesMarkSaved(); scheduleCalendarPublish(); scheduleQuoteReminderPublish(); return publishSecureClientSpaces(); })
-    .catch(function(e){ cloudStatus("⚠️ Hors-ligne (sera synchronisé)"); console.error(e); throw e; });
+
+function fieldLabelSafe(path){
+  var labels={nom:"Nom",email:"Email",tel:"Téléphone",dateMariage:"Date du mariage",dateLivraison:"Date de livraison",lieu:"Lieu",ville:"Ville",memo:"Mémo",synthese:"Synthèse",besoins:"Ses besoins",notes:"Notes",notesInternes:"Notes internes",notesAtelier:"Notes atelier",medias:"Inspirations",media:"Inspirations",inspirations:"Inspirations",articles:"Créations / articles",statut:"Statut"};
+  var last=String(path||"").split(".").pop().replace(/\[.*\]$/,'');
+  return labels[last]||last||"Champ";
 }
+function mergeValue3(base,local,remote,path,conflicts){
+  if(sameJson(local,remote)) return cloneSafe(local);
+  if(sameJson(local,base)) return cloneSafe(remote);
+  if(sameJson(remote,base)) return cloneSafe(local);
+  var lObj=local&&typeof local==="object"&&!Array.isArray(local), rObj=remote&&typeof remote==="object"&&!Array.isArray(remote), bObj=base&&typeof base==="object"&&!Array.isArray(base);
+  if(lObj&&rObj){
+    var out={}, keys={}; Object.keys(bObj?base:{}).concat(Object.keys(local),Object.keys(remote)).forEach(function(k){keys[k]=true;});
+    Object.keys(keys).forEach(function(k){ out[k]=mergeValue3(bObj?base[k]:undefined,local[k],remote[k],path?path+"."+k:k,conflicts); });
+    return out;
+  }
+  if(Array.isArray(local)&&Array.isArray(remote)){
+    var allId=local.concat(remote,Array.isArray(base)?base:[]).every(function(x){return !x || typeof x!=="object" || x.id!=null;});
+    if(allId){
+      var bm={},lm={},rm={},order=[];
+      (Array.isArray(base)?base:[]).forEach(function(x){if(x&&x.id!=null)bm[String(x.id)]=x;});
+      local.forEach(function(x){if(x&&x.id!=null){lm[String(x.id)]=x;order.push(String(x.id));}});
+      remote.forEach(function(x){if(x&&x.id!=null){rm[String(x.id)]=x;if(order.indexOf(String(x.id))<0)order.push(String(x.id));}});
+      var ids={}; Object.keys(bm).concat(Object.keys(lm),Object.keys(rm)).forEach(function(id){ids[id]=true;});
+      var vals={}; Object.keys(ids).forEach(function(id){ vals[id]=mergeValue3(bm[id],lm[id],rm[id],path+"["+id+"]",conflicts); });
+      return order.filter(function(id){return vals[id]!==undefined;}).map(function(id){return vals[id];});
+    }
+  }
+  var c={path:path,label:fieldLabelSafe(path),base:cloneSafe(base),local:cloneSafe(local),remote:cloneSafe(remote),choice:null}; conflicts.push(c);
+  return {__SAFE_CONFLICT__:conflicts.length-1};
+}
+function mergeArrayById(base,local,remote,key,conflicts){
+  base=Array.isArray(base)?base:[]; local=Array.isArray(local)?local:[]; remote=Array.isArray(remote)?remote:[];
+  var bm={},lm={},rm={},order=[];
+  base.forEach(function(x){if(x&&x.id!=null)bm[String(x.id)]=x;});
+  local.forEach(function(x){if(x&&x.id!=null){lm[String(x.id)]=x;order.push(String(x.id));}});
+  remote.forEach(function(x){if(x&&x.id!=null){rm[String(x.id)]=x;if(order.indexOf(String(x.id))<0)order.push(String(x.id));}});
+  var ids={}; Object.keys(bm).concat(Object.keys(lm),Object.keys(rm)).forEach(function(id){ids[id]=true;});
+  var out={};
+  Object.keys(ids).forEach(function(id){
+    var b=bm[id],l=lm[id],r=rm[id];
+    if(l===undefined && r===undefined) return;
+    if(l===undefined && sameJson(r,b)) return;
+    if(r===undefined && sameJson(l,b)) return;
+    if(l===undefined || r===undefined){
+      if(sameJson(l,b)) out[id]=cloneSafe(r); else if(sameJson(r,b)) out[id]=cloneSafe(l); else out[id]=mergeValue3(b,l,r,key+"["+id+"]",conflicts);
+    }else out[id]=mergeValue3(b,l,r,key+"["+id+"]",conflicts);
+  });
+  return order.filter(function(id){return out[id]!==undefined;}).map(function(id){return out[id];});
+}
+function mergeCloudData(base,local,remote){
+  base=base||{}; local=local||{}; remote=remote||{};
+  var conflicts=[], out=cloneSafe(remote)||{};
+  var arrayKeys=["catalogue","clients","devis","factures","mariages","demandesMariage","encaissements","commandes","emails","achats","ventesSite","ateliers","stockItems"];
+  arrayKeys.forEach(function(k){ out[k]=mergeArrayById(base[k],local[k],remote[k],k,conflicts); });
+  ["settings","logo","todoList","shoppingList"].forEach(function(k){ out[k]=mergeValue3(base[k],local[k],remote[k],k,conflicts); });
+  out._meta=Object.assign({},remote._meta||{}, {savedAt:new Date().toISOString(), safeRevision:Number(remote&&remote._meta&&remote._meta.safeRevision||0)+1});
+  return {data:out,conflicts:conflicts};
+}
+function conflictText(v){
+  if(v===undefined) return "(absent)"; if(v===null) return "(vide)";
+  if(typeof v==="string") return v||"(vide)";
+  try{var t=JSON.stringify(v,null,2); return t.length>700?t.slice(0,700)+"…":t;}catch(e){return String(v);}
+}
+function resolveConflictPlaceholders(v,conflicts){
+  if(v&&typeof v==="object"&&v.__SAFE_CONFLICT__!==undefined){var c=conflicts[v.__SAFE_CONFLICT__];return cloneSafe(c.choice==="remote"?c.remote:c.local);}
+  if(Array.isArray(v)) return v.map(function(x){return resolveConflictPlaceholders(x,conflicts);});
+  if(v&&typeof v==="object"){var o={};Object.keys(v).forEach(function(k){o[k]=resolveConflictPlaceholders(v[k],conflicts);});return o;}
+  return v;
+}
+function showSafeConflictResolver(conflicts){
+  return new Promise(function(resolve){
+    var old=document.getElementById("safeConflictOverlay"); if(old)old.remove();
+    var ov=document.createElement("div"); ov.id="safeConflictOverlay"; ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999999;display:flex;align-items:center;justify-content:center;padding:18px";
+    var box=document.createElement("div"); box.style.cssText="background:#fff;max-width:900px;width:100%;max-height:90vh;overflow:auto;border-radius:16px;padding:20px";
+    box.innerHTML='<h2 style="margin-top:0">⚠️ Même fiche modifiée sur un autre appareil</h2><p><b>Aucune donnée n’a été écrasée.</b> Les changements faits dans des champs différents ont déjà été réunis. Choisis seulement quoi garder pour les champs modifiés des deux côtés.</p>'+
+      conflicts.map(function(c,i){return '<div style="border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0"><b>'+esc(c.label)+'</b><div class="muted" style="font-size:11px">'+esc(c.path)+'</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px"><label style="border:1px solid #ddd;border-radius:8px;padding:8px"><input type="radio" name="sc'+i+'" value="local" checked> <b>Mes modifications</b><pre style="white-space:pre-wrap;max-height:180px;overflow:auto">'+esc(conflictText(c.local))+'</pre></label><label style="border:1px solid #ddd;border-radius:8px;padding:8px"><input type="radio" name="sc'+i+'" value="remote"> <b>Autre appareil</b><pre style="white-space:pre-wrap;max-height:180px;overflow:auto">'+esc(conflictText(c.remote))+'</pre></label></div></div>';}).join('')+
+      '<div style="display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;padding-top:10px"><button class="btn ghost" id="safeConflictCancel">Rester sur ma fiche</button><button class="btn gold" id="safeConflictApply">Fusionner et enregistrer</button></div>';
+    ov.appendChild(box); document.body.appendChild(ov);
+    box.querySelector("#safeConflictCancel").onclick=function(){ov.remove();resolve(false);};
+    box.querySelector("#safeConflictApply").onclick=function(){conflicts.forEach(function(c,i){var r=box.querySelector('input[name="sc'+i+'"]:checked');c.choice=r?r.value:"local";});ov.remove();resolve(true);};
+  });
+}
+function captureCurrentRecordBeforeManualSave(){
+  try{
+    if(ui&&ui.mariageOpen){
+      var m=captureMariageInputs();
+      if(m){ syncMariageContactToClient(m); syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:false}); }
+    }else if(ui&&ui.demandeMariageOpen){
+      var d=demandeById(ui.demandeMariageOpen); if(d) saveDemandeFromView(d);
+    }
+  }catch(e){ console.error("Capture avant enregistrement",e); }
+}
+function manualSaveNow(){
+  captureCurrentRecordBeforeManualSave();
+  if(manualSaving) return Promise.resolve(false);
+  if(!manualDirty){ toast("Aucune modification à enregistrer."); return Promise.resolve(true); }
+  if(!docRef || !manualSyncReady || !baselineCloud){ toast("La base en ligne n’est pas encore prête. Réessaie dès que l’indicateur est vert."); return Promise.resolve(false); }
+  manualSaving=true; setManualDirty(true); cloudStatus("💾 Vérification puis comparaison avec les autres appareils…");
+  var local,base,remoteCompared,merged;
+  return ensureCurrentMariageMediaDurable().then(function(){
+    clearPendingMediaFlags(); local=serializeCloud(); base=cloneSafe(baselineCloud);
+    return docRef.get({source:"server"});
+  }).then(function(snap){
+    remoteCompared={}; if(snap.exists&&snap.data()&&snap.data().data) remoteCompared=JSON.parse(snap.data().data);
+    merged=mergeCloudData(base,local,remoteCompared);
+    if(!merged.conflicts.length) return true;
+    cloudStatus("🟠 Conflit à comparer"); return showSafeConflictResolver(merged.conflicts);
+  }).then(function(ok){
+    if(!ok) throw {safeCancelled:true};
+    var resolved=resolveConflictPlaceholders(merged.data,merged.conflicts);
+    return db.runTransaction(function(tx){return tx.get(docRef).then(function(snap){
+      var now={}; if(snap.exists&&snap.data()&&snap.data().data) now=JSON.parse(snap.data().data);
+      if(!sameJson(now,remoteCompared)){var e=new Error("REMOTE_CHANGED_AGAIN");e.safeRetry=true;throw e;}
+      tx.set(docRef,{data:JSON.stringify(resolved),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); return resolved;
+    });});
+  }).then(function(mergedData){
+    baselineCloud=cloneSafe(mergedData); applyRemote(mergedData); manualDirty=false; remoteChangedWhileDirty=false;
+    try{localStorage.removeItem("afs_cache");}catch(e){}
+    pendingMariagesMarkSaved(); cloudStatus("🟢 Enregistré"); setManualDirty(false);
+    publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish();
+    try{render();}catch(e){} toast("Modifications enregistrées. Les changements des autres appareils ont été conservés."); return true;
+  }).catch(function(err){
+    if(err&&err.safeCancelled){cloudStatus("🟠 Modifications non enregistrées");return false;}
+    if(err&&err.safeRetry){cloudStatus("🟠 Nouveaux changements détectés");alert("La fiche vient encore d’être modifiée sur un autre appareil. Aucune donnée n’a été écrasée. Clique de nouveau sur Enregistrer pour refaire la comparaison avec la toute dernière version.");}
+    else{cloudStatus("🔴 Enregistrement impossible");toast("Enregistrement impossible : "+(err&&err.message?err.message:"erreur réseau")+". Aucune donnée distante n’a été écrasée.");}
+    console.error(err);return false;
+  }).finally(function(){manualSaving=false;var b=document.getElementById("manualSaveBtn");if(b)b.disabled=false;});
+}
+function saveCloudNow(){ return manualSaveNow(); }
 function startSync(uidStr){
   docRef=db.collection("bases").doc(uidStr);
   docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
-    if(snap.metadata.hasPendingWrites) return; // notre propre écriture en cours
-    if(snap.exists){ var d=snap.data(); if(d && d.data){ try{
-      if(isTextEditing && isTextEditing()){ cloudStatus("☁️ Synchronisé ✓"); return; }
+    if(snap.metadata.hasPendingWrites) return;
+    if(snap.exists){ var d=snap.data(); if(d&&d.data){ try{
       var remoteData=JSON.parse(d.data);
-      var remoteSavedAt=Date.parse(remoteData&&remoteData._meta&&remoteData._meta.savedAt||"")||0;
-      // Une mutation locale récente ne doit jamais être écrasée par un ancien instantané Firebase
-      // reçu pendant le délai d'enregistrement cloud.
-      if(lastLocalMutationAt && remoteSavedAt && remoteSavedAt < lastLocalMutationAt){
-        cloudStatus("☁️ Enregistrement…");
-        return;
+      if(!manualSyncReady){
+        baselineCloud=cloneSafe(remoteData); manualSyncReady=true; applyRemote(remoteData);
+        try{ localStorage.removeItem("afs_pending_mariages"); localStorage.removeItem("afs_portal_requests"); }catch(_e){}
+        setManualDirty(false); schedulePassiveRender();
+      }else if(manualDirty){
+        remoteChangedWhileDirty=true; cloudStatus("🟠 Modifications locales + changement sur un autre appareil");
+      }else{
+        baselineCloud=cloneSafe(remoteData); applyRemote(remoteData); schedulePassiveRender(); cloudStatus("🟢 Base à jour");
       }
-      applyRemote(remoteData); schedulePassiveRender(); setTimeout(maybeAutoGoogleDriveBackup, 1200);
-    }catch(e){ console.error(e); } } }
-    cloudStatus(snap.metadata.fromCache ? "☁️ Hors-ligne (sera synchronisé)" : "☁️ Synchronisé ✓");
-  }, function(err){ cloudStatus("⚠️ Erreur de synchro"); console.error(err); });
+    }catch(e){console.error(e);} } }
+  }, function(err){ cloudStatus("🔴 Connexion base impossible"); console.error(err); });
 }
 function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) el.textContent=t; }
 function downloadJSON(text,name){
@@ -1195,32 +1276,144 @@ function googleDriveStatusText(){
   if(s.googleDriveLastFile) txt+=" · fichier : "+s.googleDriveLastFile;
   return txt;
 }
+var googleDriveNightTimer=null;
+var googleDriveNightRetryTimer=null;
+
+function googleDriveBackupData(){
+  // La sauvegarde nocturne doit refléter uniquement la dernière base validée
+  // dans Firebase. Les modifications locales non enregistrées n'y entrent jamais.
+  if(baselineCloud && typeof baselineCloud==="object") return cloneSafe(baselineCloud);
+  return serialize();
+}
+
+async function claimGoogleDriveBackupDay(){
+  if(!docRef) return false;
+  var day=todayISO(), now=Date.now(), leaseMs=5*60*1000;
+  var owner=(auth.currentUser&&auth.currentUser.uid?auth.currentUser.uid:"admin")+"-"+Math.random().toString(36).slice(2,10);
+  var claimed=false;
+  await db.runTransaction(function(tx){
+    return tx.get(docRef).then(function(snap){
+      if(!snap.exists) return;
+      var d=snap.data()||{};
+      if(d.googleDriveBackupDoneDay===day) return;
+      var leaseUntil=Number(d.googleDriveBackupLeaseUntil||0);
+      if(d.googleDriveBackupLeaseDay===day && leaseUntil>now) return;
+      claimed=true;
+      tx.set(docRef,{
+        googleDriveBackupLeaseDay:day,
+        googleDriveBackupLeaseUntil:now+leaseMs,
+        googleDriveBackupLeaseOwner:owner
+      },{merge:true});
+    });
+  });
+  return claimed?{day:day,owner:owner}:false;
+}
+
+async function finishGoogleDriveBackupClaim(claim, ok, out){
+  if(!docRef || !claim) return;
+  try{
+    await db.runTransaction(function(tx){
+      return tx.get(docRef).then(function(snap){
+        if(!snap.exists) return;
+        var d=snap.data()||{};
+        if(d.googleDriveBackupLeaseOwner!==claim.owner) return;
+        var patch={
+          googleDriveBackupLeaseUntil:0,
+          googleDriveBackupLeaseOwner:"",
+          googleDriveBackupLeaseDay:""
+        };
+        if(ok){
+          patch.googleDriveBackupDoneDay=claim.day;
+          patch.googleDriveBackupLastAt=new Date().toISOString();
+          patch.googleDriveBackupLastFile=out&&out.filename?out.filename:"";
+        }
+        tx.set(docRef,patch,{merge:true});
+      });
+    });
+  }catch(e){ console.error("Fin verrou sauvegarde Drive",e); }
+}
+
 async function googleDriveBackup(manual){
   var s=state.settings||{};
   var url=(s.googleDriveUrl||"").trim();
-  if(!url){ toast("Colle d'abord l'URL du script Google Drive dans Paramètres."); return; }
+  if(!url){ if(manual) toast("Colle d'abord l'URL du script Google Drive dans Paramètres."); return false; }
+
+  var claim=false;
   try{
-    if(manual) toast("Sauvegarde Google Drive en cours…");
-    var payload={ token:"atelier-fleurs-sauvegarde-2026", replaceToday:true, sourceDate:todayISO(), data:serialize() };
+    if(manual){
+      toast("Sauvegarde Google Drive en cours…");
+    }else{
+      claim=await claimGoogleDriveBackupDay();
+      if(!claim) return true; // déjà faite ou un autre appareil s'en charge
+    }
+
+    var payload={
+      token:"atelier-fleurs-sauvegarde-2026",
+      replaceToday:true,
+      oneFilePerDay:true,
+      retentionDays:365,
+      retentionCount:365,
+      sourceDate:todayISO(),
+      data:googleDriveBackupData()
+    };
     var res=await fetch(url,{ method:"POST", body:JSON.stringify(payload) });
     var txt=await res.text();
     var out={};
     try{ out=JSON.parse(txt); }catch(e){}
     if(!res.ok || out.success===false){ throw new Error(out.error||txt||("Erreur HTTP "+res.status)); }
+
     state.settings.googleDriveLast=todayISO();
     state.settings.googleDriveLastAt=new Date().toISOString();
     if(out.filename) state.settings.googleDriveLastFile=out.filename;
-    try{ localStorage.setItem("afs_cache", JSON.stringify({data:serialize()})); }catch(e){}
-    saveCloud();
-    if(manual) toast((out.replaced?"Sauvegarde du jour remplacée dans Google Drive.":"Sauvegarde créée dans Google Drive.")+(out.filename?" Fichier : "+out.filename:""));
-    render();
-  }catch(e){ console.error(e); if(manual) toast("Sauvegarde Google Drive impossible : "+(e&&e.message?e.message:"vérifie l'URL du script.")); }
+    if(claim) await finishGoogleDriveBackupClaim(claim,true,out);
+
+    if(manual){
+      toast((out.replaced?"Sauvegarde du jour mise à jour dans Google Drive.":"Sauvegarde créée dans Google Drive.")+(out.filename?" Fichier : "+out.filename:""));
+      try{render();}catch(e){}
+    }
+    return true;
+  }catch(e){
+    console.error(e);
+    if(claim) await finishGoogleDriveBackupClaim(claim,false,null);
+    if(manual) toast("Sauvegarde Google Drive impossible : "+(e&&e.message?e.message:"vérifie l'URL du script."));
+    return false;
+  }
 }
-function maybeAutoGoogleDriveBackup(){
+
+function msUntilNextNightBackup(){
+  var now=new Date(), target=new Date(now);
+  target.setHours(23,5,0,0);
+  if(now>=target) target.setDate(target.getDate()+1);
+  return Math.max(1000,target.getTime()-now.getTime());
+}
+
+function attemptNightlyGoogleDriveBackup(){
   var s=state.settings||{};
-  if(!s.googleDriveAuto || !s.googleDriveUrl) return;
-  if(s.googleDriveLast===todayISO()) return;
-  googleDriveBackup(false);
+  if(!s.googleDriveAuto || !s.googleDriveUrl || !manualSyncReady || !docRef) return Promise.resolve(false);
+  var now=new Date();
+  // Si l'application est ouverte après 23 h 05 et que la sauvegarde du jour
+  // n'a pas encore été faite, on tente immédiatement. Le verrou Firebase
+  // garantit qu'un seul appareil peut lancer le POST.
+  if(now.getHours()>23 || (now.getHours()===23 && now.getMinutes()>=5)){
+    return googleDriveBackup(false);
+  }
+  return Promise.resolve(false);
+}
+
+function scheduleNightlyGoogleDriveBackup(){
+  clearTimeout(googleDriveNightTimer);
+  clearTimeout(googleDriveNightRetryTimer);
+  // Contrôle court après ouverture : utile si MyBusiness est ouvert après 23 h 05.
+  googleDriveNightRetryTimer=setTimeout(function(){ attemptNightlyGoogleDriveBackup(); },5000);
+  googleDriveNightTimer=setTimeout(function(){
+    googleDriveBackup(false).finally(function(){ scheduleNightlyGoogleDriveBackup(); });
+  },msUntilNextNightBackup());
+}
+
+function maybeAutoGoogleDriveBackup(){
+  // Compatibilité avec les anciens appels : ne sauvegarde plus à chaque ouverture.
+  // Le déclenchement est désormais nocturne à 23 h 05 avec verrou multi-appareil.
+  scheduleNightlyGoogleDriveBackup();
 }
 
 async function googleDriveRestoreLatest(){
@@ -1355,7 +1548,7 @@ function linkAdminToGoogle(){
   }).then(function(){
     toast("Compte administrateur sécurisé avec Google.");
     var current=auth.currentUser;
-    if(current) return verifyMyBusinessAdmin(current).then(function(){ showApp(); loadCache(); render(); startSync(current.uid); startSecurePortalRequests(); startSecurePortalDocumentDecisions(); });
+    if(current) return verifyMyBusinessAdmin(current).then(function(){ showApp(); render(); startSync(current.uid); startSecurePortalRequests(); startSecurePortalDocumentDecisions(); });
   }).catch(function(e){
     console.error("Liaison Google impossible",e);
     if(box){ box.style.display="block"; box.textContent="Sécurisation impossible : "+(e&&e.message?e.message:"réessaie avec le compte Google correspondant à l’adresse administrateur."); }
@@ -6262,7 +6455,7 @@ function viewParams(){
   '<div class="card"><h3 style="margin:0 0 10px;">Sauvegarde automatique Google Drive</h3>'+
     '<p class="muted" style="margin-top:0;">Colle ici l’URL de ton script Google Apps Script. L’application pourra créer une sauvegarde JSON dans ton Google Drive.</p>'+
     '<label class="field"><span>URL du script Google Drive</span><input id="pGoogleDriveUrl" value="'+esc(s.googleDriveUrl||"")+'" placeholder="https://script.google.com/macros/s/.../exec"></label>'+
-    '<label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;"><input type="checkbox" id="pGoogleDriveAuto" '+(s.googleDriveAuto?'checked':'')+' style="width:18px;height:18px;"> Activer une sauvegarde automatique quotidienne dans Google Drive (une seule par jour)</label>'+
+    '<label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;"><input type="checkbox" id="pGoogleDriveAuto" '+(s.googleDriveAuto?'checked':'')+' style="width:18px;height:18px;"> Activer une sauvegarde automatique nocturne dans Google Drive (23 h 05 · une seule par jour · historique 365 jours)</label>'+
     '<div class="row-actions" style="margin-top:0;"><button class="btn gold" data-action="gdrive-save">Enregistrer l’URL Google Drive</button><button class="btn primary" data-action="gdrive-backup">Tester / créer une sauvegarde Google Drive</button><button class="btn danger" data-action="gdrive-restore-latest">Restaurer la dernière sauvegarde Google Drive</button></div>'+
     '<p class="muted" style="font-size:11px;margin:10px 0 0;">'+esc(googleDriveStatusText())+'</p></div>'+
   '<div class="card"><h3 style="margin:0 0 10px;">Logo</h3><div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">'+logoPrev+
@@ -6421,16 +6614,9 @@ function normalizePortalMedia(){
   (state.mariages||[]).forEach(function(m){ (m.medias||[]).forEach(function(md){ if(md&&!md.dataUrl&&md.data) md.dataUrl=md.data; }); });
 }
 function importPortalRequests(){
-  try{
-    normalizePortalMedia();
-    var raw=localStorage.getItem("afs_portal_requests"); var list=raw?JSON.parse(raw):[];
-    if(!Array.isArray(list)) return 0; var added=0;
-    list.forEach(function(r){ if(!(state.demandesMariage||[]).some(function(x){return x.id===r.id;})){ state.demandesMariage.unshift(r); added++; } });
-    normalizePortalMedia();
-    var selectionsFixed=normalizePortalMarriageSelections();
-    if(added||selectionsFixed){ saveCache(); }
-    return added;
-  }catch(e){ return 0; }
+  // V7.6.3 SAFE : les demandes arrivent uniquement via le listener Firebase sécurisé.
+  // Aucun cache local historique n'est importé dans la base active.
+  return 0;
 }
 function demandeById(id){ return (state.demandesMariage||[]).find(function(x){return x.id===id;}); }
 function demandePrestationsText(d){
@@ -7832,13 +8018,17 @@ function viewMariageDetail(m){
     '<p class="muted" style="margin:10px 0 0;font-size:12px;">Les cases « fait » et les notes atelier sont strictement internes à MyBusiness. Elles ne modifient jamais le devis, les besoins, le mémo ou la synthèse et ne sont jamais affichées dans l’espace client.</p></div>';
   // médias
   var medias=(m.medias||[]).map(function(md){
-    if(md.type==="image") return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+(md.dataUrl||md.data||"")+'" data-action="mar-media-open-'+md.id+'"><button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
+    if(md.type==="image"){
+      var src=md.url||md.dataUrl||md.data||"";
+      var pending=md._pendingAttach?'<span style="position:absolute;left:4px;bottom:4px;background:#fff4d6;border:1px solid #e5bd63;border-radius:999px;padding:2px 6px;font-size:10px;font-weight:800;">À enregistrer</span>':'';
+      return '<div style="position:relative;display:inline-block;"><img class="thumb" src="'+src+'" data-action="mar-media-open-'+md.id+'">'+pending+'<button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="position:absolute;top:-6px;right:-6px;padding:2px 7px;border-radius:50%;background:#fff;">×</button></div>';
+    }
     return '<span class="chip">📄 '+esc(md.name||"fichier")+' <button class="btn small ghost" data-action="mar-media-open-'+md.id+'" style="padding:2px 8px;">ouvrir</button> <button class="btn small danger" data-action="mar-media-del-'+md.id+'" style="padding:2px 8px;">×</button></span>';
   }).join("");
   var medCard='<div class="card"><h3 style="margin:0 0 8px;">Photos & inspirations</h3>'+ 
-    '<p class="muted" style="margin-top:0;">Exemples de bouquets, accessoires, palette de couleurs, documents…</p>'+ 
+    '<p class="muted" style="margin-top:0;">Les photos sont d’abord sécurisées dans Firebase Storage. <b>Après ajout ou suppression, clique sur 💾 Enregistrer</b> pour valider la fiche. Une photo enregistrée reste disponible sur tes autres appareils.</p>'+ 
     '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px;">'+(medias||'')+'</div>'+ 
-    '<button class="btn soft" data-action="mar-media-pick">+ Ajouter une image / un fichier</button></div>';
+    '<div class="row-actions"><button class="btn soft" data-action="mar-media-pick">+ Ajouter une photo</button><button class="btn gold" data-action="manual-save">💾 Enregistrer les inspirations</button></div></div>';
   // historique
   var hist=(m.historique||[]).map(function(h){ return '<div style="padding:6px 0;border-bottom:1px solid var(--line);"><span class="muted" style="font-size:12px;">'+frDate(h.date)+'</span><div>'+esc(h.texte)+'</div></div>'; }).join("");
   var histCard='<div class="card"><h3 style="margin:0 0 8px;">Notes internes datées</h3>'+ 
@@ -7912,8 +8102,8 @@ function safeStorageFileName(name){
   return String(name||"photo.jpg").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9._-]+/gi,"-").replace(/-+/g,"-").replace(/^-|-$/g,"")||"photo.jpg";
 }
 async function uploadMariageInspiration(m,file){
-  if(!m||!file||!auth.currentUser) throw new Error("Connexion requise pour enregistrer la photo.");
-  if(!/^image\//.test(file.type||"")) throw new Error("Seules les images peuvent être enregistrées dans les inspirations de la fiche mariage.");
+  if(!m||!file||!auth.currentUser) throw new Error("Connexion requise pour sécuriser la photo.");
+  if(!/^image\//.test(file.type||"")) throw new Error("Seules les images peuvent être ajoutées aux inspirations de la fiche mariage.");
   var compressed=await new Promise(function(resolve,reject){
     compressImage2(file,function(durl){ try{ resolve(durl); }catch(e){ reject(e); } });
   });
@@ -7922,8 +8112,39 @@ async function uploadMariageInspiration(m,file){
   var storagePath="clientUploads/"+auth.currentUser.uid+"/mybusiness/mariages/"+String(m.id||"sans-id")+"/"+Date.now()+"-"+safeStorageFileName(file.name||"photo.jpg");
   var ref=storage.ref().child(storagePath);
   await ref.put(blob,{contentType:blob.type||"image/jpeg",customMetadata:{source:"mybusiness",mariageId:String(m.id||"")}});
+  // V7.6.1 : on ne confirme jamais l'ajout avant d'avoir relu les métadonnées
+  // du fichier réellement présent dans Firebase Storage.
+  var meta=await ref.getMetadata();
+  if(!meta || Number(meta.size||0)<=0) throw new Error("Le stockage de la photo n’a pas pu être vérifié.");
   var url=await ref.getDownloadURL();
-  return {id:uid(),type:"image",name:file.name||"Inspiration",dataUrl:url,url:url,storagePath:storagePath,mime:blob.type||"image/jpeg",source:"mybusiness"};
+  if(!url) throw new Error("L’adresse permanente de la photo n’a pas pu être obtenue.");
+  return {id:uid(),type:"image",name:file.name||"Inspiration",dataUrl:url,url:url,storagePath:storagePath,mime:blob.type||"image/jpeg",source:"mybusiness",storageVerifiedAt:new Date().toISOString(),_pendingAttach:true};
+}
+async function migrateLegacyMariageMedia(m,md){
+  if(!m||!md||md.type!=="image") return md;
+  var src=md.dataUrl||md.data||"";
+  if(md.storagePath || /^https?:\/\//i.test(md.url||src)) return md;
+  if(String(src).indexOf("data:image/")!==0) return md;
+  if(!auth.currentUser) throw new Error("Connexion requise pour sécuriser une ancienne inspiration.");
+  var blob=dataUrlToBlob(src);
+  if(blob.size>=5*1024*1024) throw new Error("Une ancienne inspiration est trop lourde pour être sécurisée.");
+  var storagePath="clientUploads/"+auth.currentUser.uid+"/mybusiness/mariages/"+String(m.id||"sans-id")+"/legacy-"+Date.now()+"-"+safeStorageFileName(md.name||"inspiration.jpg");
+  var ref=storage.ref().child(storagePath);
+  await ref.put(blob,{contentType:blob.type||md.mime||"image/jpeg",customMetadata:{source:"mybusiness-legacy-migration",mariageId:String(m.id||"")}});
+  var meta=await ref.getMetadata();
+  if(!meta || Number(meta.size||0)<=0) throw new Error("Une ancienne inspiration n’a pas pu être vérifiée dans le stockage.");
+  var url=await ref.getDownloadURL();
+  md.url=url; md.dataUrl=url; md.storagePath=storagePath; md.source=md.source||"mybusiness-migrated"; md.storageVerifiedAt=new Date().toISOString(); md._pendingAttach=true;
+  return md;
+}
+async function ensureCurrentMariageMediaDurable(){
+  var m=ui&&ui.mariageOpen?getMariage(ui.mariageOpen):null;
+  if(!m || !Array.isArray(m.medias)) return true;
+  for(var i=0;i<m.medias.length;i++) await migrateLegacyMariageMedia(m,m.medias[i]);
+  return true;
+}
+function clearPendingMediaFlags(){
+  (state.mariages||[]).forEach(function(m){ (m.medias||[]).forEach(function(md){ if(md&&md._pendingAttach) delete md._pendingAttach; }); });
 }
 async function onMarMediaFiles(files){
   var m=getMariage(ui.mariageOpen); if(!m) return;
@@ -7931,7 +8152,7 @@ async function onMarMediaFiles(files){
   var arr=Array.prototype.slice.call(files||[]);
   if(!arr.length) return;
   var added=0, errors=[];
-  toast("Enregistrement de "+arr.length+" photo(s)…");
+  toast("Sécurisation de "+arr.length+" photo(s) dans le stockage…");
   for(var i=0;i<arr.length;i++){
     try{
       var item=await uploadMariageInspiration(m,arr[i]);
@@ -7941,13 +8162,12 @@ async function onMarMediaFiles(files){
   if(added){
     m.suiviMariage=m.suiviMariage||{}; m.suiviMariage.inspirations=true;
     m.historique=m.historique||[];
-    m.historique.unshift({date:new Date().toISOString(),texte:added+" photo(s) d’inspiration ajoutée(s) depuis la fiche mariage."});
+    m.historique.unshift({date:new Date().toISOString(),texte:added+" photo(s) d’inspiration préparée(s) et sécurisée(s) dans le stockage. En attente d’enregistrement de la fiche."});
     saveCache();
-    try{ await saveCloudNow(); }catch(syncErr){ console.error(syncErr); }
   }
   render();
-  if(errors.length) toast(added+" photo(s) ajoutée(s), "+errors.length+" erreur(s). Consulte la console.");
-  else if(added) toast(added+" photo(s) d’inspiration enregistrée(s).");
+  if(errors.length) toast(added+" photo(s) prête(s), "+errors.length+" erreur(s). Clique sur Enregistrer pour rattacher les photos à la fiche.");
+  else if(added) toast(added+" photo(s) sécurisée(s). Clique maintenant sur 💾 Enregistrer pour les rattacher définitivement à la fiche.");
 }
 function onRdvMediaFiles(files){
   var d=captureMariageRdvDraft(); d.medias=d.medias||[];
@@ -8755,7 +8975,11 @@ async function sendRelanceDevis(doc){
 /* ===================== Gestion des actions ===================== */
 function findDevis(id){ return state.devis.find(function(d){return d.id===id;}); }
 async function handleAction(action){
-  if(action.indexOf("commercial-open-mar-")===0){
+  if(action==="manual-save"){ await manualSaveNow(); return; }
+  if(manualDirty && action && (action.indexOf("nav-")===0 || action==="dem-back" || action.indexOf("dem-open-")===0 || action.indexOf("mar-open-")===0)){
+    if(!confirm("Cette fiche contient des modifications non enregistrées.\n\nOK = enregistrer avant de continuer\nAnnuler = rester sur cette fiche")) return;
+    var ok=await manualSaveNow(); if(!ok) return;
+  }  if(action.indexOf("commercial-open-mar-")===0){
     var cmid=action.slice(20); ui.tab="clientsModule";ui.clientsSub="mariages";ui.mariageView="fiches";ui.mariageOpen=cmid;ui.mariageDetailTab="resume";render();window.scrollTo(0,0);return;
   }
   if(action.indexOf("commercial-relance-")===0){await sendRelanceDevis(findDevis(action.slice(20)));return;}
@@ -8794,7 +9018,7 @@ async function handleAction(action){
   if(action==="dem-back"){ ui.demandeMariageOpen=null; render(); return; }
   if(action.indexOf("dem-open-")===0){ ui.demandeMariageOpen=action.slice(9); render(); window.scrollTo(0,0); return; }
   if(action.indexOf("dem-changes-viewed-")===0){var dv=demandeById(action.slice(19));if(dv){dv.clientModificationPending=false;(dv.clientModificationHistory||[]).forEach(function(h){h.viewed=true;});if(dv.securePortal&&dv.ownerUid){try{await db.collection("portalProjects").doc(dv.ownerUid).set({clientModificationPending:false,clientModificationHistory:dv.clientModificationHistory,clientModificationViewedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Consulté localement, mais la synchronisation portail a échoué.");}}saveCache();render();toast("Modifications marquées comme consultées.");}return;}
-  if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();if(ds.securePortal&&ds.ownerUid){try{await db.collection("portalProjects").doc(ds.ownerUid).set({statutAdmin:ds.statut||"nouvelle",notesInternes:ds.notesInternes||"",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Enregistré localement, mais la synchronisation portail a échoué.");}}render();toast("Demande enregistrée.");} return; }
+  if(action.indexOf("dem-save-")===0){ var ds=demandeById(action.slice(9)); if(ds){saveDemandeFromView(ds);saveCache();await manualSaveNow();if(ds.securePortal&&ds.ownerUid){try{await db.collection("portalProjects").doc(ds.ownerUid).set({statutAdmin:ds.statut||"nouvelle",notesInternes:ds.notesInternes||"",updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error(e);toast("Enregistré localement, mais la synchronisation portail a échoué.");}}render();toast("Demande enregistrée.");} return; }
   if(action.indexOf("dem-transform-")===0){
     var dt=demandeById(action.slice(14));
     if(dt){
@@ -9560,7 +9784,7 @@ async function handleAction(action){
   if(action==="mar-atelier-close"){ mariageAtelierRememberScroll(); ui.mariageAtelierMode=false; render(); window.scrollTo(0,0); return; }
   if(action.indexOf("mar-tab-")===0){ persistMariageForm(); ui.mariageDetailTab=action.slice(8)||"resume"; render(); window.scrollTo(0,0); return; }
   if(action==="mar-back"){ persistMariageForm(); ui.mariageOpen=null; ui.mariageDetailTab="resume"; ui.mariageAtelierMode=false; render(); return; }
-  if(action==="mar-save"){ persistMariageForm(); render(); toast("Fiche, contact et coordonnées du devis enregistrés. Les montants du devis sont conservés."); return; }
+  if(action==="mar-save"){ persistMariageForm(); var saved=await manualSaveNow(); render(); if(saved) toast("Fiche enregistrée. Les montants du devis sont conservés."); return; }
   if(action.indexOf("mar-del-")===0){ var mid=action.slice(8), key="mariage:"+mid;
     if(ui.confirmDelete!==key){ ui.confirmDelete=key; render(); toast("Retouche sur « Confirmer suppression » pour supprimer définitivement cette fiche mariage."); return; }
     var mariageSupprime=getMariage(mid);
@@ -9836,19 +10060,9 @@ function persistMariageForm(opts){
 var mariageAutoSyncTimer=null;
 var mariageAutoSyncLines=false;
 function scheduleMariageAutoSync(opts){
-  opts=opts||{};
-  if(opts.syncLines===true) mariageAutoSyncLines=true;
-  clearTimeout(mariageAutoSyncTimer);
-  mariageAutoSyncTimer=setTimeout(function(){
-    var m=getMariage(ui.mariageOpen);
-    if(!m) return;
-    var doLines=mariageAutoSyncLines;
-    mariageAutoSyncLines=false;
-    captureMariageInputs();
-    syncMariageContactToClient(m);
-    syncMariageLinkedDevis(m,{silent:true,updateClient:false,syncLines:doLines});
-    saveCache();
-  },700);
+  // V7.6 SAFE : aucune synchronisation automatique de la fiche vers client/devis.
+  // Les champs restent dans le formulaire jusqu'au clic explicite sur Enregistrer la fiche.
+  setManualDirty(true);
 }
 
 function val(id){ var e=document.getElementById(id); return e?e.value:""; }
@@ -10085,6 +10299,19 @@ function refreshWizardTotals(){
   var box=document.getElementById("wzTot"); if(box) box.innerHTML=wizTotHTML(wzTotals());
 }
 
+// V7.6 SAFE : dès qu'une fiche mariage ou une demande ouverte est modifiée,
+// l'utilisatrice voit qu'un enregistrement manuel est nécessaire.
+document.addEventListener("input",function(e){
+  var t=e.target; if(!t) return;
+  if((ui&&ui.mariageOpen)||(ui&&ui.demandeMariageOpen)){
+    if(t.id!=="globalSearchInput") setManualDirty(true);
+  }
+});
+document.addEventListener("change",function(e){
+  var t=e.target; if(!t) return;
+  if((ui&&ui.mariageOpen)||(ui&&ui.demandeMariageOpen)) setManualDirty(true);
+});
+
 /* ===================== Démarrage ===================== */
 function verifyMyBusinessAdmin(user){
   return db.collection("admins").doc(user.uid).get().then(function(snap){
@@ -10109,13 +10336,13 @@ auth.onAuthStateChanged(function(user){
           writeAdminSecurityLog("connexion_google","ok","Session administrateur validée");
         }
       }catch(e){}
-      loadCache();   // affichage instantané depuis le cache local
       render();
-      startSync(user.uid);  // puis synchro temps réel avec le cloud
+      startSync(user.uid);  // charge la base de référence depuis le cloud, sans cache local pouvant écraser des données
       startSecurePortalRequests();
       startSecurePortalDocumentDecisions();
       startReminderAutomaticSync();
-      setTimeout(maybeAutoGoogleDriveBackup, 2500);
+      // V7.6.4 SAFE : sauvegarde Drive nocturne à 23 h 05, une seule par jour tous appareils confondus.
+      scheduleNightlyGoogleDriveBackup();
     }).catch(function(err){
       console.error(err);
       try{ auth.signOut(); }catch(e){}

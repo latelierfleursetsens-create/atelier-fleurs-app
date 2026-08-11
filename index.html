@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<title>MyBusiness — V7.5.11 PROD</title>
+<title>MyBusiness — V7.6.1 SAFE</title>
 <!-- Version PROD V4.2.1 MODULAIRE : correctif fiche mariage / devis -->
 <!-- Version PROD V3.7.1 MODULAIRE : photos d’inspiration pendant le RDV et dans la fiche mariage -->
 <!-- Version PROD V3.6.3 MODULAIRE : CRM Mariage en onglets + retrait du bouton Nouvelle cliente -->
@@ -60,9 +60,10 @@
 
 <div id="appwrap" style="display:none;">
 <div class="topbar">
-  <span id="cloudStatus">☁️ Connexion…</span>
+  <span id="cloudStatus">🔄 Chargement base…</span>
   <span style="margin-left:10px;display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:5px 9px;font-size:11px;color:#fff;">🔐 Google sécurisé</span>
   <span style="flex:1"></span>
+  <button id="manualSaveBtn" class="btn small soft" data-action="manual-save" style="display:none;font-weight:800;">💾 Enregistrer</button>
   <button class="btn small ghost" data-action="cloud-backup" style="color:#fff;border-color:rgba(255,255,255,.4);">Sauvegarde fichier</button>
   <button class="btn small soft" data-action="do-logout">Se déconnecter</button>
 </div>
@@ -92,12 +93,12 @@
 </div>
 
 <input type="file" id="logoInput" accept="image/*" style="display:none" />
-<input type="file" id="marMedia" accept="image/*,application/pdf,.pdf,.doc,.docx" multiple style="display:none" />
+<input type="file" id="marMedia" accept="image/*" multiple style="display:none" />
 <input type="file" id="rdvMedia" accept="image/*,application/pdf,.pdf,.doc,.docx" multiple style="display:none" />
 <input type="file" id="encImport" accept=".csv,text/csv" style="display:none" />
 <input type="file" id="restoreInput" accept=".json,application/json" style="display:none" />
 
 <script src="js/mariage-creations.js?v=7.3.3-prod" defer></script>
-<script src="js/app.js?v=7.5.11-prod" defer></script>
+<script src="js/app.js?v=7.6.4-safe" defer></script>
 </body>
 </html>
