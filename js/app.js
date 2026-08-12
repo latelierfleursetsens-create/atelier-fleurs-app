@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.7.1 SAFE — Réparation transformations orphelines";
+var APP_VERSION="V7.7.2 SAFE — Réparation intelligente des liens mariage";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -1310,7 +1310,21 @@ function schedulePassiveRender(){
   passiveRenderTimer=setTimeout(runPassiveRender,120);
 }
 function runLocalCacheSave(){ /* désactivé en V7.6 SAFE */ }
-function scheduleLocalCacheSave(){ /* désactivé en V7.6 SAFE */ }
+function scheduleLocalCacheSave(){ /* désactivé en V7.6 SAFE */ 
+  // V7.7.2 SAFE : réparer uniquement les liens certains entre anciennes demandes
+  // transformées et fiches existantes. Aucun contenu métier n'est modifié.
+  try{
+    var linkRepair=repairAllCertainDemandeMarriageLinks();
+    if(linkRepair.repaired>0){
+      // On marque l'état comme modifié afin que l'utilisateur valide explicitement
+      // la réparation dans Firebase avec le bouton Enregistrer.
+      setManualDirty(true);
+      cloudStatus("🟠 "+linkRepair.repaired+" lien(s) mariage réparé(s) à enregistrer");
+    }
+  }catch(repairErr){
+    console.warn("Réparation liens demandes/mariages impossible",repairErr);
+  }
+}
 function saveCache(){
   if(applyingRemoteState) return;
   lastLocalMutationAt=Date.now();
@@ -7041,15 +7055,125 @@ function normalizePortalMarriageSelections(){
   // intégrées uniquement par une action manuelle contrôlée dans la V7.1.
   return false;
 }
+
+function normMatchText(v){
+  return String(v||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");
+}
+function normPhone(v){
+  return String(v||"").replace(/\D/g,"").replace(/^33/,"0");
+}
+function demandeFullName(d){
+  return normMatchText(((d&&d.prenom)||"")+" "+((d&&d.nom)||""));
+}
+function mariageFullName(m){
+  return normMatchText((m&&m.nom)||"");
+}
+function mariageMatchCandidatesForDemande(d){
+  if(!d) return [];
+  var dn=demandeFullName(d);
+  var de=String(d.email||"").trim().toLowerCase();
+  var dt=normPhone(d.tel);
+  var dd=String(d.dateMariage||"").trim();
+
+  return (state.mariages||[]).map(function(m){
+    if(!m) return null;
+
+    var mn=mariageFullName(m);
+    var me=String(m.email||"").trim().toLowerCase();
+    var mt=normPhone(m.tel);
+    var md=String(m.dateMariage||"").trim();
+
+    var score=0, reasons=[];
+
+    if(dd && md && dd===md){ score+=5; reasons.push("date"); }
+    if(de && me && de===me){ score+=7; reasons.push("email"); }
+    if(dt && mt && dt===mt){ score+=7; reasons.push("telephone"); }
+
+    if(dn && mn){
+      if(dn===mn){ score+=6; reasons.push("nom exact"); }
+      else{
+        var dparts=dn.split(" ").filter(Boolean);
+        var mparts=mn.split(" ").filter(Boolean);
+        var common=dparts.filter(function(x){return mparts.indexOf(x)>=0;});
+        if(common.length>=2){ score+=4; reasons.push("nom proche"); }
+        else if(common.length===1 && common[0].length>=5){ score+=2; reasons.push("nom partiel"); }
+      }
+    }
+
+    // Éviter toute réparation automatique sur un simple nom sans date/contact.
+    var strong = (reasons.indexOf("email")>=0 || reasons.indexOf("telephone")>=0 ||
+                 (reasons.indexOf("date")>=0 && (reasons.indexOf("nom exact")>=0 || reasons.indexOf("nom proche")>=0)));
+
+    return strong ? {mariage:m,score:score,reasons:reasons} : null;
+  }).filter(Boolean).sort(function(a,b){return b.score-a.score;});
+}
+function findUniqueMarriageMatchForDemande(d){
+  var list=mariageMatchCandidatesForDemande(d);
+  if(!list.length) return {status:"none",mariage:null,candidates:[]};
+
+  var top=list[0];
+  var second=list[1]||null;
+
+  // Réparation auto uniquement si score solide et non ambigu.
+  if(top.score>=9 && (!second || top.score>=second.score+3)){
+    return {status:"unique",mariage:top.mariage,candidates:list};
+  }
+
+  return {status:"ambiguous",mariage:null,candidates:list};
+}
+function repairDemandeMarriageLinkIfCertain(d){
+  if(!d || d.statut!=="transformee") return {status:"skip"};
+
+  // Déjà reliée correctement
+  if(d.mariageId){
+    var existing=getMariage(d.mariageId);
+    if(existing) return {status:"ok",mariage:existing};
+  }
+
+  // Lien sourceDemandeId déjà présent sur une fiche
+  var sourceMatch=(state.mariages||[]).find(function(m){
+    return m && m.sourceDemandeId && String(m.sourceDemandeId)===String(d.id);
+  });
+  if(sourceMatch){
+    d.mariageId=sourceMatch.id;
+    if(!sourceMatch.sourceDemandeId) sourceMatch.sourceDemandeId=d.id;
+    return {status:"repaired",mariage:sourceMatch,reason:"sourceDemandeId"};
+  }
+
+  var match=findUniqueMarriageMatchForDemande(d);
+  if(match.status==="unique" && match.mariage){
+    d.mariageId=match.mariage.id;
+    if(!match.mariage.sourceDemandeId) match.mariage.sourceDemandeId=d.id;
+    return {status:"repaired",mariage:match.mariage,reason:"correspondance certaine"};
+  }
+
+  return match;
+}
+function repairAllCertainDemandeMarriageLinks(){
+  var repaired=0, ambiguous=0;
+  (state.demandesMariage||[]).forEach(function(d){
+    if(!d || d.statut!=="transformee") return;
+    var r=repairDemandeMarriageLinkIfCertain(d);
+    if(r.status==="repaired") repaired++;
+    else if(r.status==="ambiguous") ambiguous++;
+  });
+  return {repaired:repaired,ambiguous:ambiguous};
+}
 function linkedMariageForDemande(d){
   if(!d) return null;
   if(d.mariageId){
     var byId=getMariage(d.mariageId);
     if(byId) return byId;
   }
-  return (state.mariages||[]).find(function(m){
+  var bySource=(state.mariages||[]).find(function(m){
     return m && m.sourceDemandeId && String(m.sourceDemandeId)===String(d.id);
   })||null;
+  if(bySource) return bySource;
+
+  // V7.7.2 : recherche intelligente non destructive.
+  var r=findUniqueMarriageMatchForDemande(d);
+  return r.status==="unique" ? r.mariage : null;
 }
 function demandeTransformationOrpheline(d){
   return !!(d && d.statut==="transformee" && !linkedMariageForDemande(d));
@@ -7080,7 +7204,12 @@ function viewDemandesMariage(){
     var emptyLabel=filtre==="transformees"?"Aucune demande transformée en mariage":filtre==="sans_suite"?"Aucune demande sans suite ou annulée":"Aucune nouvelle demande";
     return html+'<div class="card empty"><h3>'+emptyLabel+'</h3><p>Les demandes correspondant à ce classement apparaîtront ici automatiquement.</p></div>';
   }
-  html+='<div class="grid">'+list.map(function(d){ var st=d.statut||"nouvelle", orphan=demandeTransformationOrpheline(d); return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">'+(d.clientModificationPending?'<span class="badge" style="background:#fce8e8;color:#9b2335;">🔴 Modification cliente</span>':'')+(orphan?'<span class="badge" style="background:#fff3dc;color:#8b5a00;">⚠️ Transformation incomplète</span>':'<span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span>')+'</div></div>'+(orphan?'<div style="margin:10px 0;padding:9px 11px;border:1px solid #e0b84b;border-radius:9px;background:#fff8e8;"><b>Fiche mariage absente.</b><div class="muted" style="font-size:12px;margin-top:3px;">Cette demande avait été marquée transformée lors d’un ancien enregistrement incomplet. Elle peut être recréée proprement sans supprimer la demande.</div></div>':'')+'<p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><div class="row-actions"><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button><button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>'; }).join('')+'</div>';
+  html+='<div class="grid">'+list.map(function(d){
+    var st=d.statut||"nouvelle", orphan=demandeTransformationOrpheline(d);
+    var matchInfo=orphan?findUniqueMarriageMatchForDemande(d):{status:"none"};
+    var ambiguous=orphan&&matchInfo.status==="ambiguous";
+    return '<div class="card"><div class="flexb"><div><h3 style="margin:0;">'+esc((d.prenom||"")+" "+(d.nom||""))+'</h3><p class="muted" style="margin:4px 0 0;">Mariage : '+frDate(d.dateMariage)+' · '+esc(d.ville||d.lieu||"Lieu à préciser")+'</p></div><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">'+(d.clientModificationPending?'<span class="badge" style="background:#fce8e8;color:#9b2335;">🔴 Modification cliente</span>':'')+(orphan?'<span class="badge" style="background:#fff3dc;color:#8b5a00;">⚠️ '+(ambiguous?'Lien à vérifier':'Transformation incomplète')+'</span>':'<span class="badge">'+esc(DEMANDE_STATUTS[st]||st)+'</span>')+'</div></div>'+(orphan?'<div style="margin:10px 0;padding:9px 11px;border:1px solid #e0b84b;border-radius:9px;background:#fff8e8;"><b>'+(ambiguous?'Correspondance possible à vérifier.':'Fiche mariage absente.')+'</b><div class="muted" style="font-size:12px;margin-top:3px;">'+(ambiguous?'MyBusiness a trouvé plusieurs correspondances possibles et ne rattache rien automatiquement.':'Cette demande avait été marquée transformée lors d’un ancien enregistrement incomplet. Elle peut être recréée proprement sans supprimer la demande.')+'</div></div>':'')+'<p><b>Prestations :</b> '+esc(demandePrestationsText(d))+'</p><p><b>Origine :</b> '+esc(d.canal||"Non renseignée")+'</p><p><b>Rendez-vous téléphonique :</b> '+esc(d.souhaiteRdvTelephonique==="oui"?"Oui — "+([d.rdvDateSouhaitee,d.rdvHeureSouhaitee].filter(Boolean).join(" à ")||"créneau non renseigné"):d.souhaiteRdvTelephonique==="non"?"Non":"Non renseigné")+'</p><div class="row-actions"><button class="btn primary" data-action="dem-open-'+d.id+'">Ouvrir la demande</button><button class="btn danger ghost" data-action="dem-delete-'+d.id+'">Supprimer</button></div></div>';
+  }).join('')+'</div>';
   return html;
 }
 function demandePrestationEntries(d){
