@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.14 SAFE — Aucun changement métier passif au démarrage";
+var APP_VERSION="V7.6.15 SAFE — Copie interne devis mariage";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -8806,6 +8806,113 @@ function markDocSent(kind, doc, mode){
   }
   return doc;
 }
+
+function internalQuoteSubject(doc,m){
+  var nom=String((m&&m.nom)||(doc&&doc.client&&doc.client.nom)||"Cliente").trim();
+  var date=frDate((m&&m.dateMariage)||"")||"date à définir";
+  return "Devis envoyé — "+nom+" — mariage du "+date;
+}
+function htmlField(label,value){
+  value=String(value==null?"":value).trim();
+  if(!value) return "";
+  return '<tr><td style="padding:5px 9px;border-bottom:1px solid #eee;color:#7a6b64;width:180px;vertical-align:top;"><strong>'+esc(label)+'</strong></td><td style="padding:5px 9px;border-bottom:1px solid #eee;white-space:pre-wrap;">'+esc(value)+'</td></tr>';
+}
+function internalQuoteRecapHtml(doc,m,portalOk,portalError){
+  var lines=(doc&&Array.isArray(doc.lignes)?doc.lignes:[]).map(function(l){
+    var q=Math.max(1,Number(l.quantite||l.qte||1)||1);
+    var label=l.description||l.designation||l.label||l.nom||"Prestation";
+    var prix=Number(l.prix||l.prixUnitaire||0)||0;
+    return q+" × "+label+(prix?" — "+euro(q*prix):"");
+  }).join("\n");
+  var mediaCount=(m&&Array.isArray(m.medias)?m.medias:[]).filter(function(md){return md&&md.type==="image";}).length;
+  var total=doc&&doc.montant!=null?doc.montant:totals((doc&&doc.lignes)||[],state.settings.partService).total;
+  var portalText=portalOk?"✅ Devis publié dans l’espace client":"⚠️ Publication espace client non confirmée"+(portalError?" : "+portalError:"");
+  return '<div style="font-family:Arial,Helvetica,sans-serif;color:#382d30;max-width:760px;margin:auto;">'+
+    '<h2 style="color:#6b1f36;margin-bottom:5px;">Archive interne — devis mariage envoyé</h2>'+
+    '<p style="margin-top:0;">Le devis <strong>'+esc((doc&&doc.numero)||"")+'</strong> a été envoyé à <strong>'+esc((doc&&doc.client&&doc.client.email)||"")+'</strong>.</p>'+
+    '<p><strong>'+esc(portalText)+'</strong></p>'+
+    '<h3 style="color:#6b1f36;">Fiche mariage</h3>'+
+    '<table style="border-collapse:collapse;width:100%;font-size:14px;">'+
+      htmlField("Cliente",(m&&m.nom)||(doc&&doc.client&&doc.client.nom)||"")+
+      htmlField("Date du mariage",frDate(m&&m.dateMariage))+
+      htmlField("Date de livraison",frDate(m&&m.dateLivraison))+
+      htmlField("Lieu",m&&m.lieu)+
+      htmlField("Ville",m&&m.ville)+
+      htmlField("Téléphone",(m&&m.tel)||(doc&&doc.client&&doc.client.tel)||"")+
+      htmlField("E-mail",(m&&m.email)||(doc&&doc.client&&doc.client.email)||"")+
+      htmlField("Mode de livraison",m&&m.modeLivraison)+
+      htmlField("Thème / couleurs",(m&&m.theme)||(m&&m.couleurs)||"")+
+      htmlField("Budget",m&&m.budget)+
+      htmlField("Besoins / mémo",m&&m.besoins)+
+      htmlField("Mémo",m&&m.memo)+
+      htmlField("Synthèse",m&&m.synthese)+
+      htmlField("Notes atelier",m&&m.notesAtelier)+
+      htmlField("Créations du devis",lines)+
+      htmlField("Montant du devis",euro(total))+
+      htmlField("Nombre d’inspirations",String(mediaCount))+
+    '</table>'+
+    '<p style="margin-top:18px;color:#7a6b64;font-size:12px;">Le PDF du devis est joint à ce message. Les inspirations disponibles sont également jointes individuellement.</p>'+
+  '</div>';
+}
+async function blobToBase64Content(blob){
+  return await new Promise(function(resolve,reject){
+    var r=new FileReader();
+    r.onload=function(){ resolve(String(r.result||"").split(",")[1]||""); };
+    r.onerror=function(){ reject(r.error||new Error("Lecture fichier impossible")); };
+    r.readAsDataURL(blob);
+  });
+}
+async function internalInspirationAttachments(m){
+  var out=[];
+  if(!m||!Array.isArray(m.medias)) return out;
+  var imgs=m.medias.filter(function(md){return md&&md.type==="image";});
+  for(var i=0;i<imgs.length;i++){
+    var md=imgs[i], url=md.dataUrl||md.url||md.data||"";
+    try{
+      if(!/^https?:\/\//i.test(url) && md.storagePath && storage){
+        url=await storage.ref().child(md.storagePath).getDownloadURL();
+      }
+      if(!/^https?:\/\//i.test(url)) continue;
+      var res=await fetch(url);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      var blob=await res.blob();
+      var b64=await blobToBase64Content(blob);
+      if(!b64) continue;
+      var ext=(blob.type||"image/jpeg").indexOf("png")>=0?".png":((blob.type||"").indexOf("webp")>=0?".webp":".jpg");
+      var base=portalDocSafeName(md.name||("inspiration-"+(i+1))) || ("inspiration-"+(i+1));
+      if(!/\.(jpe?g|png|webp)$/i.test(base)) base+=ext;
+      out.push({name:base,content:b64});
+    }catch(e){
+      console.warn("Inspiration non jointe au mail interne",md&&md.storagePath,e);
+    }
+  }
+  return out;
+}
+async function sendInternalQuoteArchive(doc,pdf64,m,portalOk,portalError){
+  try{
+    var attachments=[{name:docFileName("devis",doc),content:pdf64}];
+    var insp=await internalInspirationAttachments(m);
+    attachments=attachments.concat(insp);
+    var payload={
+      email:"latelierfleursetsens@gmail.com",
+      nom:"L'Atelier Fleurs & Sens",
+      sujet:internalQuoteSubject(doc,m),
+      message:internalQuoteRecapHtml(doc,m,portalOk,portalError),
+      attachment:attachments[0],
+      attachments:attachments
+    };
+    if(attachments.length>1) payload.attachment2=attachments[1];
+    var res=await fetch(MAIL_WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    var txt=await res.text();
+    if(!res.ok) throw new Error(txt||("Erreur HTTP "+res.status));
+    return true;
+  }catch(e){
+    console.error("Copie interne devis mariage impossible",e);
+    toast("Le devis cliente est bien envoyé, mais la copie interne n’a pas pu être envoyée.");
+    return false;
+  }
+}
+
 async function envoyerDocumentEmail(kind, doc){
   if(!doc){ toast("Document introuvable."); return; }
   if(!prepareDocumentContactAndAmount(kind,doc)) return;
@@ -8868,14 +8975,25 @@ async function envoyerDocumentEmail(kind, doc){
     }
 
     var portalMessage="";
+    var portalOk=false, portalError="";
     try{
       await publishDocumentToClientPortal(kind,doc,pdf64);
+      portalOk=true;
       portalMessage=" Le PDF est aussi disponible dans l’espace client.";
     }catch(portalErr){
       console.error("Publication portail impossible",portalErr);
-      doc.portalPublishError=(portalErr&&portalErr.message)||String(portalErr||"Erreur inconnue");
+      portalError=(portalErr&&portalErr.message)||String(portalErr||"Erreur inconnue");
+      doc.portalPublishError=portalError;
       portalMessage=" L’email est bien parti, mais la publication dans l’espace client a échoué : "+doc.portalPublishError;
     }
+
+    if(kind==="devis"){
+      var mariageArchive=findMariageForDoc("devis",doc);
+      if(mariageArchive){
+        await sendInternalQuoteArchive(doc,pdf64,mariageArchive,portalOk,portalError);
+      }
+    }
+
     addEmailHistory(kind, doc, email);
     saveCache();
     try{ await saveCloudNow(); }catch(syncErr){ console.error("Synchronisation après envoi impossible",syncErr); }
