@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.16 SAFE — Archives devis + factures mariage";
+var APP_VERSION="V7.7.0 SAFE — Base Firebase compressée";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -863,6 +863,181 @@ function publishSecureClientSpaces(){
 }
 
 
+
+/* ===================== STOCKAGE FIREBASE COMPRESSE V7.7 ===================== */
+var CLOUD_STORAGE_VERSION=3;
+var CLOUD_MAX_B64_BYTES=850000;
+var cloudLastSignature="";
+var cloudSnapshotSeq=0;
+var cloudMigrationInProgress=false;
+
+function cloudHashString(str){
+  str=String(str||"");
+  var h=2166136261;
+  for(var i=0;i<str.length;i++){
+    h^=str.charCodeAt(i);
+    h=Math.imul(h,16777619);
+  }
+  return (h>>>0).toString(16);
+}
+function cloudRootSignature(d){
+  d=d||{};
+  if(d.dataGzipB64) return "v3:"+String(Number(d.revision||0));
+  if(d.data) return "legacy:"+String(d.data.length)+":"+cloudHashString(d.data);
+  return "empty";
+}
+function bytesToBase64(bytes){
+  var out="", step=0x8000;
+  for(var i=0;i<bytes.length;i+=step){
+    var part=bytes.subarray(i,Math.min(i+step,bytes.length));
+    out+=String.fromCharCode.apply(null,part);
+  }
+  return btoa(out);
+}
+function base64ToBytes(b64){
+  var bin=atob(String(b64||"")), out=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+async function gzipTextToBase64(text){
+  if(typeof CompressionStream==="undefined"){
+    throw new Error("Ce navigateur ne prend pas en charge la compression sécurisée requise par MyBusiness.");
+  }
+  var cs=new CompressionStream("gzip");
+  var stream=new Blob([String(text||"")],{type:"application/json"}).stream().pipeThrough(cs);
+  var buf=await new Response(stream).arrayBuffer();
+  return bytesToBase64(new Uint8Array(buf));
+}
+async function gunzipBase64ToText(b64){
+  if(typeof DecompressionStream==="undefined"){
+    throw new Error("Ce navigateur ne prend pas en charge la décompression sécurisée requise par MyBusiness.");
+  }
+  var ds=new DecompressionStream("gzip");
+  var stream=new Blob([base64ToBytes(b64)]).stream().pipeThrough(ds);
+  return await new Response(stream).text();
+}
+async function encodeCloudState(data){
+  var raw=JSON.stringify(data||{});
+  var compressed=await gzipTextToBase64(raw);
+  if(compressed.length>CLOUD_MAX_B64_BYTES){
+    var e=new Error("BASE_COMPRESSEE_TROP_GRANDE");
+    e.safeStorageTooLarge=true;
+    throw e;
+  }
+  return compressed;
+}
+async function decodeCloudRootData(root){
+  root=root||{};
+  if(root.dataGzipB64){
+    var txt=await gunzipBase64ToText(root.dataGzipB64);
+    return {
+      data:JSON.parse(txt),
+      format:"gzip",
+      revision:Number(root.revision||0),
+      signature:cloudRootSignature(root),
+      legacyRaw:""
+    };
+  }
+  if(root.data){
+    return {
+      data:JSON.parse(root.data),
+      format:"legacy",
+      revision:0,
+      signature:cloudRootSignature(root),
+      legacyRaw:String(root.data)
+    };
+  }
+  return {data:{},format:"empty",revision:0,signature:"empty",legacyRaw:""};
+}
+async function readCloudStateServer(){
+  if(!docRef) throw new Error("Base Firebase non initialisée.");
+  var snap=await docRef.get({source:"server"});
+  if(!snap.exists) return {data:{},format:"empty",revision:0,signature:"empty",legacyRaw:""};
+  return await decodeCloudRootData(snap.data()||{});
+}
+async function migrateLegacyCloud(info){
+  if(!docRef || !info || info.format!=="legacy") return info;
+  var compressed=await encodeCloudState(info.data);
+  var result=await db.runTransaction(function(tx){
+    return tx.get(docRef).then(function(snap){
+      if(!snap.exists) throw new Error("Base Firebase introuvable pendant la migration.");
+      var root=snap.data()||{};
+      if(root.dataGzipB64){
+        return {already:true};
+      }
+      if(String(root.data||"")!==String(info.legacyRaw||"")){
+        var e=new Error("REMOTE_CHANGED_AGAIN");
+        e.safeRetry=true;
+        throw e;
+      }
+      tx.set(docRef,{
+        storageVersion:CLOUD_STORAGE_VERSION,
+        dataEncoding:"gzip-base64",
+        dataGzipB64:compressed,
+        revision:1,
+        migratedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        data:firebase.firestore.FieldValue.delete()
+      },{merge:true});
+      return {already:false,revision:1};
+    });
+  });
+  if(result&&result.already) return await readCloudStateServer();
+  return {
+    data:cloneSafe(info.data),
+    format:"gzip",
+    revision:1,
+    signature:"v3:1",
+    legacyRaw:""
+  };
+}
+async function writeCloudStateTransaction(resolved,remoteInfo){
+  var compressed=await encodeCloudState(resolved);
+  var result=await db.runTransaction(function(tx){
+    return tx.get(docRef).then(function(snap){
+      if(!snap.exists){
+        var e0=new Error("REMOTE_CHANGED_AGAIN"); e0.safeRetry=true; throw e0;
+      }
+      var root=snap.data()||{};
+      var newRevision=1;
+
+      if(remoteInfo&&remoteInfo.format==="gzip"){
+        if(!root.dataGzipB64 || Number(root.revision||0)!==Number(remoteInfo.revision||0)){
+          var e1=new Error("REMOTE_CHANGED_AGAIN"); e1.safeRetry=true; throw e1;
+        }
+        newRevision=Number(remoteInfo.revision||0)+1;
+      }else if(remoteInfo&&remoteInfo.format==="legacy"){
+        if(root.dataGzipB64 || String(root.data||"")!==String(remoteInfo.legacyRaw||"")){
+          var e2=new Error("REMOTE_CHANGED_AGAIN"); e2.safeRetry=true; throw e2;
+        }
+        newRevision=1;
+      }else{
+        if(root.dataGzipB64 || root.data){
+          var e3=new Error("REMOTE_CHANGED_AGAIN"); e3.safeRetry=true; throw e3;
+        }
+      }
+
+      tx.set(docRef,{
+        storageVersion:CLOUD_STORAGE_VERSION,
+        dataEncoding:"gzip-base64",
+        dataGzipB64:compressed,
+        revision:newRevision,
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        data:firebase.firestore.FieldValue.delete()
+      },{merge:true});
+
+      return {revision:newRevision};
+    });
+  });
+  return {
+    data:cloneSafe(resolved),
+    revision:Number(result.revision||1),
+    format:"gzip",
+    signature:"v3:"+String(Number(result.revision||1))
+  };
+}
+/* =================== FIN STOCKAGE FIREBASE COMPRESSE =================== */
+
 function serialize(){ return { settings:state.settings, catalogue:state.catalogue, clients:state.clients, devis:state.devis, factures:state.factures, mariages:state.mariages, demandesMariage:state.demandesMariage, encaissements:state.encaissements, commandes:state.commandes, emails:state.emails, achats:state.achats, ventesSite:state.ventesSite, ateliers:state.ateliers, logo:state.logo, todoList:state.todoList, shoppingList:state.shoppingList, stockItems:state.stockItems, _meta:{savedAt:new Date().toISOString()} }; }
 function serializeCloud(){
   var d=serialize();
@@ -1244,56 +1419,164 @@ function manualSaveNow(){
   captureCurrentRecordBeforeManualSave();
   if(manualSaving) return Promise.resolve(false);
   if(!manualDirty){ toast("Aucune modification à enregistrer."); return Promise.resolve(true); }
-  if(!docRef || !manualSyncReady || !baselineCloud){ toast("La base en ligne n’est pas encore prête. Réessaie dès que l’indicateur est vert."); return Promise.resolve(false); }
-  manualSaving=true; setManualDirty(true); cloudStatus("💾 Vérification puis comparaison avec les autres appareils…");
-  var local,base,remoteCompared,merged;
+  if(!docRef || !manualSyncReady || !baselineCloud){
+    toast("La base en ligne n’est pas encore prête. Réessaie dès que l’indicateur est vert.");
+    return Promise.resolve(false);
+  }
+
+  manualSaving=true;
+  setManualDirty(true);
+  cloudStatus("💾 Vérification puis comparaison avec les autres appareils…");
+
+  var local,base,remoteCompared,remoteInfo,merged;
+
   return ensureCurrentMariageMediaDurable().then(function(){
-    clearPendingMediaFlags(); local=serializeCloud(); base=cloneSafe(baselineCloud);
-    return docRef.get({source:"server"});
-  }).then(function(snap){
-    remoteCompared={}; if(snap.exists&&snap.data()&&snap.data().data) remoteCompared=JSON.parse(snap.data().data);
+    clearPendingMediaFlags();
+    local=serializeCloud();
+    base=cloneSafe(baselineCloud);
+    return readCloudStateServer();
+  }).then(function(info){
+    remoteInfo=info;
+    remoteCompared=cloneSafe(info.data||{});
     merged=mergeCloudData(base,local,remoteCompared);
     if(!merged.conflicts.length) return true;
-    cloudStatus("🟠 Conflit à comparer"); return showSafeConflictResolver(merged.conflicts);
+    cloudStatus("🟠 Conflit à comparer");
+    return showSafeConflictResolver(merged.conflicts);
   }).then(function(ok){
     if(!ok) throw {safeCancelled:true};
     var resolved=resolveConflictPlaceholders(merged.data,merged.conflicts);
-    return db.runTransaction(function(tx){return tx.get(docRef).then(function(snap){
-      var now={}; if(snap.exists&&snap.data()&&snap.data().data) now=JSON.parse(snap.data().data);
-      if(!sameJson(now,remoteCompared)){var e=new Error("REMOTE_CHANGED_AGAIN");e.safeRetry=true;throw e;}
-      tx.set(docRef,{data:JSON.stringify(resolved),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); return resolved;
-    });});
-  }).then(function(mergedData){
-    baselineCloud=cloneSafe(mergedData); applyRemote(mergedData); manualDirty=false; remoteChangedWhileDirty=false; markMarriageBaseline();
+    return writeCloudStateTransaction(resolved,remoteInfo);
+  }).then(function(writeResult){
+    var mergedData=writeResult.data;
+    baselineCloud=cloneSafe(mergedData);
+    cloudLastSignature=writeResult.signature||("v3:"+String(writeResult.revision||0));
+    applyRemote(mergedData);
+    manualDirty=false;
+    remoteChangedWhileDirty=false;
+    markMarriageBaseline();
+
     try{localStorage.removeItem("afs_cache");}catch(e){}
-    pendingMariagesMarkSaved(); cloudStatus("🟢 Enregistré"); setManualDirty(false);
-    publishSecureClientSpaces(); scheduleCalendarPublish(); scheduleQuoteReminderPublish();
-    try{render();}catch(e){} toast("Modifications enregistrées. Les changements des autres appareils ont été conservés."); return true;
+    pendingMariagesMarkSaved();
+    cloudStatus("🟢 Enregistré");
+    setManualDirty(false);
+
+    publishSecureClientSpaces();
+    scheduleCalendarPublish();
+    scheduleQuoteReminderPublish();
+
+    try{render();}catch(e){}
+    toast("Modifications enregistrées. Les changements des autres appareils ont été conservés.");
+    return true;
   }).catch(function(err){
-    if(err&&err.safeCancelled){cloudStatus("🟠 Modifications non enregistrées");return false;}
-    if(err&&err.safeRetry){cloudStatus("🟠 Nouveaux changements détectés");alert("La fiche vient encore d’être modifiée sur un autre appareil. Aucune donnée n’a été écrasée. Clique de nouveau sur Enregistrer pour refaire la comparaison avec la toute dernière version.");}
-    else{cloudStatus("🔴 Enregistrement impossible");toast("Enregistrement impossible : "+(err&&err.message?err.message:"erreur réseau")+". Aucune donnée distante n’a été écrasée.");}
-    console.error(err);return false;
-  }).finally(function(){manualSaving=false;var b=document.getElementById("manualSaveBtn");if(b)b.disabled=false;});
+    if(err&&err.safeCancelled){
+      cloudStatus("🟠 Modifications non enregistrées");
+      return false;
+    }
+    if(err&&err.safeRetry){
+      cloudStatus("🟠 Nouveaux changements détectés");
+      alert("La base a encore été modifiée sur un autre appareil. Aucune donnée n’a été écrasée. Clique de nouveau sur Enregistrer pour comparer avec la toute dernière version.");
+    }else if(err&&err.safeStorageTooLarge){
+      cloudStatus("🔴 Base devenue trop volumineuse");
+      alert("La base compressée approche à nouveau de la limite Firebase. Aucune donnée n’a été écrasée. Une nouvelle évolution du stockage sera nécessaire.");
+    }else{
+      cloudStatus("🔴 Enregistrement impossible");
+      toast("Enregistrement impossible : "+(err&&err.message?err.message:"erreur réseau")+". Aucune donnée distante n’a été écrasée.");
+    }
+    console.error(err);
+    return false;
+  }).finally(function(){
+    manualSaving=false;
+    var b=document.getElementById("manualSaveBtn");
+    if(b)b.disabled=false;
+  });
 }
 function saveCloudNow(){ return manualSaveNow(); }
 function startSync(uidStr){
   docRef=db.collection("bases").doc(uidStr);
+
   docRef.onSnapshot({includeMetadataChanges:true}, function(snap){
     if(snap.metadata.hasPendingWrites) return;
-    if(snap.exists){ var d=snap.data(); if(d&&d.data){ try{
-      var remoteData=JSON.parse(d.data);
-      if(!manualSyncReady){
-        baselineCloud=cloneSafe(remoteData); manualSyncReady=true; applyRemote(remoteData);
-        try{ localStorage.removeItem("afs_pending_mariages"); localStorage.removeItem("afs_portal_requests"); }catch(_e){}
-        setManualDirty(false); schedulePassiveRender();
-      }else if(manualDirty){
-        remoteChangedWhileDirty=true; cloudStatus("🟠 Modifications locales + changement sur un autre appareil");
-      }else{
-        baselineCloud=cloneSafe(remoteData); applyRemote(remoteData); schedulePassiveRender(); cloudStatus("🟢 Base à jour");
+    if(!snap.exists) return;
+
+    var root=snap.data()||{};
+    var incomingSignature=cloudRootSignature(root);
+
+    // Les verrous de sauvegarde Drive modifient le document racine mais pas la base.
+    if(manualSyncReady && incomingSignature===cloudLastSignature) return;
+
+    // Pendant la migration initiale, le snapshot généré par notre propre transaction
+    // est volontairement ignoré. La promesse de migration finalise l'état proprement.
+    if(cloudMigrationInProgress) return;
+
+    // Une vraie nouvelle révision distante ne doit jamais écraser des changements locaux.
+    if(manualSyncReady && manualDirty){
+      if(incomingSignature!==cloudLastSignature){
+        remoteChangedWhileDirty=true;
+        cloudStatus("🟠 Modifications locales + changement sur un autre appareil");
       }
-    }catch(e){console.error(e);} } }
-  }, function(err){ cloudStatus("🔴 Connexion base impossible"); console.error(err); });
+      return;
+    }
+
+    var seq=++cloudSnapshotSeq;
+    cloudStatus("🔄 Chargement de la base…");
+
+    decodeCloudRootData(root).then(function(info){
+      if(seq!==cloudSnapshotSeq) return;
+
+      // Première ouverture sur l'ancien format : lecture, puis migration atomique,
+      // sans aucune modification des données métier.
+      if(!manualSyncReady && info.format==="legacy"){
+        baselineCloud=cloneSafe(info.data);
+        applyRemote(info.data);
+        setManualDirty(false);
+        cloudStatus("🔵 Migration sécurisée de la base Firebase…");
+        cloudMigrationInProgress=true;
+
+        return migrateLegacyCloud(info).then(function(migrated){
+          baselineCloud=cloneSafe(migrated.data);
+          cloudLastSignature=migrated.signature;
+          manualSyncReady=true;
+          cloudMigrationInProgress=false;
+          remoteChangedWhileDirty=false;
+          setManualDirty(false);
+          try{
+            localStorage.removeItem("afs_pending_mariages");
+            localStorage.removeItem("afs_portal_requests");
+          }catch(_e){}
+          schedulePassiveRender();
+          cloudStatus("🟢 Base migrée et à jour");
+          toast("Migration Firebase terminée. La base est maintenant compressée et sécurisée.");
+        }).catch(function(err){
+          cloudMigrationInProgress=false;
+          manualSyncReady=false;
+          cloudStatus("🔴 Migration Firebase impossible");
+          console.error(err);
+          alert("La migration de la base Firebase a échoué. Aucune donnée n’a été supprimée. N’effectue pas de nouvelle saisie avant correction.");
+        });
+      }
+
+      baselineCloud=cloneSafe(info.data);
+      cloudLastSignature=info.signature;
+      manualSyncReady=true;
+      applyRemote(info.data);
+
+      try{
+        localStorage.removeItem("afs_pending_mariages");
+        localStorage.removeItem("afs_portal_requests");
+      }catch(_e){}
+
+      remoteChangedWhileDirty=false;
+      setManualDirty(false);
+      schedulePassiveRender();
+      cloudStatus("🟢 Base à jour");
+    }).catch(function(err){
+      cloudStatus("🔴 Lecture base impossible");
+      console.error(err);
+    });
+  }, function(err){
+    cloudStatus("🔴 Connexion base impossible");
+    console.error(err);
+  });
 }
 function cloudStatus(t){ var el=document.getElementById("cloudStatus"); if(el) el.textContent=t; }
 function downloadJSON(text,name){
@@ -9272,8 +9555,12 @@ async function handleAction(action){
       ui.mariageDetailTab="resume";
       ui.demandeMariageOpen=null;
       saveCache();
-      try{ await saveCloudNow(); }catch(e){
-        // La fiche reste conservée dans le cache local et sera resynchronisée ensuite.
+      var transformSaved=false;
+      try{ transformSaved=await saveCloudNow(); }catch(e){ transformSaved=false; }
+      if(!transformSaved){
+        render();
+        toast("Transformation non enregistrée dans Firebase. La demande n’a pas été marquée transformée. Corrige le problème puis clique sur Enregistrer.");
+        return;
       }
       if(dt.securePortal&&dt.ownerUid){
         try{await db.collection("portalProjects").doc(dt.ownerUid).set({statutAdmin:"transformee",ficheCreee:true,mariageId:created.id,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){console.error("Mise à jour demande portail impossible",e);}
@@ -9701,7 +9988,7 @@ async function handleAction(action){
   if(action.indexOf("wz-delline-")===0){ var lid=action.slice(11); ui.wizard.lignes=ui.wizard.lignes.filter(function(l){return l.id!==lid;}); render(); return; }
   if(action==="wz-adjust-add"){ ui.wizard.ajustements=ui.wizard.ajustements||[]; ui.wizard.ajustements.push({id:uid(),type:"remise_montant",label:"Remise commerciale",valeur:0}); render(); return; }
   if(action.indexOf("wz-adjust-del-")===0){ var waid=action.slice(14); ui.wizard.ajustements=(ui.wizard.ajustements||[]).filter(function(a){return a.id!==waid;}); render(); return; }
-  if(action==="wz-finish"){ finishWizard(); return; }
+  if(action==="wz-finish"){ await finishWizard(); return; }
 
   // devis
   if(action.indexOf("facture-preview-")===0){ var fp=state.factures.find(function(f){return f.id===action.slice(16);}); if(fp){ ui.preview={kind:"facture",doc:fp}; renderModal(); } return; }
@@ -10321,7 +10608,7 @@ function scheduleMariageAutoSync(opts){
 
 function val(id){ var e=document.getElementById(id); return e?e.value:""; }
 
-function finishWizard(){
+async function finishWizard(){
   captureWizardInputs();
   var w=ui.wizard, client;
   var linkedMariage = ui.wizardLinkMariage ? getMariage(ui.wizardLinkMariage) : null;
@@ -10348,16 +10635,28 @@ function finishWizard(){
       var mariageVersion=preserveDocumentMarriageAssociation("devis",original,nd);
       if(mariageVersion){ syncMariageCreationsFromDevis(mariageVersion,nd); mariageAddHistory(mariageVersion,"Nouvelle version "+nd.numero+" créée depuis "+(original.numero||"le devis précédent")+". L’ancienne version est archivée."); }
       original.replacedBy=nd.id; hidePortalDocumentVersion("devis",original.id); state.devis.unshift(nd);
-      ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Nouvelle version "+nd.numero+" créée et définie comme active dans la fiche mariage. L’original est archivé."); return;
+      ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render();
+      var savedVersion=await manualSaveNow();
+      if(savedVersion) toast("Nouvelle version "+nd.numero+" créée, enregistrée et définie comme active dans la fiche mariage. L’original est archivé.");
+      else toast("Nouvelle version créée localement mais non enregistrée dans Firebase.");
+      return;
     }
     Object.assign(original,payload,{changesSummary:changes,updatedAt:new Date().toISOString()});
     var mariageModifie=preserveDocumentMarriageAssociation("devis",original,original);
     if(mariageModifie){ syncMariageCreationsFromDevis(mariageModifie,original); mariageAddHistory(mariageModifie,"Devis "+(original.numero||"")+" modifié et Atelier mis à jour."); }
-    ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+original.numero+" modifié."); return;
+    ui.wizard=null; ui.wizardLinkMariage=null; saveCache(); ui.tab="devis"; render();
+    var savedEdit=await manualSaveNow();
+    if(savedEdit) toast("Devis "+original.numero+" modifié et enregistré.");
+    else toast("Devis modifié localement mais non enregistré dans Firebase.");
+    return;
   }
   var d=Object.assign({ id:uid(), numero:prochainNumero("devis"), statut:"brouillon",version:1,versionArchive:false },payload);
   state.devis.unshift(d); if(linkedMariage){ linkedMariage.devisLie=d.id; syncMariageCreationsFromDevis(linkedMariage,d); mariageAddHistory(linkedMariage,"Devis "+(d.numero||"")+" créé depuis la fiche mariage et défini comme source de l’Atelier."); }
-  ui.wizardLinkMariage=null; ui.wizard=null; saveCache(); ui.tab="devis"; render(); toast("Devis "+d.numero+" créé.");
+  ui.wizardLinkMariage=null; ui.wizard=null; saveCache(); ui.tab="devis"; render();
+  var savedNew=await manualSaveNow();
+  if(savedNew) toast("Devis "+d.numero+" créé et enregistré.");
+  else toast("Devis "+d.numero+" créé localement mais NON enregistré dans Firebase.");
+
 }
 function saveParams(){
   captureParamsForm();
