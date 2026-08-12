@@ -1,7 +1,7 @@
 /* V7.6.1 SAFE — Enregistrement manuel + inspirations durables Firebase Storage. */
 "use strict";
 
-var APP_VERSION="V7.6.15 SAFE — Copie interne devis mariage";
+var APP_VERSION="V7.6.16 SAFE — Archives devis + factures mariage";
 var APP_VERSION_NOTE = "Suivi commercial réservé aux mariages : devis à risque, relances intelligentes J+7/J+14/J+30, messages rapides et mesure des conversions après relance.";
 var APP_CHANGELOG = [
   "V7.6.1 SAFE — Inspirations mariage stockées durablement dans Firebase Storage, vérifiées avant affichage, puis rattachées à la fiche uniquement après clic sur Enregistrer.",
@@ -8913,6 +8913,64 @@ async function sendInternalQuoteArchive(doc,pdf64,m,portalOk,portalError){
   }
 }
 
+
+function invoiceArchiveType(doc){
+  var txt=(((doc&&doc.type)||"")+" "+((doc&&doc.objet)||"")+" "+((doc&&doc.notes)||"")).toLowerCase();
+  if(txt.indexOf("acompte")>=0) return "Acompte";
+  if(txt.indexOf("solde")>=0) return "Solde";
+  if(txt.indexOf("100")>=0 || txt.indexOf("total")>=0) return "100 %";
+  return "Facture";
+}
+function internalInvoiceSubject(doc,m){
+  var nom=String((m&&m.nom)||(doc&&doc.client&&doc.client.nom)||"Cliente").trim();
+  var date=frDate((m&&m.dateMariage)||"")||"date à définir";
+  return "Facture envoyée — "+nom+" — mariage du "+date+" — "+invoiceArchiveType(doc);
+}
+function internalInvoiceRecapHtml(doc,m,portalOk,portalError){
+  var total=doc&&doc.montant!=null?Number(doc.montant||0):totals((doc&&doc.lignes)||[],state.settings.partService).total;
+  var paid=Number((doc&&doc.montantPaye)||(doc&&doc.paye)||0)||0;
+  var reste=Math.max(0,total-paid);
+  var portalText=portalOk?"✅ Facture publiée dans l’espace client":"⚠️ Publication espace client non confirmée"+(portalError?" : "+portalError:"");
+  return '<div style="font-family:Arial,Helvetica,sans-serif;color:#382d30;max-width:760px;margin:auto;">'+
+    '<h2 style="color:#6b1f36;margin-bottom:5px;">Archive interne — facture mariage envoyée</h2>'+
+    '<p style="margin-top:0;">La facture <strong>'+esc((doc&&doc.numero)||"")+'</strong> a été envoyée à <strong>'+esc((doc&&doc.client&&doc.client.email)||"")+'</strong>.</p>'+
+    '<p><strong>'+esc(portalText)+'</strong></p>'+
+    '<table style="border-collapse:collapse;width:100%;font-size:14px;">'+
+      htmlField("Cliente",(m&&m.nom)||(doc&&doc.client&&doc.client.nom)||"")+
+      htmlField("Date du mariage",frDate(m&&m.dateMariage))+
+      htmlField("Type",invoiceArchiveType(doc))+
+      htmlField("N° de facture",doc&&doc.numero)+
+      htmlField("Date de facture",frDate((doc&&doc.date)||""))+
+      htmlField("Échéance",frDate((doc&&doc.echeance)||""))+
+      htmlField("Montant",euro(total))+
+      htmlField("Montant payé",paid?euro(paid):"")+
+      htmlField("Reste à payer",euro(reste))+
+      htmlField("Statut",(doc&&doc.statut)||"")+
+    '</table>'+
+    '<p style="margin-top:18px;color:#7a6b64;font-size:12px;">Le PDF joint est celui envoyé à la cliente et publié dans son espace client.</p>'+
+  '</div>';
+}
+async function sendInternalInvoiceArchive(doc,pdf64,m,portalOk,portalError){
+  try{
+    var attachment={name:docFileName("facture",doc),content:pdf64};
+    var payload={
+      email:"latelierfleursetsens@gmail.com",
+      nom:"L'Atelier Fleurs & Sens",
+      sujet:internalInvoiceSubject(doc,m),
+      message:internalInvoiceRecapHtml(doc,m,portalOk,portalError),
+      attachment:attachment,
+      attachments:[attachment]
+    };
+    var res=await fetch(MAIL_WORKER_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    var txt=await res.text();
+    if(!res.ok) throw new Error(txt||("Erreur HTTP "+res.status));
+    return true;
+  }catch(e){
+    console.error("Copie interne facture mariage impossible",e);
+    toast("La facture cliente est bien envoyée, mais la copie interne n’a pas pu être envoyée.");
+    return false;
+  }
+}
 async function envoyerDocumentEmail(kind, doc){
   if(!doc){ toast("Document introuvable."); return; }
   if(!prepareDocumentContactAndAmount(kind,doc)) return;
@@ -8991,6 +9049,11 @@ async function envoyerDocumentEmail(kind, doc){
       var mariageArchive=findMariageForDoc("devis",doc);
       if(mariageArchive){
         await sendInternalQuoteArchive(doc,pdf64,mariageArchive,portalOk,portalError);
+      }
+    }else if(kind==="facture"){
+      var mariageFactureArchive=findMariageForDoc("facture",doc);
+      if(mariageFactureArchive){
+        await sendInternalInvoiceArchive(doc,pdf64,mariageFactureArchive,portalOk,portalError);
       }
     }
 
