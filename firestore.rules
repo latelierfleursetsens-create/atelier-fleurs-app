@@ -33,7 +33,7 @@ service cloud.firestore {
       allow create: if isOwner(uid)
         && request.resource.data.ownerUid == uid
         && request.resource.data.keys().hasOnly([
-          'ownerUid','email','prenom','nom','tel','dateMariage','ville','lieu',
+          'ownerUid','email','prenom','nom','tel','dateMariage','adressePostale','codePostal','ville','lieu',
           'invites','style','budget','couleurs','prestations','autrePrestation',
           'fleursAimees','fleursRefusees','description','photos','clientStatus',
           'souhaiteRdvTelephonique','rdvDateSouhaitee','rdvHeureSouhaitee',
@@ -46,7 +46,7 @@ service cloud.firestore {
         isOwner(uid)
         && request.resource.data.ownerUid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'email','prenom','nom','tel','dateMariage','ville','lieu','invites',
+          'email','prenom','nom','tel','dateMariage','adressePostale','codePostal','ville','lieu','invites',
           'style','budget','couleurs','prestations','autrePrestation',
           'fleursAimees','fleursRefusees','description','photos','clientStatus',
           'souhaiteRdvTelephonique','rdvDateSouhaitee','rdvHeureSouhaitee',

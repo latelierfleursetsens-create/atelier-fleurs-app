@@ -1,0 +1,7 @@
+CORRECTION MYBUSINESS — COMPATIBILITÉ ESPACE MARIAGE V8 / TIIME
+
+Une seule logique de synchronisation est modifiée :
+publishSecureClientSpaces() continue à envoyer la fiche mariage et le planning vers portalProjects,
+mais ne republie plus automatiquement les devis et factures dans portalDocuments.
+
+Le reste de MyBusiness est conservé.

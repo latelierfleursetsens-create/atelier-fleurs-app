@@ -1,0 +1,10 @@
+MISE À JOUR — 20/08/2026
+
+Compatibilité avec la nouvelle fiche mariage :
+- MyBusiness lit « Adresse postale » et « Code postal » depuis portalProjects ;
+- ces champs apparaissent dans le détail de la demande mariage ;
+- ils sont conservés lors de la transformation de la demande en fiche mariage ;
+- l'adresse complète alimente également l'adresse de la fiche client si celle-ci est vide ;
+- firestore.rules autorise les deux nouveaux champs.
+
+IMPORTANT : les règles Firestore mises à jour doivent être déployées en même temps que cette évolution pour autoriser l'enregistrement des deux nouveaux champs.
